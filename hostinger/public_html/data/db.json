@@ -8,5 +8,15 @@
   "audit": [],
   "circles": [],
   "formulas": [],
-  "ledger": []
+  "ledger": [],
+  "proposals": [],
+  "messages": [],
+  "webauthn": [],
+  "chiasms": [],
+  "mandates": [],
+  "juries": [],
+  "attendance": [],
+  "federations": [],
+  "pulses": [],
+  "mentorships": []
 }
