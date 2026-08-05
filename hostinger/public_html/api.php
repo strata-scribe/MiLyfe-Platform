@@ -777,6 +777,58 @@ if ($path === 'slm/assist' && $method === 'POST') {
         ]);
     }
 
+    if ($action === 'miclass') {
+        json_res(200, [
+            'reply' => "MiClass (U.S. Constitution Bridge): 1. Ownership -> 4th & 5th Amendments (Protection against seizure). 2. Voice/Consent -> 1st Amendment (Freedom of speech & assembly). 3. Sovereignty -> 9th & 10th Amendments (Powers retained by people). 4. Transparent Inspection -> Art. I, Sec. 9 (Public statement of expenditures). 5. Dignity/Recycling -> 8th Amendment & Public Trust Doctrine."
+        ]);
+    }
+
+    if ($action === 'mijourney') {
+        json_res(200, [
+            'reply' => "MiJourney (11-Stage Sovereign Journey Map): You are on Step 5 (Circle Quorum & Assembly). Next Action: RSVP to your first Circle assembly or sponsor a local MIP proposal to advance toward Stewardship (Step 8)."
+        ]);
+    }
+
+    if ($action === 'midiscovery') {
+        json_res(200, [
+            'reply' => "MiDiscovery (Academia R&D & Formal Proof): All Word-to-Math formulas are checked against Lean 4 formal mathematical proofs before execution to guarantee zero deprivation and strict Charter compliance."
+        ]);
+    }
+
+    if ($action === 'mistanding') {
+        json_res(200, [
+            'reply' => "MiStanding (Reputation & Rewards): Standing is an untradable, soulbound civic reputation token earned through service, MIP voting, and assembly attendance. Current progression: Fibonacci Level 3 (50 Standing)."
+        ]);
+    }
+
+    if ($action === 'mistory') {
+        json_res(200, [
+            'reply' => "MiStory (Collective Chronicle): Weaves your personal civic journal into the Circle Tapestry. Your current exteroception privacy is set to Level 1 (Zero-Knowledge anonymized attestation)."
+        ]);
+    }
+
+    if ($action === 'chat') {
+        $lower = strtolower($prompt);
+        if (str_contains($lower, 'constitution') || str_contains($lower, 'law') || str_contains($lower, 'class')) {
+            json_res(200, ['reply' => "MiClass (U.S. Constitution Bridge): 1. Ownership -> 4th/5th Amendments. 2. Voice -> 1st Amendment. 3. Sovereignty -> 9th/10th Amendments. 4. Transparent Inspection -> Art. I Sec. 9. 5. Dignity -> 8th Amendment."]);
+        }
+        if (str_contains($lower, 'journey') || str_contains($lower, 'step') || str_contains($lower, 'map')) {
+            json_res(200, ['reply' => "MiJourney (11-Stage Sovereign Journey Map): You are on Step 5 (Circle Quorum & Assembly). Complete your RSVP and first MIP vote to unlock Step 8 (Stewardship)."]);
+        }
+        if (str_contains($lower, 'research') || str_contains($lower, 'proof') || str_contains($lower, 'discovery') || str_contains($lower, 'academia')) {
+            json_res(200, ['reply' => "MiDiscovery (Academia R&D): Lean 4 automated theorem provers formally verify formula ASTs before any \$MLY is moved on the Sovereign Treasury ledger."]);
+        }
+        if (str_contains($lower, 'standing') || str_contains($lower, 'reputation') || str_contains($lower, 'level') || str_contains($lower, 'reward')) {
+            json_res(200, ['reply' => "MiStanding: Non-extractive soulbound reputation. Earning Level 5 (80 Standing) unlocks proposal sponsorship and mentorship privileges."]);
+        }
+        if (str_contains($lower, 'story') || str_contains($lower, 'chronicle') || str_contains($lower, 'journal')) {
+            json_res(200, ['reply' => "MiStory: Your personal interoception journal stays encrypted in your Vault. Collective achievements are shared with Zero-Knowledge (ZK) attribution."]);
+        }
+        json_res(200, [
+            'reply' => sprintf("SLM Ribosome Co-Pilot [Tab: %s]: I am your on-device civic assistant. Ask me about MiClass, MiJourney, MiDiscovery, MiStanding, MiStory, or how to draft a Word-to-Math formula!", $input['tab'] ?? 'General')
+        ]);
+    }
+
     json_res(200, [
         'reply' => "The 5 Charter principles are: 1. Value/Ownership, 2. Voice/Consent, 3. Action/Sovereignty (No Deprivation), 4. Transparent Inspection, 5. Dignity/Recycling."
     ]);

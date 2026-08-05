@@ -59,6 +59,18 @@
 3. Click **`Draft AST`** -> inspect the Charter compliance badges -> click **`Approve & Sign`**.
 4. Verify the cryptographic signature in the **`Immutable Ledger`** table and confirm balance updates.
 
+### Step 6: Navigate the 5 Sovereign Civic Pillars (MiClass, MiJourney, MiDiscovery, MiStanding, MiStory)
+1. **`MiClass`** (Civic Learning & U.S. Constitution Bridge): Explore how the 5 Charter principles map directly to the U.S. Constitution (4th, 5th, 1st, 9th, and 10th Amendments) and complete self-paced micro-lessons for +5 MiStanding.
+2. **`MiJourney`** (11-Stage Sovereign Citizen Journey Map): Review your progress from First Light (Step 1) through Circle Matching (Step 5) to Elder Archiving (Step 11).
+3. **`MiDiscovery`** (Academia R&D & Formal Verification): Confirm that all Ledger formulas are formally verified against Lean 4 proofs before execution.
+4. **`MiStanding`** (Reputation & Rewards): Track your Fibonacci Level-Up progression (Levels 1, 2, 3, 5, 8, 13...) and non-extractive soulbound W3C badges.
+5. **`MiStory`** (Collective Chronicle & ZK Privacy): Set your exteroception privacy dial (Level 0 Private, Level 1 ZK Anonymized, Level 2 Public) and view the Circle Tapestry.
+
+### Step 7: Toggling the Global SLM Ribosome Chat Co-Pilot
+1. From any tab in the Citizen Dashboard, click the floating **`💬 Ask SLM Ribosome`** button in the bottom-right corner.
+2. The on-device assistant drawer opens, automatically aware of your current tab (`tab`).
+3. Ask it questions about `MiClass`, `MiJourney`, `MiDiscovery`, `MiStanding`, `MiStory`, or ask it to draft Word-to-Math formula proposals!
+
 ---
 
 ## Part III: Ongoing Governance & Antifragility Drills

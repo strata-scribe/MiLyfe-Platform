@@ -256,6 +256,32 @@ async function runTests() {
     assert(rRes.json.archiveHash === sporeArchive.archiveHash, 'Restored hash mismatch');
   });
 
+  await test('14. Integrated SLM Ribosome Co-Pilot & Canonical Pillars (MiClass, MiJourney, MiDiscovery, MiStanding, MiStory)', async () => {
+    const cRes = await req('POST', '/api/slm/assist', { action: 'miclass' }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(cRes.status === 200, `Expected 200, got ${cRes.status}`);
+    assert(cRes.json.reply.includes('U.S. Constitution Bridge') && cRes.json.reply.includes('1st Amendment'), 'Missing MiClass constitutional bridge');
+
+    const jRes = await req('POST', '/api/slm/assist', { action: 'mijourney' }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(jRes.status === 200, `Expected 200, got ${jRes.status}`);
+    assert(jRes.json.reply.includes('11-Stage Sovereign Journey Map'), 'Missing MiJourney explanation');
+
+    const dRes = await req('POST', '/api/slm/assist', { action: 'midiscovery' }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(dRes.status === 200, `Expected 200, got ${dRes.status}`);
+    assert(dRes.json.reply.includes('Lean 4 formal mathematical proofs'), 'Missing MiDiscovery Lean 4 formal verification');
+
+    const sRes = await req('POST', '/api/slm/assist', { action: 'mistanding' }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(sRes.status === 200, `Expected 200, got ${sRes.status}`);
+    assert(sRes.json.reply.includes('soulbound civic reputation token') && sRes.json.reply.includes('Fibonacci'), 'Missing MiStanding explanation');
+
+    const tRes = await req('POST', '/api/slm/assist', { action: 'mistory' }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(tRes.status === 200, `Expected 200, got ${tRes.status}`);
+    assert(tRes.json.reply.includes('Collective Chronicle') && tRes.json.reply.includes('Zero-Knowledge'), 'Missing MiStory ZK attestation explanation');
+
+    const chatRes = await req('POST', '/api/slm/assist', { action: 'chat', prompt: 'Tell me about the constitution bridge', tab: 'class' }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(chatRes.status === 200, `Expected 200, got ${chatRes.status}`);
+    assert(chatRes.json.reply.includes('4th/5th Amendments'), 'Missing context-aware chat response');
+  });
+
   console.log(`\n====================================================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
   console.log(`====================================================================\n`);
