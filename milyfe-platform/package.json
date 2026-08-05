@@ -1,0 +1,12 @@
+{
+  "name": "milyfe-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MiLyfe public landing, secure citizen onboarding, private citizen dashboard, and organizer/admin dashboard.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "PORT=3000 FIRST_USER_ADMIN=true node server.js"
+  },
+  "engines": { "node": ">=18" }
+}
