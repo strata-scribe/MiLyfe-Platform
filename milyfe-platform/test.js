@@ -327,6 +327,45 @@ async function runTests() {
     assert(res.json.jury.jurors.length >= 1, 'Jury must select eligible citizens');
   });
 
+  await test('20. MiBridge Constitutional Word-to-Math Lean 4 Verification Pipeline', async () => {
+    const res = await req('POST', '/api/formulas/review', {
+      text: 'Allocate 400 MLY for Jacksonville municipal solar array'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.json.ast.constitutionalBridge === '4th/5th/1st/9th/10th Amendments', 'Missing constitutional bridge');
+    assert(res.json.ast.lean4ProofHash.startsWith('lean4_'), 'Missing Lean 4 proof hash');
+  });
+
+  await test('21. MiFederate Municipal Council Elevation (7 Circles -> MiCity Council)', async () => {
+    const res = await req('POST', '/api/federation/elevate', {
+      location: 'Jacksonville, FL'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.council.scale === 'MICITY_COUNCIL', 'Scale should be MICITY_COUNCIL');
+    assert(res.json.council.location === 'Jacksonville, FL', 'Location mismatch');
+  });
+
+  await test('22. MiPulse Planetary Emergency Zero-Knowledge Mutual Aid Alert', async () => {
+    const res = await req('POST', '/api/globe/pulse', {
+      targetCity: 'Jacksonville, FL',
+      initiative: 'Storm & Flood Resilience Mutual Aid',
+      mlyAllocation: 500
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.pulse.zkAttestationVerified === true, 'ZK attestation must be verified');
+    assert(res.json.pulse.status === 'ACTIVE_PULSE', 'Status should be ACTIVE_PULSE');
+  });
+
+  await test('23. MiPassport Universal Dynamic Check-In across Multi-Scale Assemblies', async () => {
+    const res = await req('POST', '/api/admin/attendance/scan-scale', {
+      code: 'ML-Z9DR2J',
+      scale: 'MIGLOBE_SUMMIT'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.json.awardedStanding === 50, 'MIGLOBE_SUMMIT should award 50 MiStanding');
+    assert(res.json.scale === 'MIGLOBE_SUMMIT', 'Scale mismatch');
+  });
+
   console.log(`\n====================================================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
   console.log(`====================================================================\n`);

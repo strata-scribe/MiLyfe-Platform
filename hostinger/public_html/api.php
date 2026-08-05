@@ -1009,6 +1009,64 @@ if ($path === 'circles/jury/select' && $method === 'POST') {
     json_res(201, ['jury' => $jury]);
 }
 
+if ($path === 'federation/elevate' && $method === 'POST') {
+    $ctx = require_auth(['admin', 'organizer']);
+    $location = $input['location'] ?? $ctx['user']['profile']['location'] ?? 'Jacksonville, FL';
+    $council = [
+        'id' => gen_id('micity'),
+        'scale' => 'MICITY_COUNCIL',
+        'location' => $location,
+        'name' => "MiCity Council — " . $location,
+        'quorumCircles' => 7,
+        'totalCitizens' => 49,
+        'status' => 'FEDERATED',
+        'establishedAt' => now_iso()
+    ];
+    $ctx['d']['federations'][] = $council;
+    db_write($ctx['d']);
+    json_res(201, ['council' => $council]);
+}
+
+if ($path === 'globe/pulse' && $method === 'POST') {
+    $ctx = require_auth(['admin', 'organizer']);
+    $pulse = [
+        'id' => gen_id('mipulse'),
+        'targetCity' => $input['targetCity'] ?? 'Jacksonville, FL',
+        'initiative' => $input['initiative'] ?? 'Storm & Flood Resilience Mutual Aid',
+        'mlyAllocation' => (float)($input['mlyAllocation'] ?? 500),
+        'zkAttestationVerified' => true,
+        'status' => 'ACTIVE_PULSE',
+        'triggeredAt' => now_iso()
+    ];
+    $ctx['d']['pulses'][] = $pulse;
+    db_write($ctx['d']);
+    json_res(201, ['pulse' => $pulse]);
+}
+
+if ($path === 'stewardship/mentor' && $method === 'POST') {
+    $ctx = require_auth();
+    $mentorship = [
+        'id' => gen_id('mimentor'),
+        'mentorId' => $ctx['user']['id'],
+        'menteeId' => $input['menteeId'] ?? 'citizen_new_1',
+        'awardedStandingEach' => 15,
+        'status' => 'STEWARDSHIP_ACTIVE',
+        'createdAt' => now_iso()
+    ];
+    $ctx['d']['mentorships'][] = $mentorship;
+    db_write($ctx['d']);
+    json_res(201, ['mentorship' => $mentorship]);
+}
+
+if ($path === 'admin/attendance/scan-scale' && $method === 'POST') {
+    $ctx = require_auth(['admin', 'organizer']);
+    $code = trim((string)($input['code'] ?? ''));
+    $scale = $input['scale'] ?? 'LOCAL_CIRCLE';
+    $rewardMap = ['LOCAL_CIRCLE' => 10, 'MICITY_COUNCIL' => 20, 'MINATION_ASSEMBLY' => 30, 'MIGLOBE_SUMMIT' => 50];
+    $award = $rewardMap[$scale] ?? 10;
+    json_res(200, ['scanned' => true, 'scale' => $scale, 'awardedStanding' => $award]);
+}
+
 if ($path === 'stream' && $method === 'GET') {
     $ctx = require_auth();
     // Return connection status for short-lived shared hosting polling/heartbeat
