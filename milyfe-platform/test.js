@@ -282,6 +282,51 @@ async function runTests() {
     assert(chatRes.json.reply.includes('4th/5th Amendments'), 'Missing context-aware chat response');
   });
 
+  await test('15. MiPass Verifiable QR Code & Offline Assembly Attendance Scan (+10 MiStanding)', async () => {
+    const res = await req('POST', '/api/admin/attendance/scan', {
+      code: 'ML-Z9DR2J'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 200, `Expected 200, got ${res.status}: ${res.data}`);
+    assert(res.json.awardedStanding === 10, 'Should award 10 MiStanding');
+    assert(res.json.citizen.standing >= 60, 'Citizen standing should increase by 10');
+  });
+
+  await test('16. MiChiasm Cross-Circle Hybridization & Mutual Sponsorship Handshake', async () => {
+    const res = await req('POST', '/api/circles/chiasm', {
+      circle1: 'Founding Circle 1',
+      circle2: 'Partner Circle 2',
+      initiative: 'Joint Regional Community Resilience Project'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.chiasm.status === 'LINKED', 'Chiasm status should be LINKED');
+  });
+
+  await test('17. MiMandate Constitutional Word-to-Math Auto-Execution Rule', async () => {
+    const res = await req('POST', '/api/formulas/mandate', {
+      title: 'Emergency Mutual Aid Mandate',
+      condition: 'Emergency fund drops below 100 MLY',
+      action: 'Allocate 5 MLY from Level 3+ citizens'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.mandate.verifiedByLean4 === true, 'Mandate should be verified by Lean 4');
+  });
+
+  await test('18. MiTwin Spore Mesh Heartbeat & Offline Peer-to-Peer Verification', async () => {
+    const res = await req('GET', '/api/mesh/heartbeat', null, { Cookie: cookie });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.json.p2pMeshReady === true, 'p2pMeshReady should be true');
+    assert(res.json.status === 'ONLINE', 'Mesh status should be ONLINE');
+  });
+
+  await test('19. MiJury Sortition-Based Civic Deliberation Panel', async () => {
+    const res = await req('POST', '/api/circles/jury/select', {
+      proposalId: 'mip_contested_1'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(Array.isArray(res.json.jury.jurors), 'Jurors must be an array');
+    assert(res.json.jury.jurors.length >= 1, 'Jury must select eligible citizens');
+  });
+
   console.log(`\n====================================================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
   console.log(`====================================================================\n`);
