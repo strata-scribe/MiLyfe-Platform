@@ -851,6 +851,41 @@ if ($path === 'admin/diagnostics' && $method === 'GET') {
     ]);
 }
 
+if ($path === 'admin/spore-backup' && $method === 'GET') {
+    $ctx = require_auth(['admin', 'organizer']);
+    audit($ctx['d'], $ctx['user']['id'], 'spore_archive.exported');
+    db_write($ctx['d']);
+    $payload = json_encode($ctx['d']);
+    $archiveHash = hash('sha256', $payload);
+    $sporeArchive = [
+        '@context' => 'https://milyfe.fun/contexts/MiLyfeSporeArchive_v1.jsonld',
+        'type' => 'MiLyfeSporeArchive_v1',
+        'exportedBy' => $ctx['user']['id'],
+        'exportedAt' => now_iso(),
+        'archiveHash' => $archiveHash,
+        'signature' => hash_hmac('sha256', $archiveHash, $ctx['user']['salt']),
+        'data' => $ctx['d']
+    ];
+    json_res(200, ['sporeArchive' => $sporeArchive]);
+}
+
+if ($path === 'admin/spore-restore' && $method === 'POST') {
+    $ctx = require_auth(['admin']);
+    $sporeArchive = $input['sporeArchive'] ?? null;
+    if (!$sporeArchive || empty($sporeArchive['data']) || empty($sporeArchive['archiveHash'])) {
+        bad_req('Invalid MiLyfeSporeArchive_v1 payload');
+    }
+    $computedHash = hash('sha256', json_encode($sporeArchive['data']));
+    if ($computedHash !== $sporeArchive['archiveHash']) {
+        bad_req('Spore Archive SHA-256 integrity check failed. Archive may be corrupted or tampered.');
+    }
+    $restoredData = $sporeArchive['data'];
+    db_write($restoredData);
+    audit($restoredData, $ctx['user']['id'], 'spore_archive.restored', ['archiveHash' => $computedHash]);
+    db_write($restoredData);
+    json_res(200, ['restored' => true, 'archiveHash' => $computedHash, 'totalUsers' => count($restoredData['users'] ?? [])]);
+}
+
 if ($path === 'stream' && $method === 'GET') {
     $ctx = require_auth();
     // Return connection status for short-lived shared hosting polling/heartbeat

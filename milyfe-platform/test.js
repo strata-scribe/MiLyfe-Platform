@@ -239,6 +239,23 @@ async function runTests() {
     assert(dRes.json.clusters['Jacksonville, FL'] >= 1, 'Missing location cluster for Jacksonville, FL');
   });
 
+  await test('13. Organizer Complete Offline Spore Snapshot Backup & Instant Restore', async () => {
+    const bRes = await req('GET', '/api/admin/spore-backup', null, { Cookie: cookie });
+    assert(bRes.status === 200, `Expected 200, got ${bRes.status}`);
+    const sporeArchive = bRes.json.sporeArchive;
+    assert(sporeArchive.type === 'MiLyfeSporeArchive_v1', 'Spore Archive type mismatch');
+    assert(sporeArchive.archiveHash, 'Missing SHA-256 archiveHash');
+    assert(sporeArchive.signature, 'Missing HMAC signature on Spore Archive');
+    assert((sporeArchive.data.users || []).length >= 1, 'Spore Archive should contain users');
+
+    const rRes = await req('POST', '/api/admin/spore-restore', {
+      sporeArchive
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(rRes.status === 200, `Expected 200, got ${rRes.status}: ${rRes.data}`);
+    assert(rRes.json.restored === true, 'Spore restore failed');
+    assert(rRes.json.archiveHash === sporeArchive.archiveHash, 'Restored hash mismatch');
+  });
+
   console.log(`\n====================================================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
   console.log(`====================================================================\n`);

@@ -594,6 +594,44 @@ async function api(req, res, pathname){
     });
   }
 
+  // Organizer Complete Offline Spore Snapshot Backup & Instant Restore
+  if(pathname === '/api/admin/spore-backup' && req.method === 'GET'){
+    const ctx = requireAuth(req,res,['admin','organizer']); if(!ctx) return;
+    audit(ctx.d, ctx.user.id, 'spore_archive.exported');
+    save(ctx.d);
+    const payload = JSON.stringify(ctx.d);
+    const archiveHash = crypto.createHash('sha256').update(payload).digest('hex');
+    const sporeArchive = {
+      "@context": "https://milyfe.fun/contexts/MiLyfeSporeArchive_v1.jsonld",
+      type: "MiLyfeSporeArchive_v1",
+      exportedBy: ctx.user.id,
+      exportedAt: now(),
+      archiveHash,
+      signature: crypto.createHmac('sha256', ctx.user.salt || 'default_salt').update(archiveHash).digest('hex'),
+      data: ctx.d
+    };
+    return json(res, 200, { sporeArchive });
+  }
+
+  if(pathname === '/api/admin/spore-restore' && req.method === 'POST'){
+    const ctx = requireAuth(req,res,['admin']); if(!ctx) return;
+    const b = await body(req);
+    const sporeArchive = b.sporeArchive;
+    if(!sporeArchive || !sporeArchive.data || !sporeArchive.archiveHash){
+      return bad(res, 'Invalid MiLyfeSporeArchive_v1 payload');
+    }
+    const computedHash = crypto.createHash('sha256').update(JSON.stringify(sporeArchive.data)).digest('hex');
+    if(computedHash !== sporeArchive.archiveHash){
+      return bad(res, 'Spore Archive SHA-256 integrity check failed. Archive may be corrupted or tampered.');
+    }
+    const restoredData = sporeArchive.data;
+    save(restoredData);
+    audit(restoredData, ctx.user.id, 'spore_archive.restored', { archiveHash: computedHash });
+    save(restoredData);
+    broadcastSSE('spore_restored', { restoredAt: now(), archiveHash: computedHash });
+    return json(res, 200, { restored: true, archiveHash: computedHash, totalUsers: (restoredData.users||[]).length });
+  }
+
   return notFound(res);
 }
 

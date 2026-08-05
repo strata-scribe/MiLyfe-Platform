@@ -67,13 +67,17 @@ export class FormulaReviewEngine {
     }
 
     // Verify Charter compliance
-    if (lower.includes('deprive') || lower.includes('deprivation') && !lower.includes('no deprivation')) {
+    if (lower.includes('deprive') || (lower.includes('deprivation') && !lower.includes('no deprivation'))) {
       ast.charterCompliant = false;
       ast.violations.push('violates_no_deprivation');
     }
-    if (ast.amount < 0 || isNaN(ast.amount)) {
+    if (isNaN(ast.amount) || !isFinite(ast.amount) || ast.amount <= 0) {
       ast.charterCompliant = false;
       ast.violations.push('invalid_amount');
+    }
+    if (ast.amount > 1000000) {
+      ast.charterCompliant = false;
+      ast.violations.push('exceeds_max_single_tx_cap');
     }
 
     this.history.push(ast);
