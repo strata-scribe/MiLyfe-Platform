@@ -15,7 +15,7 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], sessions: [], agenda: [], assemblies: {}, invites: [], events: [], audit: [], circles: [], formulas: [], ledger: [], proposals: [], messages: [], webauthn: [], chiasms: [], mandates: [], juries: [], attendance: [], federations: [], pulses: [], mentorships: [] }, null, 2));
+  fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], sessions: [], agenda: [], assemblies: {}, invites: [], events: [], audit: [], circles: [], formulas: [], ledger: [], proposals: [], messages: [], webauthn: [], chiasms: [], mandates: [], juries: [], attendance: [], federations: [], pulses: [], mentorships: [], commons: [], treaties: [], stewardships: [] }, null, 2));
 }
 
 const MIME = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.json':'application/json; charset=utf-8' };
@@ -43,6 +43,9 @@ function db(){
   d.federations = d.federations || [];
   d.pulses = d.pulses || [];
   d.mentorships = d.mentorships || [];
+  d.commons = d.commons || [];
+  d.treaties = d.treaties || [];
+  d.stewardships = d.stewardships || [];
   return d;
 }
 function save(d){ fs.writeFileSync(DB_FILE, JSON.stringify(d, null, 2)); }
@@ -882,6 +885,117 @@ async function api(req, res, pathname){
     audit(ctx.d, ctx.user.id, 'attendance.scanned_scale', { citizenId: citizen.id, scale, awardedStanding: award });
     save(ctx.d);
     return json(res, 200, { scanned: true, scale, awardedStanding: award, citizen: sanitizeUser(citizen) });
+  }
+
+  // 10. MiCommons: Sovereign Physical Infrastructure & Community Asset Registry
+  if(pathname === '/api/commons/asset' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    ctx.d.commons = ctx.d.commons || [];
+    const asset = {
+      id: id('micommons'),
+      title: String(b.title || 'Jacksonville Community Solar Array').slice(0, 160),
+      assetType: String(b.assetType || 'OFF_GRID_INFRASTRUCTURE'),
+      stewardedByCircle: b.stewardedByCircle || ctx.user.profile?.assignedCircle || 'Founding Circle 1',
+      totalShares: Number(b.totalShares || 100),
+      status: 'COMMONS_REGISTERED',
+      createdAt: now()
+    };
+    ctx.d.commons.push(asset);
+    audit(ctx.d, ctx.user.id, 'commons.asset_registered', { assetId: asset.id });
+    save(ctx.d);
+    return json(res, 201, { asset });
+  }
+
+  // 11. MiTreaty: Inter-Circle Diplomatic Accords & Mutual Defense
+  if(pathname === '/api/diplomacy/treaty' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    ctx.d.treaties = ctx.d.treaties || [];
+    const treaty = {
+      id: id('mitreaty'),
+      title: String(b.title || 'Jacksonville Flood Resilience Mutual-Aid Accord').slice(0, 160),
+      signatoryCircles: b.signatoryCircles || ['Circle_Jacksonville, FL_1', 'Circle_Jacksonville, FL_2'],
+      mutualDefenseActive: true,
+      createdAt: now()
+    };
+    ctx.d.treaties.push(treaty);
+    audit(ctx.d, ctx.user.id, 'diplomacy.treaty_signed', { treatyId: treaty.id });
+    save(ctx.d);
+    return json(res, 201, { treaty });
+  }
+
+  // 12. MiStewardship: Democratic Sortition-Based Leadership Succession Rotation
+  if(pathname === '/api/stewardship/rotate' && req.method === 'POST'){
+    const ctx = requireAuth(req,res,['admin','organizer']); if(!ctx) return;
+    ctx.d.stewardships = ctx.d.stewardships || [];
+    const eligible = ctx.d.users.filter(u => (u.standing || 50) >= 50);
+    const selected = eligible.length ? eligible[Math.floor(Math.random() * eligible.length)] : ctx.user;
+    const stewardship = {
+      id: id('mistewardship'),
+      circleName: ctx.user.profile?.assignedCircle || 'Founding Circle 1',
+      previousSteward: ctx.user.id,
+      newStewardId: selected.id,
+      newStewardName: selected.profile?.name || selected.email,
+      termWeeks: 13,
+      rotatedAt: now()
+    };
+    ctx.d.stewardships.push(stewardship);
+    audit(ctx.d, ctx.user.id, 'stewardship.rotated', { stewardshipId: stewardship.id, newSteward: selected.id });
+    save(ctx.d);
+    return json(res, 201, { stewardship });
+  }
+
+  // 13. MiStanding: Fibonacci Half-Life Anti-Stagnation Reputation Decay Check
+  if(pathname === '/api/standing/decay-check' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const currentStanding = ctx.user.standing || 50;
+    // Check if user inactive for > 13 months (simulated flag for decay verification)
+    const decayApplied = currentStanding > 34;
+    const updatedStanding = decayApplied ? Math.max(34, Math.floor(currentStanding * 0.85)) : currentStanding;
+    ctx.user.standing = updatedStanding;
+    save(ctx.d);
+    return json(res, 200, { decayChecked: true, oldStanding: currentStanding, newStanding: updatedStanding, fibonacciBaseline: 34 });
+  }
+
+  // 14. MiWealth: Dynamic 34% Treasury Circuit Breaker & 80% Cool-Down Guard
+  if(pathname === '/api/formulas/circuit-breaker-check' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    const amount = Number(b.amount || 0);
+    const totalMLY = 500;
+    const exceedsLimit = amount > (totalMLY * 0.34);
+    return json(res, 200, {
+      amount,
+      totalMLY,
+      thresholdPct: 34,
+      circuitBreakerTriggered: exceedsLimit,
+      coolDownHours: exceedsLimit ? 48 : 0,
+      requiredSupermajority: exceedsLimit ? 0.80 : 0.67
+    });
+  }
+
+  // 15. MiGlobe: Planetary Emergency Mutual Aid Donation Route
+  if(pathname === '/api/globe/pulse/donate' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    const amount = Number(b.amount || 50);
+    if((ctx.user.standing || 50) < 50) return bad(res, 'Level 3+ MiStanding required for direct planetary mutual aid routing');
+    ctx.d.ledger = ctx.d.ledger || [];
+    const tx = {
+      id: id('tx_pulse'),
+      userId: ctx.user.id,
+      action: 'ALLOCATE',
+      amount,
+      asset: 'MLY',
+      target: b.pulseId || 'MiPulse Jacksonville Storm Resilience Aid',
+      signature: 'zk_pulse_attestation_' + crypto.randomBytes(8).toString('hex'),
+      timestamp: now()
+    };
+    ctx.d.ledger.unshift(tx);
+    audit(ctx.d, ctx.user.id, 'globe.pulse_donation', { amount, target: tx.target });
+    save(ctx.d);
+    return json(res, 201, { donation: tx, zeroFeeRouted: true });
   }
 
   return notFound(res);

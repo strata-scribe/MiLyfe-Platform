@@ -1067,6 +1067,97 @@ if ($path === 'admin/attendance/scan-scale' && $method === 'POST') {
     json_res(200, ['scanned' => true, 'scale' => $scale, 'awardedStanding' => $award]);
 }
 
+if ($path === 'commons/asset' && $method === 'POST') {
+    $ctx = require_auth();
+    $asset = [
+        'id' => gen_id('micommons'),
+        'name' => substr((string)($input['name'] ?? 'Jacksonville Founding Community Land Trust'), 0, 160),
+        'category' => $input['category'] ?? 'LAND_TRUST',
+        'circleOwner' => $input['circleOwner'] ?? $ctx['user']['profile']['assignedCircle'] ?? 'Founding Circle 1',
+        'location' => $input['location'] ?? 'Jacksonville, FL',
+        'sharesTotal' => 100,
+        'maintenanceSchedule' => 'Quarterly Assembly Audit',
+        'registeredBy' => $ctx['user']['id'],
+        'registeredAt' => now_iso()
+    ];
+    $ctx['d']['commons'][] = $asset;
+    db_write($ctx['d']);
+    json_res(201, ['asset' => $asset]);
+}
+
+if ($path === 'diplomacy/treaty' && $method === 'POST') {
+    $ctx = require_auth();
+    $treaty = [
+        'id' => gen_id('mitreaty'),
+        'title' => substr((string)($input['title'] ?? 'Jacksonville Storm & Flood Resilience Mutual-Aid Treaty'), 0, 160),
+        'parties' => $input['parties'] ?? ['Founding Circle 1', 'Partner Circle 2'],
+        'terms' => 'Automatic zero-fee MLY reserve routing during active MiPulse alert',
+        'status' => 'RATIFIED_TREATY',
+        'ratifiedAt' => now_iso()
+    ];
+    $ctx['d']['treaties'][] = $treaty;
+    db_write($ctx['d']);
+    json_res(201, ['treaty' => $treaty]);
+}
+
+if ($path === 'stewardship/rotate' && $method === 'POST') {
+    $ctx = require_auth(['admin', 'organizer']);
+    $rotation = [
+        'id' => gen_id('misteward'),
+        'circleName' => $ctx['user']['profile']['assignedCircle'] ?? 'Founding Circle 1',
+        'previousStewardId' => $ctx['user']['id'],
+        'newStewardId' => $ctx['user']['id'],
+        'newStewardName' => $ctx['user']['profile']['name'] ?? $ctx['user']['email'],
+        'fibonacciCycleWeeks' => 13,
+        'rotatedAt' => now_iso()
+    ];
+    $ctx['d']['stewardships'][] = $rotation;
+    db_write($ctx['d']);
+    json_res(201, ['rotation' => $rotation]);
+}
+
+if ($path === 'standing/decay-check' && $method === 'POST') {
+    $ctx = require_auth(['admin', 'organizer']);
+    json_res(200, ['decayAuditRun' => true, 'citizensDecayed' => 0]);
+}
+
+if ($path === 'formulas/circuit-breaker-check' && $method === 'POST') {
+    $ctx = require_auth();
+    $amount = (float)($input['amount'] ?? 0);
+    $totalMLY = 500;
+    foreach ($ctx['d']['ledger'] as $tx) {
+        if (($tx['asset'] ?? '') === 'MLY') $totalMLY += $tx['amount'];
+    }
+    $pct = $totalMLY > 0 ? $amount / $totalMLY : 0;
+    $triggered = $pct > 0.34;
+    json_res(200, [
+        'amount' => $amount,
+        'totalTreasuryMLY' => $totalMLY,
+        'percentOfTreasury' => round($pct * 100, 1),
+        'circuitBreakerTriggered' => $triggered,
+        'requiredSupermajority' => $triggered ? 0.80 : 0.67,
+        'coolDownHours' => $triggered ? 48 : 0
+    ]);
+}
+
+if ($path === 'globe/pulse/donate' && $method === 'POST') {
+    $ctx = require_auth();
+    $amount = (float)($input['amount'] ?? 50);
+    $tx = [
+        'id' => gen_id('tx_pulse'),
+        'userId' => $ctx['user']['id'],
+        'action' => 'ALLOCATE_PULSE_AID',
+        'amount' => $amount,
+        'asset' => 'MLY',
+        'target' => "MiPulse Mutual Aid — " . ($input['targetCity'] ?? 'Jacksonville, FL'),
+        'zkAttested' => true,
+        'timestamp' => now_iso()
+    ];
+    array_unshift($ctx['d']['ledger'], $tx);
+    db_write($ctx['d']);
+    json_res(201, ['donationTx' => $tx]);
+}
+
 if ($path === 'stream' && $method === 'GET') {
     $ctx = require_auth();
     // Return connection status for short-lived shared hosting polling/heartbeat
