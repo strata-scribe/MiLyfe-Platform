@@ -1,0 +1,31 @@
+# MiLyfe Platform — Apache / LiteSpeed .htaccess for Hostinger Shared / Non-VPS Hosting
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # Route all API calls to PHP backend
+  RewriteRule ^api/(.*)$ api.php?path=$1 [QSA,L]
+</IfModule>
+
+# Prevent directory browsing
+Options -Indexes
+
+# Protect private database and internal data files from web downloads
+<FilesMatch "\.(json|sqlite|db|log)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Security Headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set X-XSS-Protection "1; mode=block"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
