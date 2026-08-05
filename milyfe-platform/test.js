@@ -366,6 +366,54 @@ async function runTests() {
     assert(res.json.scale === 'MIGLOBE_SUMMIT', 'Scale mismatch');
   });
 
+  await test('24. MiCommons Sovereign Physical Infrastructure & Community Asset Registry', async () => {
+    const res = await req('POST', '/api/commons/asset', {
+      title: 'Jacksonville Community Solar Array',
+      assetType: 'OFF_GRID_INFRASTRUCTURE'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.asset.totalShares === 100, 'Asset totalShares should be 100');
+  });
+
+  await test('25. MiTreaty Inter-Circle Diplomatic Accords & Mutual Defense', async () => {
+    const res = await req('POST', '/api/diplomacy/treaty', {
+      title: 'Jacksonville Flood Resilience Mutual-Aid Accord'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.treaty.mutualDefenseActive === true, 'Treaty mutualDefenseActive should be true');
+  });
+
+  await test('26. MiStewardship Democratic Sortition-Based Leadership Succession Rotation', async () => {
+    const res = await req('POST', '/api/stewardship/rotate', {}, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.stewardship.termWeeks === 13, 'Cycle should be 13 weeks');
+  });
+
+  await test('27. MiStanding Fibonacci Half-Life Anti-Stagnation Reputation Decay Check', async () => {
+    const res = await req('POST', '/api/standing/decay-check', {}, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.json.decayChecked === true, 'Decay audit should run');
+  });
+
+  await test('28. MiWealth Dynamic 34% Treasury Circuit Breaker & 80% Cool-Down Guard', async () => {
+    const res = await req('POST', '/api/formulas/circuit-breaker-check', {
+      amount: 400
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.json.circuitBreakerTriggered === true, 'Circuit breaker should trigger');
+    assert(res.json.requiredSupermajority === 0.80, 'Required supermajority should elevate to 80%');
+  });
+
+  await test('29. MiGlobe Planetary Zero-Knowledge Mutual Aid Donation to Active MiPulse', async () => {
+    const res = await req('POST', '/api/globe/pulse/donate', {
+      pulseId: 'mipulse_1',
+      amount: 100,
+      targetCity: 'Jacksonville, FL'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(res.status === 201, `Expected 201, got ${res.status}`);
+    assert(res.json.zeroFeeRouted === true, 'Donation tx must be zero fee routed');
+  });
+
   console.log(`\n====================================================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
   console.log(`====================================================================\n`);
