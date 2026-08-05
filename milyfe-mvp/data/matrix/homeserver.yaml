@@ -1,0 +1,16 @@
+server_name: "milyfe.local"
+pid_file: /data/homeserver.pid
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: true
+    resources:
+      - names: [client, federation]
+        compress: false
+database:
+  name: sqlite3
+  args:
+    database: /data/homeserver.db
+enable_registration: true
+enable_registration_without_verification: true

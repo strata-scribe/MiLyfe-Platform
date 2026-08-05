@@ -1,0 +1,14 @@
+{
+  "name": "milyfe-mvp",
+  "version": "1.0.0",
+  "description": "MiLyfe OS — Vertical-Slice MVP (Genesis Kit) implementing the 7 Lead Optimizations",
+  "type": "module",
+  "scripts": {
+    "slice": "node src/slices/slice.mjs",
+    "test": "node src/slices/test.mjs"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "CC0-1.0"
+}

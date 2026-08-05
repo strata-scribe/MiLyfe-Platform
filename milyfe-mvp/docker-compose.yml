@@ -1,0 +1,54 @@
+# Genesis Kit — 13 Seeds as Services (Docker Compose Blueprint)
+# Implements the 7 Lead Optimizations for local development and self-hosting.
+version: '3.8'
+
+services:
+  # Seed 2: Matrix Synapse (CONNECT 1:1 and Circle 7-13 messaging)
+  matrix:
+    image: matrixdotorg/synapse:latest
+    container_name: milyfe_matrix_synapse
+    restart: unless-stopped
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./data/matrix:/data
+    environment:
+      - SYNAPSE_SERVER_NAME=milyfe.local
+      - SYNAPSE_REPORT_STATS=no
+
+  # Seed 3: Local SLM Inference Service (Ollama / Llama.cpp)
+  slm-ribosome:
+    image: ollama/ollama:latest
+    container_name: milyfe_slm_ribosome
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+
+  # Seed 6: OpenTelemetry Collector (Observability + Safety SLOs)
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: milyfe_otel_collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./src/observability/otel-collector.yaml:/etc/otel-collector.yaml
+
+  # Seed 1: Warm Twin Syncer (Node / SQLite local Vault daemon)
+  warm-twin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: milyfe_warm_twin
+    restart: unless-stopped
+    ports:
+      - "3030:3030"
+    environment:
+      - NODE_ENV=production
+      - PORT=3030
+    depends_on:
+      - matrix
+      - otel-collector

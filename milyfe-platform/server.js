@@ -8,20 +8,33 @@ const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const DATA_DIR = path.join(ROOT, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+const DB_FILE = path.join(DATA_DIR, process.env.DB_FILE || (process.env.NODE_ENV === 'test' ? 'db_test.json' : 'db.json'));
 const COOKIE = 'ml_session';
 const SESSION_DAYS = 7;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], sessions: [], agenda: [], assemblies: {}, invites: [], events: [], audit: [] }, null, 2));
+  fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], sessions: [], agenda: [], assemblies: {}, invites: [], events: [], audit: [], circles: [], formulas: [], ledger: [] }, null, 2));
 }
 
 const MIME = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.json':'application/json; charset=utf-8' };
 const rate = new Map();
+const sseClients = new Set();
+function broadcastSSE(event, payload){
+  const msg = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for(const client of sseClients){
+    try { client.res.write(msg); } catch(e){ sseClients.delete(client); }
+  }
+}
 
-function db(){ return JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); }
+function db(){
+  const d = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+  d.circles = d.circles || [];
+  d.formulas = d.formulas || [];
+  d.ledger = d.ledger || [];
+  return d;
+}
 function save(d){ fs.writeFileSync(DB_FILE, JSON.stringify(d, null, 2)); }
 function id(prefix='id'){ return prefix + '_' + crypto.randomBytes(10).toString('hex'); }
 function now(){ return new Date().toISOString(); }
@@ -178,7 +191,14 @@ async function api(req, res, pathname){
   }
   if(pathname === '/api/dashboard' && req.method === 'GET'){
     const ctx = requireAuth(req,res); if(!ctx) return; const userId = ctx.user.id;
-    return json(res, 200, { user:sanitizeUser(ctx.user), agenda:ctx.d.agenda.filter(a=>a.userId===userId), assembly:ctx.d.assemblies[userId] || {}, invites:ctx.d.invites.filter(i=>i.userId===userId), events:ctx.d.events, missions:missionsFor(ctx.user.profile), missionState:ctx.user.missionState || {} });
+    ctx.d.ledger = ctx.d.ledger || [];
+    const userLedger = ctx.d.ledger.filter(tx => tx.userId === userId);
+    let balanceMLY = 500; let standing = 50;
+    for(const tx of userLedger){
+      if(tx.asset === 'MLY' && (tx.action === 'ALLOCATE' || tx.action === 'TRANSFER')) balanceMLY -= tx.amount;
+      else if(tx.asset === 'STANDING' && (tx.action === 'ALLOCATE' || tx.action === 'TRANSFER')) standing -= tx.amount;
+    }
+    return json(res, 200, { user:sanitizeUser(ctx.user), agenda:ctx.d.agenda.filter(a=>a.userId===userId), assembly:ctx.d.assemblies[userId] || {}, invites:ctx.d.invites.filter(i=>i.userId===userId), events:ctx.d.events, missions:missionsFor(ctx.user.profile), missionState:ctx.user.missionState || {}, balanceMLY, standing, ledger:userLedger });
   }
   if(pathname === '/api/profile' && req.method === 'PUT'){
     const ctx = requireAuth(req,res); if(!ctx) return; const b = await body(req);
@@ -230,7 +250,170 @@ async function api(req, res, pathname){
   if(pathname === '/api/admin/events' && req.method === 'POST'){
     const ctx = requireAuth(req,res,['admin','organizer']); if(!ctx) return; const b = await body(req); if(!b.title) return bad(res,'Title required');
     const event = { id:id('event'), title:String(b.title).slice(0,160), date:String(b.date||''), location:String(b.location||''), notes:String(b.notes||''), createdBy:ctx.user.id, createdAt:now() };
-    ctx.d.events.unshift(event); audit(ctx.d, ctx.user.id, 'event.created'); save(ctx.d); return json(res, 201, { event });
+    ctx.d.events.unshift(event); audit(ctx.d, ctx.user.id, 'event.created'); save(ctx.d);
+    broadcastSSE('event_created', { event });
+    return json(res, 201, { event });
+  }
+  if(pathname === '/api/stream' && req.method === 'GET'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    });
+    res.write(`event: connected\ndata: ${JSON.stringify({ userId: ctx.user.id })}\n\n`);
+    const client = { id: ctx.user.id, res };
+    sseClients.add(client);
+    req.on('close', () => sseClients.delete(client));
+    return;
+  }
+  if(pathname === '/api/formulas/review' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    const text = String(b.text || '').trim();
+    if(!text) return bad(res, 'Formula text required');
+
+    let action = 'PROPOSE';
+    const lower = text.toLowerCase();
+    if(lower.includes('allocate') || lower.includes('spend') || lower.includes('fund')) action = 'ALLOCATE';
+    else if(lower.includes('save') || lower.includes('set aside') || lower.includes('reserve')) action = 'SAVE';
+    else if(lower.includes('transfer') || lower.includes('send') || lower.includes('pay')) action = 'TRANSFER';
+
+    const amountMatch = text.match(/(?:\$|MLY\s*|Standing\s*)?(\d+(?:\.\d+)?)/i);
+    const amount = amountMatch ? Number(amountMatch[1]) : 0;
+    const asset = /standing/i.test(text) ? 'STANDING' : 'MLY';
+    const toMatch = text.match(/(?:to|for)\s+([A-Za-z0-9_\-\s]+)(?:,|$)/i);
+    const target = toMatch ? toMatch[1].trim() : 'Circle Treasury';
+
+    const violations = [];
+    if(amount <= 0 || isNaN(amount)) violations.push('invalid_amount');
+    if((lower.includes('deprive') || lower.includes('deprivation')) && !lower.includes('no deprivation')) violations.push('violates_no_deprivation');
+
+    const ast = {
+      id: id('ast'),
+      userId: ctx.user.id,
+      rawText: text,
+      action,
+      amount,
+      asset,
+      target,
+      charterCompliant: violations.length === 0,
+      violations,
+      reviewed: false,
+      signature: null,
+      createdAt: now()
+    };
+
+    ctx.d.formulas = ctx.d.formulas || [];
+    ctx.d.formulas.push(ast);
+    save(ctx.d);
+    return json(res, 200, { ast });
+  }
+  if(pathname === '/api/formulas/approve' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    ctx.d.formulas = ctx.d.formulas || [];
+    const ast = ctx.d.formulas.find(f => f.id === b.astId && f.userId === ctx.user.id);
+    if(!ast) return notFound(res);
+    if(!ast.charterCompliant) return bad(res, 'Cannot approve non-compliant formula', 400);
+
+    const payload = `${ast.id}:${ast.action}:${ast.amount}:${ast.asset}:${ast.target}:${ctx.user.id}`;
+    const signature = crypto.createHmac('sha256', ctx.user.salt || 'default_salt').update(payload).digest('hex');
+    ast.reviewed = true;
+    ast.signature = signature;
+    ast.approvedAt = now();
+
+    ctx.d.ledger = ctx.d.ledger || [];
+    const tx = {
+      id: id('tx'),
+      astId: ast.id,
+      userId: ctx.user.id,
+      action: ast.action,
+      amount: ast.amount,
+      asset: ast.asset,
+      target: ast.target,
+      signature,
+      timestamp: now()
+    };
+    ctx.d.ledger.unshift(tx);
+    audit(ctx.d, ctx.user.id, 'formula.approved', { txId: tx.id });
+    save(ctx.d);
+
+    broadcastSSE('ledger_update', { userId: ctx.user.id, tx });
+    return json(res, 200, { ast, tx });
+  }
+  if(pathname === '/api/ledger' && req.method === 'GET'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    ctx.d.ledger = ctx.d.ledger || [];
+    const userLedger = ctx.d.ledger.filter(tx => tx.userId === ctx.user.id);
+    let balanceMLY = 500;
+    let standing = 50;
+    for(const tx of userLedger){
+      if(tx.asset === 'MLY' && (tx.action === 'ALLOCATE' || tx.action === 'TRANSFER')){
+        balanceMLY -= tx.amount;
+      } else if(tx.asset === 'STANDING' && (tx.action === 'ALLOCATE' || tx.action === 'TRANSFER')){
+        standing -= tx.amount;
+      }
+    }
+    return json(res, 200, { balanceMLY, standing, ledger: userLedger });
+  }
+  if(pathname === '/api/circles' && req.method === 'GET'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    ctx.d.circles = ctx.d.circles || [];
+    return json(res, 200, { circles: ctx.d.circles });
+  }
+  if(pathname === '/api/circles/match' && req.method === 'POST'){
+    const ctx = requireAuth(req,res,['admin','organizer']); if(!ctx) return;
+    ctx.d.circles = ctx.d.circles || [];
+    const citizens = ctx.d.users.filter(u => u.role === 'citizen');
+    let matchCount = 0;
+    const unassigned = citizens.filter(u => !u.profile?.assignedCircle);
+    const circleSize = 7;
+    for(let i=0; i < unassigned.length; i += circleSize){
+      const group = unassigned.slice(i, i + circleSize);
+      if(group.length >= 1){
+        const circleName = `Circle_${group[0].profile?.location || 'Founding'}_${ctx.d.circles.length + 1}`;
+        const circle = {
+          id: id('circle'),
+          name: circleName,
+          members: group.map(u => u.id),
+          focus: group[0].profile?.focus || 'Governance',
+          createdAt: now()
+        };
+        ctx.d.circles.push(circle);
+        for(const member of group){
+          member.profile = member.profile || {};
+          member.profile.assignedCircle = circleName;
+          member.profile.circleStatus = 'Active Member';
+          member.updatedAt = now();
+        }
+        matchCount++;
+      }
+    }
+    audit(ctx.d, ctx.user.id, 'circle.match_run', { created: matchCount });
+    save(ctx.d);
+    broadcastSSE('circle_matched', { circlesCreated: matchCount });
+    return json(res, 200, { circlesCreated: matchCount, circles: ctx.d.circles });
+  }
+  if(pathname === '/api/export/pod' && req.method === 'GET'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    ctx.d.ledger = ctx.d.ledger || [];
+    ctx.d.formulas = ctx.d.formulas || [];
+    const pod = {
+      "@context": "https://milyfe.local/contexts/SolidPod_v1.jsonld",
+      type: "CitizenPodExport",
+      citizenId: ctx.user.id,
+      email: ctx.user.email,
+      role: ctx.user.role,
+      profile: ctx.user.profile,
+      missions: ctx.user.missionState || {},
+      agenda: ctx.d.agenda.filter(a => a.userId === ctx.user.id),
+      ledger: ctx.d.ledger.filter(tx => tx.userId === ctx.user.id),
+      formulas: ctx.d.formulas.filter(f => f.userId === ctx.user.id),
+      exportedAt: now(),
+      signature: crypto.createHmac('sha256', ctx.user.salt || 'default_salt').update(`${ctx.user.id}:${now()}`).digest('hex')
+    };
+    return json(res, 200, { pod });
   }
   return notFound(res);
 }
