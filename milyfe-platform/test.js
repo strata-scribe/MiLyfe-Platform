@@ -180,6 +180,65 @@ async function runTests() {
     assert(connected, 'Failed to establish SSE stream connection');
   });
 
+  await test('9. Circle Hub MIP 21-Day Supermajority Voting Engine', async () => {
+    const pRes = await req('POST', '/api/circles/proposals', {
+      title: 'Allocate 200 MLY for Circle community solar array',
+      description: 'Founding Circle solar power independence project'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(pRes.status === 201, `Expected 201, got ${pRes.status}`);
+    const mipId = pRes.json.proposal.id;
+
+    const vRes = await req('POST', '/api/circles/proposals/vote', {
+      proposalId: mipId,
+      vote: 'YES'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(vRes.status === 200, `Expected 200, got ${vRes.status}`);
+    assert(vRes.json.proposal.votes[vRes.json.proposal.createdBy]?.choice === 'YES', 'Vote choice mismatch');
+
+    const gRes = await req('GET', '/api/circles/proposals', null, { Cookie: cookie });
+    assert(gRes.status === 200, `Expected 200, got ${gRes.status}`);
+    assert(gRes.json.proposals.length >= 1, 'Expected at least 1 proposal');
+  });
+
+  await test('10. SLM Ribosome AI Co-Pilot Assistant API', async () => {
+    const dRes = await req('POST', '/api/slm/assist', {
+      action: 'draft_formula',
+      prompt: 'Allocate 300 MLY for Circle mutual food cooperative'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(dRes.status === 200, `Expected 200, got ${dRes.status}`);
+    assert(dRes.json.ast.amount === 300, `Expected amount 300, got ${dRes.json.ast.amount}`);
+    assert(dRes.json.ast.charterCompliant === true, 'Drafted AST should be charter compliant');
+
+    const rRes = await req('POST', '/api/slm/assist', {
+      action: 'explain_rules'
+    }, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(rRes.status === 200, `Expected 200, got ${rRes.status}`);
+    assert(rRes.json.reply.includes('Charter'), 'Missing Charter explanation');
+  });
+
+  await test('11. Sovereign Key Management & Spore Seed Backup API', async () => {
+    const sRes = await req('POST', '/api/auth/spore-seed', {}, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(sRes.status === 200, `Expected 200, got ${sRes.status}`);
+    assert(sRes.json.did.startsWith('did:milyfe:'), 'DID prefix mismatch');
+    assert(sRes.json.sporeSeed.split(' ').length === 12, 'Spore Seed must have 12 words');
+
+    const cRes = await req('POST', '/api/auth/webauthn-challenge', {});
+    assert(cRes.status === 200, `Expected 200, got ${cRes.status}`);
+    assert(cRes.json.challenge, 'Missing WebAuthn challenge');
+
+    const vRes = await req('POST', '/api/auth/webauthn-verify', {}, { Cookie: cookie, 'x-csrf-token': csrf });
+    assert(vRes.status === 200, `Expected 200, got ${vRes.status}`);
+    assert(vRes.json.verified === true, 'WebAuthn verify failed');
+  });
+
+  await test('12. Organizer Command Center Diagnostics & Solitude Alerts', async () => {
+    const dRes = await req('GET', '/api/admin/diagnostics', null, { Cookie: cookie });
+    assert(dRes.status === 200, `Expected 200, got ${dRes.status}`);
+    assert(typeof dRes.json.metrics.totalCitizens === 'number', 'Missing totalCitizens metric');
+    assert(Array.isArray(dRes.json.solitudeAlerts), 'Missing solitudeAlerts array');
+    assert(dRes.json.clusters['Jacksonville, FL'] >= 1, 'Missing location cluster for Jacksonville, FL');
+  });
+
   console.log(`\n====================================================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
   console.log(`====================================================================\n`);

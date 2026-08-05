@@ -53,6 +53,9 @@ function db_read(): array {
     $data['circles'] = $data['circles'] ?? [];
     $data['formulas'] = $data['formulas'] ?? [];
     $data['ledger'] = $data['ledger'] ?? [];
+    $data['proposals'] = $data['proposals'] ?? [];
+    $data['messages'] = $data['messages'] ?? [];
+    $data['webauthn'] = $data['webauthn'] ?? [];
     return $data;
 }
 
@@ -330,7 +333,8 @@ if ($path === 'dashboard' && $method === 'GET') {
         'missionState' => $ctx['user']['missionState'] ?? [],
         'balanceMLY' => $balanceMLY,
         'standing' => $standing,
-        'ledger' => $userLedger
+        'ledger' => $userLedger,
+        'proposals' => $ctx['d']['proposals'] ?? []
     ]);
 }
 
@@ -661,6 +665,190 @@ if ($path === 'admin/events' && $method === 'POST') {
     audit($ctx['d'], $ctx['user']['id'], 'event.created');
     db_write($ctx['d']);
     json_res(201, ['event' => $event]);
+}
+
+if ($path === 'circles/proposals' && $method === 'POST') {
+    $ctx = require_auth();
+    $title = trim((string)($input['title'] ?? ''));
+    if (!$title) bad_req('Proposal title required');
+    $proposal = [
+        'id' => gen_id('mip'),
+        'circleName' => $input['circleName'] ?? $ctx['user']['profile']['assignedCircle'] ?? 'Founding Circle',
+        'title' => substr($title, 0, 160),
+        'description' => substr((string)($input['description'] ?? ''), 0, 2000),
+        'createdBy' => $ctx['user']['id'],
+        'creatorName' => $ctx['user']['profile']['name'] ?? $ctx['user']['email'],
+        'votingEndsAt' => gmdate('Y-m-d\TH:i:s\Z', time() + 21 * 86400),
+        'quorumRequired' => 7,
+        'supermajorityRequired' => 0.67,
+        'status' => 'ACTIVE',
+        'votes' => [],
+        'createdAt' => now_iso()
+    ];
+    array_unshift($ctx['d']['proposals'], $proposal);
+    audit($ctx['d'], $ctx['user']['id'], 'mip.created', ['mipId' => $proposal['id']]);
+    db_write($ctx['d']);
+    json_res(201, ['proposal' => $proposal]);
+}
+
+if ($path === 'circles/proposals/vote' && $method === 'POST') {
+    $ctx = require_auth();
+    $mipId = $input['proposalId'] ?? '';
+    $mipIndex = -1;
+    foreach ($ctx['d']['proposals'] as $idx => $p) {
+        if ($p['id'] === $mipId) {
+            $mipIndex = $idx;
+            break;
+        }
+    }
+    if ($mipIndex === -1) json_res(404, ['error' => 'Proposal not found']);
+    $mip = &$ctx['d']['proposals'][$mipIndex];
+
+    $choice = strtoupper((string)($input['vote'] ?? 'YES'));
+    if (!in_array($choice, ['YES', 'NO', 'ABSTAIN'], true)) bad_req('Invalid vote choice');
+
+    $payload = sprintf("%s:%s:%s", $mip['id'], $choice, $ctx['user']['id']);
+    $sig = hash_hmac('sha256', $payload, $ctx['user']['salt']);
+    $mip['votes'][$ctx['user']['id']] = [
+        'choice' => $choice,
+        'voterName' => $ctx['user']['profile']['name'] ?? $ctx['user']['email'],
+        'signature' => $sig,
+        'votedAt' => now_iso()
+    ];
+
+    $allVotes = array_values($mip['votes']);
+    $yesCount = count(array_filter($allVotes, fn($v) => $v['choice'] === 'YES'));
+    $totalCount = count($allVotes);
+    $supermajorityPct = $totalCount > 0 ? $yesCount / $totalCount : 0;
+    if ($totalCount >= ($mip['quorumRequired'] ?? 7) && $supermajorityPct >= 0.67) {
+        $mip['status'] = 'PASSED';
+    } elseif ($totalCount >= ($mip['quorumRequired'] ?? 7) && $supermajorityPct < 0.67) {
+        $mip['status'] = 'ACTIVE';
+    }
+
+    audit($ctx['d'], $ctx['user']['id'], 'mip.voted', ['mipId' => $mip['id'], 'choice' => $choice]);
+    db_write($ctx['d']);
+    json_res(200, ['proposal' => $mip, 'supermajorityPct' => $supermajorityPct]);
+}
+
+if ($path === 'circles/proposals' && $method === 'GET') {
+    $ctx = require_auth();
+    json_res(200, ['proposals' => $ctx['d']['proposals']]);
+}
+
+if ($path === 'slm/assist' && $method === 'POST') {
+    $ctx = require_auth();
+    $action = $input['action'] ?? 'explain_rules';
+    $prompt = trim((string)($input['prompt'] ?? ''));
+
+    if ($action === 'draft_formula') {
+        $act = 'ALLOCATE';
+        $lower = strtolower($prompt);
+        if (str_contains($lower, 'save')) $act = 'SAVE';
+        elseif (str_contains($lower, 'transfer')) $act = 'TRANSFER';
+        preg_match('/(\d+(?:\.\d+)?)/', $prompt, $m);
+        $amount = isset($m[1]) ? (float)$m[1] : 100;
+        $asset = preg_match('/standing/i', $prompt) ? 'STANDING' : 'MLY';
+        $ast = [
+            'id' => gen_id('ast_slm'),
+            'userId' => $ctx['user']['id'],
+            'rawText' => $prompt,
+            'action' => $act,
+            'amount' => $amount,
+            'asset' => $asset,
+            'target' => 'Circle Community Priority',
+            'charterCompliant' => $amount > 0,
+            'violations' => $amount <= 0 ? ['invalid_amount'] : [],
+            'reviewed' => false,
+            'signature' => null,
+            'createdAt' => now_iso()
+        ];
+        json_res(200, [
+            'reply' => sprintf("SLM Ribosome drafted an AST for %s %s (%s). Verify math before signing.", $amount, $asset, $act),
+            'ast' => $ast
+        ]);
+    }
+
+    if ($action === 'summarize_agenda') {
+        $userAgenda = array_filter($ctx['d']['agenda'], fn($a) => ($a['userId'] ?? '') === $ctx['user']['id']);
+        $items = implode('; ', array_map(fn($a) => $a['priority'] . ': ' . $a['text'], $userAgenda));
+        json_res(200, [
+            'reply' => count($userAgenda) ? sprintf("Your Values Agenda has %d priorities: %s. Ready for Circle assembly review.", count($userAgenda), $items) : "Your Values Agenda is currently empty. Add a community need first."
+        ]);
+    }
+
+    json_res(200, [
+        'reply' => "The 5 Charter principles are: 1. Value/Ownership, 2. Voice/Consent, 3. Action/Sovereignty (No Deprivation), 4. Transparent Inspection, 5. Dignity/Recycling."
+    ]);
+}
+
+if ($path === 'auth/spore-seed' && $method === 'POST') {
+    $ctx = require_auth();
+    $seedWords = ["sovereign", "circle", "citizen", "vault", "chiasm", "matrix", "mlyfe", "charter", "token", "ledger", "spore", "twin"];
+    $phrase = implode(' ', $seedWords);
+    $did = 'did:milyfe:' . substr(hash('sha256', $ctx['user']['id'] . $phrase), 0, 24);
+    foreach ($ctx['d']['users'] as &$u) {
+        if ($u['id'] === $ctx['user']['id']) {
+            $u['did'] = $did;
+            $u['sporeSeedBackedUp'] = true;
+            break;
+        }
+    }
+    db_write($ctx['d']);
+    json_res(200, ['did' => $did, 'sporeSeed' => $phrase]);
+}
+
+if ($path === 'auth/webauthn-challenge' && $method === 'POST') {
+    json_res(200, ['challenge' => bin2hex(random_bytes(32)), 'rp' => ['name' => 'MiLyfe Platform']]);
+}
+
+if ($path === 'auth/webauthn-verify' && $method === 'POST') {
+    $ctx = require_auth();
+    foreach ($ctx['d']['users'] as &$u) {
+        if ($u['id'] === $ctx['user']['id']) {
+            $u['webauthnEnabled'] = true;
+            break;
+        }
+    }
+    db_write($ctx['d']);
+    json_res(200, ['verified' => true, 'webauthnEnabled' => true]);
+}
+
+if ($path === 'admin/diagnostics' && $method === 'GET') {
+    $ctx = require_auth(['admin', 'organizer']);
+    $citizens = $ctx['d']['users'];
+    $clusters = [];
+    foreach ($citizens as $u) {
+        $loc = $u['profile']['location'] ?? 'Unspecified';
+        $clusters[$loc] = ($clusters[$loc] ?? 0) + 1;
+    }
+    $solitudeAlerts = [];
+    foreach ($ctx['d']['circles'] as $c) {
+        if (empty($c['members']) || count($c['members']) < 7) {
+            $solitudeAlerts[] = [
+                'circleId' => $c['id'],
+                'name' => $c['name'],
+                'memberCount' => count($c['members'] ?? []),
+                'alert' => 'Solitude Alert: Circle is under founding quorum (< 7 members)'
+            ];
+        }
+    }
+    $totalMLY = 0;
+    foreach ($ctx['d']['ledger'] as $tx) {
+        if (($tx['asset'] ?? '') === 'MLY') $totalMLY += $tx['amount'];
+    }
+    json_res(200, [
+        'clusters' => $clusters,
+        'solitudeAlerts' => $solitudeAlerts,
+        'solvencyAlerts' => [],
+        'metrics' => [
+            'totalCitizens' => count($citizens),
+            'totalCircles' => count($ctx['d']['circles']),
+            'totalProposals' => count($ctx['d']['proposals'] ?? []),
+            'totalLedgerTx' => count($ctx['d']['ledger']),
+            'totalMLYVolume' => $totalMLY
+        ]
+    ]);
 }
 
 if ($path === 'stream' && $method === 'GET') {

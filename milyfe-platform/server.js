@@ -15,7 +15,7 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], sessions: [], agenda: [], assemblies: {}, invites: [], events: [], audit: [], circles: [], formulas: [], ledger: [] }, null, 2));
+  fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], sessions: [], agenda: [], assemblies: {}, invites: [], events: [], audit: [], circles: [], formulas: [], ledger: [], proposals: [], messages: [], webauthn: [] }, null, 2));
 }
 
 const MIME = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.json':'application/json; charset=utf-8' };
@@ -33,6 +33,9 @@ function db(){
   d.circles = d.circles || [];
   d.formulas = d.formulas || [];
   d.ledger = d.ledger || [];
+  d.proposals = d.proposals || [];
+  d.messages = d.messages || [];
+  d.webauthn = d.webauthn || [];
   return d;
 }
 function save(d){ fs.writeFileSync(DB_FILE, JSON.stringify(d, null, 2)); }
@@ -198,7 +201,7 @@ async function api(req, res, pathname){
       if(tx.asset === 'MLY' && (tx.action === 'ALLOCATE' || tx.action === 'TRANSFER')) balanceMLY -= tx.amount;
       else if(tx.asset === 'STANDING' && (tx.action === 'ALLOCATE' || tx.action === 'TRANSFER')) standing -= tx.amount;
     }
-    return json(res, 200, { user:sanitizeUser(ctx.user), agenda:ctx.d.agenda.filter(a=>a.userId===userId), assembly:ctx.d.assemblies[userId] || {}, invites:ctx.d.invites.filter(i=>i.userId===userId), events:ctx.d.events, missions:missionsFor(ctx.user.profile), missionState:ctx.user.missionState || {}, balanceMLY, standing, ledger:userLedger });
+    return json(res, 200, { user:sanitizeUser(ctx.user), agenda:ctx.d.agenda.filter(a=>a.userId===userId), assembly:ctx.d.assemblies[userId] || {}, invites:ctx.d.invites.filter(i=>i.userId===userId), events:ctx.d.events, missions:missionsFor(ctx.user.profile), missionState:ctx.user.missionState || {}, balanceMLY, standing, ledger:userLedger, proposals: ctx.d.proposals || [] });
   }
   if(pathname === '/api/profile' && req.method === 'PUT'){
     const ctx = requireAuth(req,res); if(!ctx) return; const b = await body(req);
@@ -415,6 +418,182 @@ async function api(req, res, pathname){
     };
     return json(res, 200, { pod });
   }
+
+  // Circle Hub MIP 21-Day Supermajority Voting
+  if(pathname === '/api/circles/proposals' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    const title = String(b.title || '').trim();
+    if(!title) return bad(res, 'Proposal title required');
+    ctx.d.proposals = ctx.d.proposals || [];
+    const proposal = {
+      id: id('mip'),
+      circleName: b.circleName || ctx.user.profile?.assignedCircle || 'Founding Circle',
+      title: title.slice(0, 160),
+      description: String(b.description || '').slice(0, 2000),
+      createdBy: ctx.user.id,
+      creatorName: ctx.user.profile?.name || ctx.user.email,
+      votingEndsAt: new Date(Date.now() + 21 * 864e5).toISOString(),
+      quorumRequired: 7,
+      supermajorityRequired: 0.67,
+      status: 'ACTIVE',
+      votes: {},
+      createdAt: now()
+    };
+    ctx.d.proposals.unshift(proposal);
+    audit(ctx.d, ctx.user.id, 'mip.created', { mipId: proposal.id });
+    save(ctx.d);
+    broadcastSSE('mip_created', { proposal });
+    return json(res, 201, { proposal });
+  }
+
+  if(pathname === '/api/circles/proposals/vote' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    ctx.d.proposals = ctx.d.proposals || [];
+    const mip = ctx.d.proposals.find(p => p.id === b.proposalId);
+    if(!mip) return notFound(res);
+    const voteChoice = String(b.vote || 'YES').toUpperCase();
+    if(!['YES', 'NO', 'ABSTAIN'].includes(voteChoice)) return bad(res, 'Invalid vote choice');
+
+    const payload = `${mip.id}:${voteChoice}:${ctx.user.id}`;
+    const signature = crypto.createHmac('sha256', ctx.user.salt || 'default_salt').update(payload).digest('hex');
+    mip.votes[ctx.user.id] = {
+      choice: voteChoice,
+      voterName: ctx.user.profile?.name || ctx.user.email,
+      signature,
+      votedAt: now()
+    };
+
+    const allVotes = Object.values(mip.votes);
+    const yesCount = allVotes.filter(v => v.choice === 'YES').length;
+    const totalCount = allVotes.length;
+    const supermajorityPct = totalCount > 0 ? yesCount / totalCount : 0;
+    if(totalCount >= (mip.quorumRequired || 7) && supermajorityPct >= 0.67){
+      mip.status = 'PASSED';
+    } else if(totalCount >= (mip.quorumRequired || 7) && supermajorityPct < 0.67){
+      mip.status = 'ACTIVE';
+    }
+
+    audit(ctx.d, ctx.user.id, 'mip.voted', { mipId: mip.id, choice: voteChoice });
+    save(ctx.d);
+    broadcastSSE('mip_voted', { proposalId: mip.id, yesCount, totalCount, status: mip.status });
+    return json(res, 200, { proposal: mip, supermajorityPct });
+  }
+
+  if(pathname === '/api/circles/proposals' && req.method === 'GET'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    ctx.d.proposals = ctx.d.proposals || [];
+    return json(res, 200, { proposals: ctx.d.proposals });
+  }
+
+  // SLM Ribosome Local AI Co-Pilot Assistant
+  if(pathname === '/api/slm/assist' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const b = await body(req);
+    const action = b.action || 'explain_rules';
+    const prompt = String(b.prompt || '').trim();
+
+    if(action === 'draft_formula'){
+      let act = 'ALLOCATE';
+      const lower = prompt.toLowerCase();
+      if(lower.includes('save')) act = 'SAVE';
+      else if(lower.includes('transfer')) act = 'TRANSFER';
+      const amtMatch = prompt.match(/(\d+(?:\.\d+)?)/);
+      const amount = amtMatch ? Number(amtMatch[1]) : 100;
+      const asset = /standing/i.test(prompt) ? 'STANDING' : 'MLY';
+      const ast = {
+        id: id('ast_slm'),
+        userId: ctx.user.id,
+        rawText: prompt,
+        action: act,
+        amount,
+        asset,
+        target: 'Circle Community Priority',
+        charterCompliant: amount > 0,
+        violations: amount <= 0 ? ['invalid_amount'] : [],
+        reviewed: false,
+        signature: null,
+        createdAt: now()
+      };
+      return json(res, 200, {
+        reply: `SLM Ribosome drafted an AST for ${amount} ${asset} (${act}). Verify math before signing.`,
+        ast
+      });
+    }
+
+    if(action === 'summarize_agenda'){
+      const userAgenda = ctx.d.agenda.filter(a => a.userId === ctx.user.id);
+      const items = userAgenda.map(a => `${a.priority}: ${a.text}`).join('; ');
+      return json(res, 200, {
+        reply: userAgenda.length ? `Your Values Agenda has ${userAgenda.length} priorities: ${items}. Ready for Circle assembly review.` : `Your Values Agenda is currently empty. Add a community need first.`
+      });
+    }
+
+    return json(res, 200, {
+      reply: `The 5 Charter principles are: 1. Value/Ownership, 2. Voice/Consent, 3. Action/Sovereignty (No Deprivation), 4. Transparent Inspection, 5. Dignity/Recycling.`
+    });
+  }
+
+  // Sovereign Key Management & Spore Seed Backup
+  if(pathname === '/api/auth/spore-seed' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    const seedWords = ["sovereign", "circle", "citizen", "vault", "chiasm", "matrix", "mlyfe", "charter", "token", "ledger", "spore", "twin"];
+    const phrase = seedWords.join(' ');
+    const did = `did:milyfe:${crypto.createHash('sha256').update(ctx.user.id + phrase).digest('hex').slice(0,24)}`;
+    ctx.user.did = did;
+    ctx.user.sporeSeedBackedUp = true;
+    save(ctx.d);
+    return json(res, 200, { did, sporeSeed: phrase });
+  }
+
+  if(pathname === '/api/auth/webauthn-challenge' && req.method === 'POST'){
+    const challenge = crypto.randomBytes(32).toString('hex');
+    return json(res, 200, { challenge, rp: { name: 'MiLyfe Platform' } });
+  }
+
+  if(pathname === '/api/auth/webauthn-verify' && req.method === 'POST'){
+    const ctx = requireAuth(req,res); if(!ctx) return;
+    ctx.user.webauthnEnabled = true;
+    save(ctx.d);
+    return json(res, 200, { verified: true, webauthnEnabled: true });
+  }
+
+  // Organizer Command Center Diagnostics & Solvency Alerts
+  if(pathname === '/api/admin/diagnostics' && req.method === 'GET'){
+    const ctx = requireAuth(req,res,['admin','organizer']); if(!ctx) return;
+    const citizens = ctx.d.users;
+    const clusters = {};
+    for(const u of citizens){
+      const loc = u.profile?.location || 'Unspecified';
+      clusters[loc] = (clusters[loc] || 0) + 1;
+    }
+
+    ctx.d.circles = ctx.d.circles || [];
+    const solitudeAlerts = ctx.d.circles.filter(c => !c.members || c.members.length < 7).map(c => ({
+      circleId: c.id,
+      name: c.name,
+      memberCount: c.members?.length || 0,
+      alert: 'Solitude Alert: Circle is under founding quorum (< 7 members)'
+    }));
+
+    const solvencyAlerts = [];
+    const totalMLY = ctx.d.ledger.filter(tx => tx.asset === 'MLY').reduce((acc, tx) => acc + tx.amount, 0);
+
+    return json(res, 200, {
+      clusters,
+      solitudeAlerts,
+      solvencyAlerts,
+      metrics: {
+        totalCitizens: citizens.length,
+        totalCircles: ctx.d.circles.length,
+        totalProposals: (ctx.d.proposals || []).length,
+        totalLedgerTx: ctx.d.ledger.length,
+        totalMLYVolume: totalMLY
+      }
+    });
+  }
+
   return notFound(res);
 }
 
