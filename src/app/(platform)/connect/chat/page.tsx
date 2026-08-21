@@ -79,7 +79,7 @@ function ChatThreadPage() {
         setParticipants(members);
         // For direct chats, show the other person's name
         if (!conv?.name && members.length === 2) {
-          const other = members.find((m) => m.user_id !== user.id);
+          const other = members.find((m: any) => m.user_id !== user.id);
           if (other?.profiles) {
             setConversationName((other.profiles as any).display_name);
           }
@@ -121,7 +121,7 @@ function ChatThreadPage() {
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
+        (payload: any) => {
           const newMsg = payload.new as ChatMessage;
           setMessages((prev) => {
             // Avoid duplicates

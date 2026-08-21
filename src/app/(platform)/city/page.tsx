@@ -66,7 +66,7 @@ export default function CityPage() {
           .eq('user_id', user.id);
 
         if (upvotes) {
-          setUserUpvotes(new Set(upvotes.map((u) => u.issue_id)));
+          setUserUpvotes(new Set(upvotes.map((u: any) => u.issue_id)));
         }
       }
 
@@ -361,7 +361,7 @@ function EventsTab() {
           .eq('user_id', user.id);
 
         if (userRsvps) {
-          setRsvps(new Set(userRsvps.map((r) => r.event_id)));
+          setRsvps(new Set(userRsvps.map((r: any) => r.event_id)));
         }
       }
 
