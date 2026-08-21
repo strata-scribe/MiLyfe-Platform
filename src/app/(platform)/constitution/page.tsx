@@ -205,3 +205,5 @@ export default function ConstitutionPage() {
     </div>
   );
 }
+
+// Note: Content Policy is available at /constitution/policy
