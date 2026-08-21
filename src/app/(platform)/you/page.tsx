@@ -1,6 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 
 export default function YouPage() {
@@ -35,6 +37,7 @@ export default function YouPage() {
           { href: '/profile', icon: '⚙️', name: 'Profile & Settings', desc: 'Edit info, safety mode, sign out' },
           { href: '/vault', icon: '🔐', name: 'MiVault', desc: 'Documents, credentials, shares' },
           { href: '/connect', icon: '💬', name: 'MiConnect', desc: 'Messages, groups, neighbors' },
+          { href: '/feed', icon: '📝', name: 'Neighborhood Feed', desc: 'Posts, photos, local updates' },
           { href: '/media', icon: '🎬', name: 'MiMedia', desc: 'Your content, channels, playlists' },
           { href: '/guild', icon: '🤝', name: 'MiGuild', desc: 'Peace economy, block keeping' },
           { href: '/notifications', icon: '🔔', name: 'Notifications', desc: 'Alerts, updates, UBI drops' },
@@ -60,15 +63,7 @@ export default function YouPage() {
       {/* Standing */}
       <div className="card">
         <h2 className="text-sm font-medium text-gray-500 mb-2">Community Standing</h2>
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <div className="w-full bg-gray-200 dark:bg-harbor-800 rounded-full h-3">
-              <div className="bg-teal-500 h-3 rounded-full" style={{ width: '50%' }} />
-            </div>
-          </div>
-          <span className="text-sm font-bold text-harbor-800 dark:text-white">Level 2</span>
-        </div>
-        <p className="text-xs text-gray-400 mt-1">Earn standing through participation. Unlocks features at higher levels.</p>
+        <StandingMeter />
       </div>
 
       {/* Admin (if applicable) */}
@@ -80,5 +75,36 @@ export default function YouPage() {
         </div>
       </Link>
     </div>
+  );
+}
+
+function StandingMeter() {
+  const [score, setScore] = useState(0);
+  const { user } = useAppStore();
+  const supabase = createClient();
+
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      const { data } = await supabase.rpc('calculate_standing', { uid: user.id });
+      if (typeof data === 'number') setScore(data);
+    };
+    load();
+  }, [user, supabase]);
+
+  const level = score < 20 ? 1 : score < 40 ? 2 : score < 60 ? 3 : score < 80 ? 4 : 5;
+
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="w-full bg-gray-200 dark:bg-harbor-800 rounded-full h-3">
+            <div className="bg-teal-500 h-3 rounded-full transition-all" style={{ width: `${score}%` }} />
+          </div>
+        </div>
+        <span className="text-sm font-bold text-harbor-800 dark:text-white">Level {level}</span>
+      </div>
+      <p className="text-xs text-gray-400 mt-1">{score}/100 — Report issues, check in, help neighbors, vote, and trade to grow.</p>
+    </>
   );
 }

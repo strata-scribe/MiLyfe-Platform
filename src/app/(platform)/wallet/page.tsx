@@ -147,6 +147,9 @@ export default function WalletPage() {
           <button onClick={() => setView('receive')} className="flex-1 py-2.5 bg-white/20 rounded-xl text-center text-sm font-medium hover:bg-white/30 transition-colors">
             Receive
           </button>
+          <Link href="/wallet/scan" className="flex-1 py-2.5 bg-white/20 rounded-xl text-center text-sm font-medium hover:bg-white/30 transition-colors">
+            Scan
+          </Link>
           <Link href="/wallet/exchange" className="flex-1 py-2.5 bg-white/20 rounded-xl text-center text-sm font-medium hover:bg-white/30 transition-colors">
             Exchange
           </Link>

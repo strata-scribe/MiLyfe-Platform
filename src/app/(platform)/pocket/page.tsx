@@ -55,6 +55,14 @@ export default function PocketPage() {
           <span className="text-[10px] font-bold text-mly-600 bg-mly-50 dark:bg-mly-900/20 px-2 py-0.5 rounded-full">+$15</span>
         </Link>
 
+        <Link href="/rideshare" className="card flex items-center gap-4 hover:scale-[1.02] transition-transform active:scale-[0.98]">
+          <span className="text-2xl w-10 text-center">🚗</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-harbor-800 dark:text-white">Rideshare</p>
+            <p className="text-xs text-gray-500">Offer or request rides, pay with $MLY</p>
+          </div>
+        </Link>
+
         <Link href="/media" className="card flex items-center gap-4 hover:scale-[1.02] transition-transform active:scale-[0.98]">
           <span className="text-2xl w-10 text-center">🎬</span>
           <div className="flex-1">

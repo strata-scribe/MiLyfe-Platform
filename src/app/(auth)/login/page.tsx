@@ -97,6 +97,9 @@ export default function LoginPage() {
             Create your account
           </Link>
         </p>
+        <p className="text-center text-xs text-gray-400 mt-2">
+          <Link href="/forgot-password" className="hover:underline">Forgot password?</Link>
+        </p>
       </div>
     </main>
   );
