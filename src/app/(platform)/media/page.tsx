@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
+import { useMediaStore } from '@/components/media/global-player';
 import { cn } from '@/lib/utils/cn';
 
 type MediaTab = 'feed' | 'music' | 'radio' | 'podcasts' | 'upload';
@@ -53,7 +55,9 @@ export default function MediaPage() {
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const { user } = useAppStore();
+  const { setTrack } = useMediaStore();
   const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => {
     const load = async () => {
@@ -133,6 +137,19 @@ export default function MediaPage() {
   };
 
   const handlePlay = (item: MediaItem) => {
+    if (item.type === 'video') {
+      router.push(`/media/${item.id}`);
+      return;
+    }
+    // Audio: use global player
+    setTrack({
+      id: item.id,
+      title: item.title,
+      artist: (item.profiles as any)?.display_name || 'Unknown',
+      src: item.file_url!,
+      thumbnail: item.thumbnail_url,
+      type: item.type as any,
+    });
     setPlaying(item);
     setIsPlaying(true);
     // Increment play count

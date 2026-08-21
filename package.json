@@ -12,8 +12,10 @@
     "@supabase/ssr": "0.5.1",
     "@supabase/supabase-js": "2.45.4",
     "@types/leaflet": "^1.9.22",
+    "@vidstack/react": "^0.6.15",
     "clsx": "2.1.1",
     "framer-motion": "11.5.4",
+    "hls.js": "^1.7.1",
     "html5-qrcode": "^2.3.8",
     "i18next": "^26.4.0",
     "leaflet": "^1.9.4",
@@ -25,6 +27,7 @@
     "react-i18next": "^17.0.12",
     "react-leaflet": "^5.0.0",
     "react-player": "^3.4.0",
+    "recharts": "^3.10.1",
     "tailwind-merge": "2.5.2",
     "zustand": "4.5.5"
   },

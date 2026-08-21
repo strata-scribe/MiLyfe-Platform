@@ -4,6 +4,7 @@ import { MiButton } from '@/components/mi/mi-button';
 import { MiPanel } from '@/components/mi/mi-panel';
 import { AuthProvider } from '@/components/shell/auth-provider';
 import { AccessibilityProvider } from '@/components/shell/accessibility-provider';
+import { GlobalPlayer } from '@/components/media/global-player';
 
 export default function PlatformLayout({
   children,
@@ -20,6 +21,7 @@ export default function PlatformLayout({
           </main>
           <MiButton />
           <MiPanel />
+          <GlobalPlayer />
           <BottomNav />
         </div>
       </AccessibilityProvider>

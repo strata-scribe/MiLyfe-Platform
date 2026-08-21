@@ -229,9 +229,9 @@ export default function CityPage() {
             </div>
           ) : (
             issues.map((issue) => (
-              <div key={issue.id} className="card flex items-start gap-3">
+              <div key={issue.id} className="card flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-harbor-900 transition-colors">
                 <button
-                  onClick={() => handleUpvote(issue.id)}
+                  onClick={(e) => { e.stopPropagation(); handleUpvote(issue.id); }}
                   className={cn(
                     'flex flex-col items-center gap-0.5 pt-1 transition-all',
                     userUpvotes.has(issue.id) ? 'text-teal-500' : 'text-gray-400'
@@ -246,7 +246,7 @@ export default function CityPage() {
                   </span>
                   <span className="text-sm font-bold">{issue.upvotes}</span>
                 </button>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => router.push(`/city/${issue.id}`)}>
                   <h3 className="text-sm font-medium text-harbor-800 dark:text-white">{issue.title}</h3>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className={cn(
