@@ -63,6 +63,22 @@ export default function PocketPage() {
           </div>
           <span className="text-[10px] font-bold text-teal-600 bg-teal-100 dark:bg-teal-900/30 px-2 py-0.5 rounded-full">New</span>
         </Link>
+
+        <Link href="/business" className="card flex items-center gap-4 hover:scale-[1.02] transition-transform active:scale-[0.98]">
+          <span className="text-2xl w-10 text-center">🏪</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-harbor-800 dark:text-white">Business Hub</p>
+            <p className="text-xs text-gray-500">Register, directory, accept $MLY</p>
+          </div>
+        </Link>
+
+        <Link href="/wallet/exchange" className="card flex items-center gap-4 hover:scale-[1.02] transition-transform active:scale-[0.98]">
+          <span className="text-2xl w-10 text-center">💱</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-harbor-800 dark:text-white">Exchange Board</p>
+            <p className="text-xs text-gray-500">Buy/sell $MLY peer-to-peer. No middleman.</p>
+          </div>
+        </Link>
       </div>
 
       {/* UBI Info */}
