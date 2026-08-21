@@ -65,3 +65,40 @@
     text-wrap: balance;
   }
 }
+
+/* Accessibility: Font Size Modes */
+.text-sm-mode { font-size: 14px; }
+.text-lg-mode { font-size: 18px; }
+.text-xl-mode { font-size: 22px; }
+
+/* Accessibility: Reduced Motion */
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Accessibility: High Contrast */
+.high-contrast {
+  --color-surface: #000000;
+}
+.high-contrast body {
+  @apply bg-black text-white;
+}
+.high-contrast .card {
+  @apply bg-gray-900 border-white/30;
+}
+.high-contrast .btn-primary, .high-contrast .btn-teal {
+  @apply border-2 border-white;
+}
+
+/* Safe area for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
