@@ -1,21 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
 
-type SupportTab = 'help' | 'features' | 'tickets';
+// ─── Types ────────────────────────────────────────────────────────
+type TicketCategory = 'bug' | 'feature' | 'account' | 'dispute' | 'safety' | 'other';
+type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+type FeatureStatus = 'open' | 'planned' | 'building' | 'done';
 
 interface SupportTicket {
   id: string;
   user_id: string;
-  category: string;
+  category: TicketCategory;
   subject: string;
   description: string;
-  status: string;
+  status: TicketStatus;
+  priority: TicketPriority;
   response: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 interface FeatureRequest {
@@ -24,313 +30,575 @@ interface FeatureRequest {
   title: string;
   description: string;
   votes: number;
-  status: string;
+  status: FeatureStatus;
   created_at: string;
 }
 
-const faqItems = [
-  { q: 'How do I earn MLY?', a: 'Complete daily check-ins, report community issues, finish courses, participate in the guild, and maintain habit streaks. You also receive 10 MLY UBI daily for staying active.' },
-  { q: 'How do I send MLY to someone?', a: 'Go to your Wallet, tap "Send", and enter the recipient\'s email or display name along with the amount.' },
-  { q: 'How do I join a guild?', a: 'Go to the Guild page, tap the "Join" tab, select your role and block area, then submit the enrollment form.' },
-  { q: 'What is MiLyfe?', a: 'MiLyfe is a community-powered platform for peace economics, civic engagement, education, and mutual aid. All centered around the $MLY token economy.' },
-  { q: 'How do I report a safety issue?', a: 'Use the "Help" tab below to submit a ticket with category "Safety". For emergencies, always call 911 first.' },
-  { q: 'How do I reset my password?', a: 'Use the "Forgot Password" link on the login screen. You\'ll receive an email to reset it.' },
+interface FeatureVote {
+  request_id: string;
+  user_id: string;
+}
+
+// ─── Constants ────────────────────────────────────────────────────
+const FAQ_ITEMS = [
+  {
+    q: 'How do I earn MLY?',
+    a: 'You earn MLY through various activities: completing tasks in MiDev, posting on MiFeed, referring friends, community service through MiImpact, working gigs in MiJobs, and more. Your city\'s economy determines base earning rates, and your Standing multiplier increases your rewards.',
+  },
+  {
+    q: 'How do I report an issue?',
+    a: 'Use the ticket form below under "Still need help?" to submit a bug report or issue. Select the appropriate category, describe the problem in detail, and our support team will respond within 24-48 hours.',
+  },
+  {
+    q: 'Is my data private?',
+    a: 'Yes. MiLyfe uses end-to-end encryption for sensitive data, your information is never sold to third parties, and you can request full data export or deletion at any time through Settings > Privacy. We comply with GDPR and CCPA regulations.',
+  },
+  {
+    q: 'How does Standing work?',
+    a: 'Standing is your community reputation score (0-100). It increases with positive contributions: helping others, completing commitments, timely payments, and community involvement. Higher Standing unlocks premium features and better MLY earning multipliers.',
+  },
+  {
+    q: 'Can I delete my account?',
+    a: 'Yes. Go to Settings > Account > Delete Account. This will permanently remove your profile, transactions, and associated data after a 30-day grace period. Any MLY balance will be forfeited. Family memberships will be transferred or dissolved.',
+  },
+  {
+    q: 'How do I exchange MLY?',
+    a: 'MLY can be exchanged through MiWallet > Exchange. You can transfer MLY to other users, use it at partner businesses, or convert to external currency (subject to city regulations and minimum balance requirements). Exchange rates are updated daily.',
+  },
 ];
 
+const TICKET_CATEGORIES: { value: TicketCategory; label: string; icon: string }[] = [
+  { value: 'bug', label: 'Bug Report', icon: '🐛' },
+  { value: 'feature', label: 'Feature Request', icon: '💡' },
+  { value: 'account', label: 'Account Issue', icon: '👤' },
+  { value: 'dispute', label: 'Dispute', icon: '⚖️' },
+  { value: 'safety', label: 'Safety Concern', icon: '🛡' },
+  { value: 'other', label: 'Other', icon: '📋' },
+];
+
+const STATUS_STYLES: Record<TicketStatus, { bg: string; text: string }> = {
+  open: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300' },
+  in_progress: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300' },
+  resolved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300' },
+  closed: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400' },
+};
+
+const FEATURE_STATUS_STYLES: Record<FeatureStatus, { bg: string; text: string; label: string }> = {
+  open: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Open' },
+  planned: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Planned' },
+  building: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Building' },
+  done: { bg: 'bg-green-100', text: 'text-green-700', label: 'Done' },
+};
+
+const tabs = ['Help', 'Features', 'My Tickets'] as const;
+type Tab = typeof tabs[number];
+
+// ─── Main Component ────────────────────────────────────────────────
 export default function SupportPage() {
-  const [tab, setTab] = useState<SupportTab>('help');
-  const [tickets, setTickets] = useState<SupportTicket[]>([]);
-  const [features, setFeatures] = useState<FeatureRequest[]>([]);
-  const [userVotes, setUserVotes] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Ticket form
-  const [ticketCategory, setTicketCategory] = useState('bug');
-  const [ticketSubject, setTicketSubject] = useState('');
-  const [ticketDesc, setTicketDesc] = useState('');
-  const [submittingTicket, setSubmittingTicket] = useState(false);
-  const [ticketSuccess, setTicketSuccess] = useState(false);
-
-  // Feature request form
-  const [featureTitle, setFeatureTitle] = useState('');
-  const [featureDesc, setFeatureDesc] = useState('');
-  const [submittingFeature, setSubmittingFeature] = useState(false);
-  const [showFeatureForm, setShowFeatureForm] = useState(false);
-
-  // FAQ expansion
-  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
-
   const { user } = useAppStore();
   const supabase = createClient();
 
-  useEffect(() => {
+  const [activeTab, setActiveTab] = useState<Tab>('Help');
+  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [featureRequests, setFeatureRequests] = useState<FeatureRequest[]>([]);
+  const [userVotes, setUserVotes] = useState<Set<string>>(new Set());
+
+  const fetchAll = useCallback(async () => {
     if (!user) return;
-    const load = async () => {
-      // User's tickets
-      const { data: ticketData } = await supabase
-        .from('support_tickets')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      if (ticketData) setTickets(ticketData);
+    setLoading(true);
+    try {
+      const [ticketsRes, featuresRes, votesRes] = await Promise.all([
+        supabase.from('support_tickets').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('feature_requests').select('*').order('votes', { ascending: false }),
+        supabase.from('feature_votes').select('request_id').eq('user_id', user.id),
+      ]);
 
-      // Feature requests
-      const { data: featureData } = await supabase
-        .from('feature_requests')
-        .select('*')
-        .order('votes', { ascending: false })
-        .limit(30);
-      if (featureData) setFeatures(featureData);
-
-      // User's votes
-      const { data: voteData } = await supabase
-        .from('feature_votes')
-        .select('feature_id')
-        .eq('user_id', user.id);
-      if (voteData) setUserVotes(voteData.map((v: any) => v.feature_id));
-
+      if (ticketsRes.data) setTickets(ticketsRes.data);
+      if (featuresRes.data) setFeatureRequests(featuresRes.data);
+      if (votesRes.data) setUserVotes(new Set(votesRes.data.map((v: any) => v.request_id)));
+    } catch (err) {
+      console.error('Support fetch error:', err);
+    } finally {
       setLoading(false);
-    };
-    load();
+    }
   }, [user]);
 
-  const submitTicket = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setSubmittingTicket(true);
-    setTicketSuccess(false);
-    const { data } = await supabase.from('support_tickets').insert({
-      user_id: user.id,
-      category: ticketCategory,
-      subject: ticketSubject.trim(),
-      description: ticketDesc.trim(),
-      status: 'open',
-    }).select().single();
-    if (data) {
-      setTickets(prev => [data, ...prev]);
-      setTicketSuccess(true);
-      setTicketSubject('');
-      setTicketDesc('');
-    }
-    setSubmittingTicket(false);
-  };
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const submitFeature = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setSubmittingFeature(true);
-    const { data } = await supabase.from('feature_requests').insert({
-      user_id: user.id,
-      title: featureTitle.trim(),
-      description: featureDesc.trim(),
-      votes: 1,
-      status: 'open',
-    }).select().single();
-    if (data) {
-      // Auto-vote for your own request
-      await supabase.from('feature_votes').insert({ user_id: user.id, feature_id: data.id });
-      setFeatures(prev => [data, ...prev]);
-      setUserVotes(prev => [...prev, data.id]);
-      setShowFeatureForm(false);
-      setFeatureTitle('');
-      setFeatureDesc('');
-    }
-    setSubmittingFeature(false);
-  };
-
-  const toggleVote = async (featureId: string) => {
-    if (!user) return;
-    const hasVoted = userVotes.includes(featureId);
-
-    if (hasVoted) {
-      await supabase.from('feature_votes').delete().eq('user_id', user.id).eq('feature_id', featureId);
-      setUserVotes(prev => prev.filter(id => id !== featureId));
-      setFeatures(prev => prev.map(f => f.id === featureId ? { ...f, votes: f.votes - 1 } : f));
-    } else {
-      await supabase.from('feature_votes').insert({ user_id: user.id, feature_id: featureId });
-      setUserVotes(prev => [...prev, featureId]);
-      setFeatures(prev => prev.map(f => f.id === featureId ? { ...f, votes: f.votes + 1 } : f));
-    }
-  };
-
-  const statusColors: Record<string, string> = {
-    open: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    in_progress: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-    resolved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    planned: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  };
-
-  if (loading) return <div className="space-y-4 animate-slide-up">{[1,2,3].map(i => <div key={i} className="card skeleton h-24" />)}</div>;
-
-  return (
-    <div className="space-y-4 animate-slide-up">
-      <div>
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">Support</h1>
-        <p className="text-xs text-gray-500">Get help, request features, track your tickets.</p>
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="card p-8 text-center animate-slide-up">
+          <div className="text-4xl mb-4">💬</div>
+          <h2 className="text-xl font-bold mb-2">Support</h2>
+          <p className="text-gray-500">Sign in to access help and submit requests.</p>
+        </div>
       </div>
+    );
+  }
 
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-        {([
-          { key: 'help', label: '❓ Help' },
-          { key: 'features', label: '💡 Features' },
-          { key: 'tickets', label: '🎫 My Tickets' },
-        ] as { key: SupportTab; label: string }[]).map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={cn('px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all', tab === t.key ? 'bg-harbor-800 text-white dark:bg-teal-500' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600 dark:text-gray-300')}>
-            {t.label}
-          </button>
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto p-4 space-y-6">
+        <div className="skeleton h-8 w-32 rounded" />
+        <div className="skeleton h-10 w-full rounded-xl" />
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="card p-5 space-y-3">
+            <div className="skeleton h-5 w-3/4 rounded" />
+            <div className="skeleton h-3 w-1/2 rounded" />
+          </div>
         ))}
       </div>
+    );
+  }
 
-      {/* Help */}
-      {tab === 'help' && (
-        <div className="space-y-4">
-          {/* FAQ */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-500">Quick Answers</p>
-            {faqItems.map((faq, i) => (
-              <div key={i} className="card !py-3">
-                <button onClick={() => setExpandedFaq(expandedFaq === i ? null : i)} className="w-full text-left flex items-center justify-between">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white">{faq.q}</p>
-                  <span className="text-gray-400 text-xs">{expandedFaq === i ? '▼' : '▶'}</span>
-                </button>
-                {expandedFaq === i && (
-                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-2 leading-relaxed">{faq.a}</p>
-                )}
-              </div>
-            ))}
-          </div>
+  return (
+    <div className="max-w-5xl mx-auto p-4 pb-24 space-y-6">
+      {/* Header */}
+      <header className="animate-slide-up">
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+          Support
+        </h1>
+        <p className="text-gray-500 mt-1">We're here to help</p>
+      </header>
 
-          {/* Submit ticket form */}
-          <form onSubmit={submitTicket} className="card space-y-3">
-            <p className="text-sm font-bold text-harbor-800 dark:text-white">Submit a Ticket</p>
-            {ticketSuccess && <p className="text-xs text-teal-500 font-medium">Ticket submitted! We&apos;ll get back to you soon.</p>}
-            <select
-              value={ticketCategory}
-              onChange={e => setTicketCategory(e.target.value)}
-              className="input-field text-sm"
-            >
-              <option value="bug">Bug Report</option>
-              <option value="feature">Feature Request</option>
-              <option value="account">Account Issue</option>
-              <option value="dispute">Dispute</option>
-              <option value="safety">Safety Concern</option>
-              <option value="other">Other</option>
-            </select>
-            <input
-              type="text"
-              value={ticketSubject}
-              onChange={e => setTicketSubject(e.target.value)}
-              className="input-field text-sm"
-              placeholder="Subject"
-              required
-            />
-            <textarea
-              value={ticketDesc}
-              onChange={e => setTicketDesc(e.target.value)}
-              className="input-field text-sm min-h-[80px]"
-              placeholder="Describe your issue or question..."
-              required
-            />
-            <button type="submit" disabled={submittingTicket} className="btn-primary w-full text-sm disabled:opacity-50">
-              {submittingTicket ? 'Submitting...' : 'Submit Ticket'}
-            </button>
-          </form>
-        </div>
-      )}
+      {/* Tabs */}
+      <nav className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 animate-slide-up">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              'flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200',
+              activeTab === tab
+                ? 'bg-white dark:bg-gray-700 text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </nav>
 
-      {/* Feature Requests */}
-      {tab === 'features' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Community Requests</p>
-            <button onClick={() => setShowFeatureForm(!showFeatureForm)} className="text-xs text-teal-500 font-medium">
-              {showFeatureForm ? 'Cancel' : '+ New Request'}
-            </button>
-          </div>
+      {/* Content */}
+      <div className="animate-slide-up">
+        {activeTab === 'Help' && (
+          <HelpView userId={user.id} onTicketCreated={fetchAll} />
+        )}
+        {activeTab === 'Features' && (
+          <FeaturesView
+            requests={featureRequests}
+            userVotes={userVotes}
+            userId={user.id}
+            onVote={handleVote}
+            onSubmit={handleSubmitFeature}
+          />
+        )}
+        {activeTab === 'My Tickets' && (
+          <TicketsView tickets={tickets} />
+        )}
+      </div>
+    </div>
+  );
 
-          {showFeatureForm && (
-            <form onSubmit={submitFeature} className="card space-y-3">
-              <p className="text-sm font-bold text-harbor-800 dark:text-white">New Feature Request</p>
-              <input
-                type="text"
-                value={featureTitle}
-                onChange={e => setFeatureTitle(e.target.value)}
-                className="input-field text-sm"
-                placeholder="Feature title"
-                required
-              />
-              <textarea
-                value={featureDesc}
-                onChange={e => setFeatureDesc(e.target.value)}
-                className="input-field text-sm min-h-[60px]"
-                placeholder="Describe what you'd like to see..."
-                required
-              />
-              <button type="submit" disabled={submittingFeature} className="btn-teal w-full text-sm disabled:opacity-50">
-                {submittingFeature ? 'Submitting...' : 'Submit Request'}
+  async function handleVote(requestId: string) {
+    const hasVoted = userVotes.has(requestId);
+    if (hasVoted) {
+      // Remove vote
+      await supabase.from('feature_votes').delete().eq('request_id', requestId).eq('user_id', user!.id);
+      await supabase.from('feature_requests').update({ votes: featureRequests.find((r) => r.id === requestId)!.votes - 1 }).eq('id', requestId);
+      setUserVotes((prev) => { const s = new Set(prev); s.delete(requestId); return s; });
+      setFeatureRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, votes: r.votes - 1 } : r));
+    } else {
+      // Add vote
+      await supabase.from('feature_votes').insert({ request_id: requestId, user_id: user!.id });
+      await supabase.from('feature_requests').update({ votes: featureRequests.find((r) => r.id === requestId)!.votes + 1 }).eq('id', requestId);
+      setUserVotes((prev) => { const s = new Set(Array.from(prev)); s.add(requestId); return s; });
+      setFeatureRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, votes: r.votes + 1 } : r));
+    }
+  }
+
+  async function handleSubmitFeature(title: string, description: string) {
+    const { data } = await supabase
+      .from('feature_requests')
+      .insert({ user_id: user!.id, title, description, votes: 0, status: 'open' })
+      .select()
+      .single();
+    if (data) setFeatureRequests((prev) => [data, ...prev]);
+  }
+}
+
+// ─── Help View ───────────────────────────────────────────────────
+function HelpView({ userId, onTicketCreated }: { userId: string; onTicketCreated: () => void }) {
+  const supabase = createClient();
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [showTicketForm, setShowTicketForm] = useState(false);
+  const [category, setCategory] = useState<TicketCategory>('bug');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TicketPriority>('medium');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmitTicket = async () => {
+    if (!subject.trim() || !description.trim()) return;
+    setSubmitting(true);
+    try {
+      await supabase.from('support_tickets').insert({
+        user_id: userId,
+        category,
+        subject: subject.trim(),
+        description: description.trim(),
+        priority,
+        status: 'open',
+      });
+      setSubject('');
+      setDescription('');
+      setSubmitted(true);
+      setTimeout(() => { setSubmitted(false); setShowTicketForm(false); }, 2000);
+      onTicketCreated();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* FAQ Section */}
+      <div className="card p-5">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <span>❓</span> Frequently Asked Questions
+        </h3>
+        <div className="space-y-2">
+          {FAQ_ITEMS.map((faq, idx) => (
+            <div key={idx} className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <span className="text-sm font-medium pr-4">{faq.q}</span>
+                <span className={cn(
+                  'text-gray-400 transition-transform duration-200 flex-shrink-0',
+                  expandedFaq === idx && 'rotate-180'
+                )}>▾</span>
               </button>
-            </form>
-          )}
-
-          <div className="space-y-2">
-            {features.length === 0 ? (
-              <p className="text-center py-6 text-gray-400 text-xs">No feature requests yet. Be the first!</p>
-            ) : features.map(feature => (
-              <div key={feature.id} className="card flex items-center gap-3 !py-3">
-                <button
-                  onClick={() => toggleVote(feature.id)}
-                  className={cn('flex flex-col items-center min-w-[40px] py-1 rounded-lg transition-all', userVotes.includes(feature.id) ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-600' : 'bg-gray-50 dark:bg-harbor-800 text-gray-400')}
-                >
-                  <span className="text-xs">▲</span>
-                  <span className="text-xs font-bold">{feature.votes}</span>
-                </button>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white truncate">{feature.title}</p>
-                  <p className="text-[10px] text-gray-400 truncate">{feature.description}</p>
-                </div>
-                <span className={cn('text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap', statusColors[feature.status] || statusColors.open)}>
-                  {feature.status.replace('_', ' ')}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* My Tickets */}
-      {tab === 'tickets' && (
-        <div className="space-y-3">
-          {tickets.length === 0 ? (
-            <div className="card text-center py-8">
-              <p className="text-gray-400 text-sm">No tickets yet.</p>
-              <p className="text-xs text-gray-400 mt-1">Submit one from the Help tab if you need assistance.</p>
-            </div>
-          ) : tickets.map(ticket => (
-            <div key={ticket.id} className="card">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-harbor-800 dark:text-white">{ticket.subject}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-harbor-800 text-gray-500 capitalize">{ticket.category}</span>
-                    <span className="text-[10px] text-gray-400">{new Date(ticket.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <span className={cn('text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap font-medium', statusColors[ticket.status] || statusColors.open)}>
-                  {ticket.status.replace('_', ' ')}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">{ticket.description}</p>
-              {ticket.response && (
-                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-harbor-800">
-                  <p className="text-[10px] font-medium text-teal-500 mb-1">Response:</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">{ticket.response}</p>
+              {expandedFaq === idx && (
+                <div className="px-4 pb-4 animate-slide-up">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{faq.a}</p>
                 </div>
               )}
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Contact Support */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold">Still need help?</h3>
+            <p className="text-sm text-gray-500 mt-0.5">Submit a ticket and we'll get back to you</p>
+          </div>
+          {!showTicketForm && (
+            <button onClick={() => setShowTicketForm(true)} className="btn-primary text-sm">
+              Submit Ticket
+            </button>
+          )}
+        </div>
+
+        {showTicketForm && (
+          <div className="space-y-4 animate-slide-up">
+            {submitted ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">✅</div>
+                <p className="font-semibold text-green-600">Ticket submitted successfully!</p>
+                <p className="text-sm text-gray-500 mt-1">We'll respond within 24-48 hours</p>
+              </div>
+            ) : (
+              <>
+                {/* Category */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Category</label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {TICKET_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.value}
+                        onClick={() => setCategory(cat.value)}
+                        className={cn(
+                          'p-2 rounded-lg text-center transition-all text-xs',
+                          category === cat.value
+                            ? 'bg-indigo-100 dark:bg-indigo-900/30 border-2 border-indigo-300 dark:border-indigo-700'
+                            : 'bg-gray-50 dark:bg-gray-800 border-2 border-transparent hover:bg-gray-100'
+                        )}
+                      >
+                        <span className="text-lg block">{cat.icon}</span>
+                        <span className="mt-0.5 block">{cat.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Subject</label>
+                  <input
+                    className="input-field w-full"
+                    placeholder="Brief summary of your issue"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Description</label>
+                  <textarea
+                    className="input-field w-full min-h-[120px] resize-y"
+                    placeholder="Describe the issue in detail. Include steps to reproduce if it's a bug."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Priority</label>
+                  <div className="flex gap-2">
+                    {(['low', 'medium', 'high', 'urgent'] as TicketPriority[]).map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPriority(p)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all',
+                          priority === p
+                            ? p === 'urgent' ? 'bg-red-100 text-red-700 border-2 border-red-300'
+                              : p === 'high' ? 'bg-orange-100 text-orange-700 border-2 border-orange-300'
+                              : p === 'medium' ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-300'
+                              : 'bg-green-100 text-green-700 border-2 border-green-300'
+                            : 'bg-gray-50 dark:bg-gray-800 text-gray-500 border-2 border-transparent hover:bg-gray-100'
+                        )}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <div className="flex gap-2 pt-2">
+                  <button onClick={handleSubmitTicket} disabled={submitting} className="btn-primary text-sm">
+                    {submitting ? 'Submitting...' : 'Submit Ticket'}
+                  </button>
+                  <button onClick={() => setShowTicketForm(false)} className="text-sm text-gray-500 hover:text-gray-700">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Features View ───────────────────────────────────────────────
+function FeaturesView({
+  requests,
+  userVotes,
+  userId,
+  onVote,
+  onSubmit,
+}: {
+  requests: FeatureRequest[];
+  userVotes: Set<string>;
+  userId: string;
+  onVote: (id: string) => void;
+  onSubmit: (title: string, description: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+
+  const handleSubmit = () => {
+    if (!title.trim() || !description.trim()) return;
+    onSubmit(title.trim(), description.trim());
+    setTitle('');
+    setDescription('');
+    setShowForm(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold">Feature Requests</h3>
+          <p className="text-xs text-gray-500">Vote on features you want to see built</p>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} className="btn-primary text-sm">
+          + Suggest Feature
+        </button>
+      </div>
+
+      {/* Submit Form */}
+      {showForm && (
+        <div className="card p-5 space-y-4 border-2 border-indigo-200 dark:border-indigo-800 animate-slide-up">
+          <input
+            className="input-field w-full"
+            placeholder="Feature title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <textarea
+            className="input-field w-full min-h-[80px] resize-y"
+            placeholder="Describe the feature and why it would be helpful"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button onClick={handleSubmit} className="btn-primary text-sm">Submit</button>
+            <button onClick={() => setShowForm(false)} className="text-sm text-gray-500">Cancel</button>
+          </div>
+        </div>
       )}
+
+      {/* Feature List */}
+      {requests.length === 0 ? (
+        <div className="card p-12 text-center">
+          <div className="text-5xl mb-4">💡</div>
+          <h3 className="text-lg font-semibold mb-2">No feature requests yet</h3>
+          <p className="text-gray-500 mb-4">Be the first to suggest a feature</p>
+          <button onClick={() => setShowForm(true)} className="btn-primary">Suggest a Feature</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {requests.map((request) => {
+            const hasVoted = userVotes.has(request.id);
+            const statusStyle = FEATURE_STATUS_STYLES[request.status] || FEATURE_STATUS_STYLES.open;
+            return (
+              <div key={request.id} className="card p-4 hover:shadow-md transition-all duration-200">
+                <div className="flex gap-4">
+                  {/* Vote Button */}
+                  <button
+                    onClick={() => onVote(request.id)}
+                    className={cn(
+                      'flex flex-col items-center justify-center w-14 h-14 rounded-xl transition-all duration-200 flex-shrink-0',
+                      hasVoted
+                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 border-2 border-indigo-300'
+                        : 'bg-gray-50 dark:bg-gray-800 text-gray-500 hover:bg-indigo-50 hover:text-indigo-500 border-2 border-transparent'
+                    )}
+                  >
+                    <span className="text-sm">▲</span>
+                    <span className="text-sm font-bold">{request.votes}</span>
+                  </button>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="font-medium text-sm">{request.title}</h4>
+                      <span className={cn(
+                        'px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0',
+                        statusStyle.bg, statusStyle.text
+                      )}>
+                        {statusStyle.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{request.description}</p>
+                    <p className="text-[10px] text-gray-400 mt-2">
+                      {new Date(request.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tickets View ────────────────────────────────────────────────
+function TicketsView({ tickets }: { tickets: SupportTicket[] }) {
+  if (tickets.length === 0) {
+    return (
+      <div className="card p-12 text-center">
+        <div className="text-5xl mb-4">🎫</div>
+        <h3 className="text-lg font-semibold mb-2">No tickets yet</h3>
+        <p className="text-gray-500">Your support tickets will appear here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">My Tickets</h3>
+        <p className="text-xs text-gray-500">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
+      </div>
+
+      {/* Timeline */}
+      <div className="space-y-4">
+        {tickets.map((ticket) => {
+          const statusStyle = STATUS_STYLES[ticket.status];
+          const catInfo = TICKET_CATEGORIES.find((c) => c.value === ticket.category);
+          return (
+            <div key={ticket.id} className="relative">
+              {/* Ticket Card */}
+              <div className="card p-5 border-l-4 border-l-indigo-300 dark:border-l-indigo-700">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{catInfo?.icon || '📋'}</span>
+                    <div>
+                      <h4 className="font-medium">{ticket.subject}</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {catInfo?.label || ticket.category} · {new Date(ticket.created_at).toLocaleDateString('en-US', {
+                          month: 'short', day: 'numeric', year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium', statusStyle.bg, statusStyle.text)}>
+                    {ticket.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{ticket.description}</p>
+
+                {/* Priority Badge */}
+                <div className="mt-3 flex items-center gap-2">
+                  <span className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium uppercase',
+                    ticket.priority === 'urgent' && 'bg-red-100 text-red-700',
+                    ticket.priority === 'high' && 'bg-orange-100 text-orange-700',
+                    ticket.priority === 'medium' && 'bg-yellow-100 text-yellow-700',
+                    ticket.priority === 'low' && 'bg-green-100 text-green-700',
+                  )}>
+                    {ticket.priority}
+                  </span>
+                  {ticket.updated_at !== ticket.created_at && (
+                    <span className="text-[10px] text-gray-400">
+                      Updated {new Date(ticket.updated_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Response Card */}
+              {ticket.response && (
+                <div className="ml-6 mt-2 card p-4 bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-l-indigo-500">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">M</div>
+                    <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">MiLyfe Support</span>
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{ticket.response}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
