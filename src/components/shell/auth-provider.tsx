@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { useRouter } from 'next/navigation';
 
+// v2 — fixed subscription cleanup
+const AUTH_PROVIDER_VERSION = 2;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setUser } = useAppStore();
   const router = useRouter();

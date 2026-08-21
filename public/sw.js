@@ -1,4 +1,4 @@
-const CACHE_NAME = 'milyfe-v1';
+const CACHE_NAME = 'milyfe-v2';
 const OFFLINE_URL = '/offline';
 
 const PRECACHE_ASSETS = [
@@ -41,6 +41,7 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('supabase.co')) return;
   if (event.request.url.includes('_next/webpack')) return;
+  if (event.request.url.includes('_next/static')) return;
 
   event.respondWith(
     fetch(event.request)

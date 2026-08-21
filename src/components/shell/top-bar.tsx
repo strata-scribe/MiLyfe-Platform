@@ -8,12 +8,10 @@ export function TopBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-white/90 dark:bg-harbor-950/90 backdrop-blur-lg border-b border-gray-100 dark:border-harbor-800">
-      <div className="flex items-center justify-between max-w-lg mx-auto h-14 px-4">
+      <div className="flex items-center justify-between max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto h-14 px-4 md:px-6">
         {/* Brand */}
         <Link href="/home" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-harbor-800 via-teal-500 to-mly-500 flex items-center justify-center">
-            <span className="text-xs font-bold text-white">Mi</span>
-          </div>
+          <img src="/logo.png" alt="MiLyfe" className="h-7 w-auto" />
         </Link>
 
         {/* Balance */}

@@ -63,9 +63,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-harbor-800 via-teal-500 to-mly-500 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl font-bold text-white">Mi</span>
-          </div>
+          <img src="/logo.png" alt="MiLyfe" className="h-12 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-harbor-800 dark:text-white">Join MiLyfe</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Free forever. Community-owned.</p>
         </div>
