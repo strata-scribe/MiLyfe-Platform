@@ -5,7 +5,7 @@ import { useAppStore } from '@/lib/store/app-store';
 
 const lifeApps = [
   { href: '/health', icon: '💚', name: 'MiHealth', desc: 'Daily check-in & wellness tracking', badge: '+$5/day' },
-  { href: '/learn', icon: '📚', name: 'MiLearn', desc: 'Rights, finance, health, career courses', badge: 'New' },
+  { href: '/learn', icon: '📚', name: 'MiLearn', desc: 'Rights, finance, health, career courses', badge: '10 courses' },
   { href: '/rights', icon: '📜', name: 'MiRights', desc: 'Constitution, police defense, legal tools', badge: null },
   { href: '/career', icon: '💼', name: 'MiCareer', desc: 'Resume, skills, job matching', badge: null },
   { href: '/family', icon: '👨‍👩‍👧', name: 'MiFamily', desc: 'Calendar, budget, kids, elder care', badge: null },

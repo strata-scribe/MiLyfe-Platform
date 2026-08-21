@@ -36,8 +36,12 @@ export default function YouPage() {
           { href: '/vault', icon: '🔐', name: 'MiVault', desc: 'Documents, credentials, shares' },
           { href: '/connect', icon: '💬', name: 'MiConnect', desc: 'Messages, groups, neighbors' },
           { href: '/media', icon: '🎬', name: 'MiMedia', desc: 'Your content, channels, playlists' },
+          { href: '/guild', icon: '🤝', name: 'MiGuild', desc: 'Peace economy, block keeping' },
           { href: '/notifications', icon: '🔔', name: 'Notifications', desc: 'Alerts, updates, UBI drops' },
           { href: '/safety', icon: '🛡️', name: 'Safety', desc: 'Check-in, contacts, emergency' },
+          { href: '/security', icon: '🔒', name: 'Security', desc: 'Account, 2FA, report users' },
+          { href: '/support', icon: '❓', name: 'Support', desc: 'Help, tickets, feature requests' },
+          { href: '/impact', icon: '📊', name: 'Community Impact', desc: 'Platform stats, transparency' },
         ].map((app) => (
           <Link
             key={app.href}
