@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
@@ -376,11 +377,16 @@ export default function GovernPage() {
   return (
     <div className="space-y-5 animate-slide-up">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-harbor-800 dark:text-white">Governance</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-          Your voice, your vote. Shape the community democratically.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-harbor-800 dark:text-white">Governance</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            Your voice, your vote. Shape the community democratically.
+          </p>
+        </div>
+        <Link href="/govern/delegate" className="btn-secondary text-xs !py-2 !px-3">
+          🤝 Delegate
+        </Link>
       </div>
 
       {/* Tab Bar */}

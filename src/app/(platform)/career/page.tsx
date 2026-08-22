@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { generateResumePDF } from '@/lib/pdf/resume-pdf';
 
 // ─── Types ────────────────────────────────────────────────────────
 interface ExperienceEntry {
@@ -229,6 +230,7 @@ function ResumeView({
   resume: Resume | null;
   onSave: (data: Partial<Resume>) => void;
 }) {
+  const { user } = useAppStore();
   const [preview, setPreview] = useState(false);
   const [title, setTitle] = useState(resume?.title || '');
   const [summary, setSummary] = useState(resume?.summary || '');
@@ -298,7 +300,25 @@ function ResumeView({
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Resume Preview</h3>
           <div className="flex gap-2">
-            <button onClick={() => alert('PDF export coming soon!')} className="btn-gold text-sm">Export PDF</button>
+            <button onClick={() => {
+              if (!user) return;
+              generateResumePDF({
+                title: resume?.title || '',
+                summary: resume?.summary || '',
+                displayName: user.display_name || user.email,
+                email: user.email,
+                city: user.city,
+                experience: (resume?.experience || []).map(e => ({
+                  jobTitle: e.title,
+                  company: e.company,
+                  startDate: e.startDate,
+                  endDate: e.endDate,
+                  bullets: e.bullets,
+                })),
+                education: resume?.education || [],
+                skills: resume?.skills || [],
+              });
+            }} className="btn-gold text-sm">Export PDF</button>
             <button onClick={() => setPreview(false)} className="btn-teal text-sm">Edit</button>
           </div>
         </div>

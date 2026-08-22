@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
+import { ReadAloudButton } from '@/components/ui/read-aloud-button';
 
 type RightsTab = 'amendments' | 'search' | 'tools';
 
@@ -52,6 +53,12 @@ export default function RightsPage() {
       <div>
         <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiRights</h1>
         <p className="text-xs text-gray-500">Know your rights. Defend yourself. The Constitution is your shield.</p>
+        <div className="mt-2">
+          <ReadAloudButton
+            texts={amendments.map(a => `Amendment ${a.num}. ${a.title}. ${a.plain}`)}
+            size="sm"
+          />
+        </div>
       </div>
 
       {/* Search */}
@@ -97,10 +104,14 @@ export default function RightsPage() {
               </button>
               {expanded === a.num && (
                 <div className="mt-3 pt-3 border-t border-gray-100 dark:border-harbor-800 space-y-3">
-                  <div>
+                  <div className="flex items-center justify-between">
                     <p className="text-[10px] font-medium text-gray-400 uppercase mb-1">What this means for you:</p>
-                    <p className="text-sm text-harbor-700 dark:text-gray-200 leading-relaxed">{a.plain}</p>
+                    <ReadAloudButton
+                      texts={[`Amendment ${a.num}. ${a.title}.`, a.plain]}
+                      size="sm"
+                    />
                   </div>
+                  <p className="text-sm text-harbor-700 dark:text-gray-200 leading-relaxed">{a.plain}</p>
                   <div>
                     <p className="text-[10px] font-medium text-gray-400 uppercase mb-1">Original text:</p>
                     <p className="text-xs text-gray-500 italic leading-relaxed">{a.text}</p>
@@ -144,7 +155,19 @@ export default function RightsPage() {
           </Link>
 
           <div className="card bg-harbor-50 dark:bg-harbor-900 border-harbor-200 dark:border-harbor-700">
-            <p className="text-sm font-bold text-harbor-800 dark:text-white mb-1">Remember:</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-bold text-harbor-800 dark:text-white">Remember:</p>
+              <ReadAloudButton
+                texts={[
+                  'Remember these phrases if you are stopped by police.',
+                  'I do not consent to a search.',
+                  'I am invoking my right to remain silent.',
+                  'I want a lawyer.',
+                  'Then stop talking. Say nothing else.',
+                ]}
+                size="sm"
+              />
+            </div>
             <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
               <li>• &quot;I do not consent to a search.&quot;</li>
               <li>• &quot;I am invoking my right to remain silent.&quot;</li>

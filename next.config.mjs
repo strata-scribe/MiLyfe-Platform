@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -32,4 +34,23 @@ const nextConfig = {
   ],
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Sentry webpack plugin options
+  org: process.env.SENTRY_ORG || 'milyfe',
+  project: process.env.SENTRY_PROJECT || 'milyfe-platform',
+
+  // Suppress source map upload logs during build
+  silent: !process.env.CI,
+
+  // Upload source maps for better error traces
+  widenClientFileUpload: true,
+
+  // Automatically tree-shake Sentry SDK when DSN is not set
+  disableLogger: true,
+
+  // Hide source maps from client bundles
+  hideSourceMaps: true,
+
+  // Disable Sentry telemetry
+  telemetry: false,
+});

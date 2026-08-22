@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { useMediaStore } from '@/components/media/global-player';
@@ -183,7 +184,10 @@ export default function MediaPage() {
     <div className="space-y-4 animate-slide-up">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiMedia</h1>
-        <button onClick={() => setTab('upload')} className="btn-teal text-xs !py-2 !px-3">+ Upload</button>
+        <div className="flex items-center gap-2">
+          <Link href="/media/channels" className="btn-secondary text-xs !py-2 !px-3">📺 Channels</Link>
+          <button onClick={() => setTab('upload')} className="btn-teal text-xs !py-2 !px-3">+ Upload</button>
+        </div>
       </div>
 
       {/* Tabs */}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { PresenceDot, OnlineCountBadge } from '@/components/ui/presence-dot';
 
 type ConnectTab = 'messages' | 'groups' | 'neighbors';
 
@@ -179,7 +180,10 @@ export default function ConnectPage() {
   return (
     <div className="space-y-4 animate-slide-up">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiConnect</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiConnect</h1>
+          <OnlineCountBadge />
+        </div>
         <button
           onClick={() => setShowNewChat(!showNewChat)}
           className="btn-teal text-sm !py-2 !px-4"
@@ -325,12 +329,17 @@ export default function ConnectPage() {
           ) : (
             neighbors.map((neighbor) => (
               <div key={neighbor.id} className="card flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-harbor-100 dark:bg-harbor-800 flex items-center justify-center text-lg">
-                  👤
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full bg-harbor-100 dark:bg-harbor-800 flex items-center justify-center text-lg">
+                    👤
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5">
+                    <PresenceDot userId={neighbor.id} size="md" />
+                  </span>
                 </div>
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-harbor-800 dark:text-white">{neighbor.display_name}</h3>
-                  <p className="text-xs text-gray-500">{neighbor.neighborhood ?? 'Community member'}</p>
+                  <PresenceDot userId={neighbor.id} size="sm" showLabel />
                 </div>
                 <button
                   onClick={() => startConversation(neighbor.id)}

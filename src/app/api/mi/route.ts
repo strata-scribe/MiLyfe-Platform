@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkRateLimit, rateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit';
 
 // Mi AI Assistant — uses Groq (free, fast, no signup for public models)
 // Falls back to local response if API unavailable
@@ -26,6 +27,16 @@ RULES:
 - If you don't know, say so and suggest who might help`;
 
 export async function POST(request: Request) {
+  // Rate limit
+  const ip = request.headers.get('x-forwarded-for') || 'unknown';
+  const rateCheck = checkRateLimit(`mi:${ip}`, RATE_LIMITS.ai);
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { response: "I need a moment to catch my breath. Try again in a minute!" },
+      { status: 429, headers: rateLimitHeaders(rateCheck) }
+    );
+  }
+
   const { message, history = [] } = await request.json();
 
   if (!message?.trim()) {

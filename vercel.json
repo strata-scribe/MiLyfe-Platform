@@ -3,6 +3,10 @@
     {
       "path": "/api/ubi",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/mly-decay",
+      "schedule": "0 0 * * *"
     }
   ]
 }

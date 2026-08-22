@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { checkRateLimit, rateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit';
 
 // UBI Distribution — Daily $MLY airdrop to active users
 // Called via cron (Vercel Cron / external scheduler) or manually
@@ -10,6 +11,16 @@ const UBI_AMOUNT = 10; // $MLY per day per active user
 const UBI_CRON_SECRET = process.env.UBI_CRON_SECRET || 'milyfe-ubi-secret';
 
 export async function POST(request: Request) {
+  // Rate limit check
+  const ip = request.headers.get('x-forwarded-for') || 'cron';
+  const rateCheck = checkRateLimit(`ubi:${ip}`, RATE_LIMITS.ubi);
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded' },
+      { status: 429, headers: rateLimitHeaders(rateCheck) }
+    );
+  }
+
   // Verify cron secret (prevents unauthorized triggers)
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${UBI_CRON_SECRET}`) {

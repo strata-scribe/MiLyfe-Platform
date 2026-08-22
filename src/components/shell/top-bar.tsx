@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useAppStore } from '@/lib/store/app-store';
+import { VoiceNavButton } from './voice-nav-button';
+import { SearchTrigger } from './global-search';
 
 export function TopBar() {
   const { user, unreadCount, toggleDarkMode } = useAppStore();
@@ -23,6 +25,9 @@ export function TopBar() {
 
         {/* Actions */}
         <div className="flex items-center gap-1">
+          <SearchTrigger />
+          <VoiceNavButton />
+
           <Link
             href="/notifications"
             className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-harbor-800 transition-colors"
