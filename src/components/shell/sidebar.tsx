@@ -42,6 +42,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/shop', icon: '🛍️', label: 'Shop' },
       { href: '/auto', icon: '🚗', label: 'Auto' },
       { href: '/housing', icon: '🏠', label: 'Housing' },
+      { href: '/mihome', icon: '🏡', label: 'MiHome' },
     ],
   },
   {
