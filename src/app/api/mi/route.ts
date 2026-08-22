@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { checkRateLimit, rateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit';
 
-// Mi AI Assistant — uses Groq (free, fast, no signup for public models)
-// Falls back to local response if API unavailable
+// Mi AI Assistant — uses free community Ollama servers (no API key needed)
+// Sources: github.com/mfoud444/ollamafreeapi
+// Falls back to smart local response if servers unavailable
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// Free community-hosted Ollama servers (no signup, no key)
+const OLLAMA_SERVERS = [
+  'http://5.149.249.212:11434',
+];
+const OLLAMA_MODEL = 'llama3.2:3b';
 
 const SYSTEM_PROMPT = `You are Mi, the community assistant for MiLyfe — a civic engagement platform in Jacksonville, FL. You help residents with:
 
@@ -53,32 +57,30 @@ export async function POST(request: Request) {
     { role: 'user', content: message },
   ];
 
-  // Try Groq first (free tier, very fast)
-  if (GROQ_API_KEY) {
+  // Try free community Ollama servers (no API key needed)
+  for (const server of OLLAMA_SERVERS) {
     try {
-      const response = await fetch(GROQ_URL, {
+      const response = await fetch(`${server}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: OLLAMA_MODEL,
           messages,
-          max_tokens: 300,
-          temperature: 0.7,
+          stream: false,
+          options: { temperature: 0.7, num_predict: 300 },
         }),
+        signal: AbortSignal.timeout(15000), // 15s timeout
       });
 
       if (response.ok) {
         const data = await response.json();
-        const aiResponse = data.choices?.[0]?.message?.content;
+        const aiResponse = data.message?.content;
         if (aiResponse) {
-          return NextResponse.json({ response: aiResponse, source: 'groq' });
+          return NextResponse.json({ response: aiResponse, source: 'ollama' });
         }
       }
     } catch {
-      // Fall through to local
+      // Try next server or fall through to local
     }
   }
 
