@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_notifications_user ON public.notifications(user_id, read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id, read, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.notification_preferences (
   user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.housing_listings (
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','filled','removed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_housing_status ON public.housing_listings(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_housing_status ON public.housing_listings(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.housing_reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS public.rideshare_rides (
   rating INTEGER CHECK (rating BETWEEN 1 AND 5),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_rideshare_status ON public.rideshare_rides(status, departure_at);
+CREATE INDEX IF NOT EXISTS idx_rideshare_status ON public.rideshare_rides(status, departure_at);
 
 -- ============================================
 -- JOBS & CAREER
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS public.jobs (
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','filled','closed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_jobs_status ON public.jobs(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON public.jobs(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.job_applications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
   module_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_courses_category ON public.courses(category, published);
+CREATE INDEX IF NOT EXISTS idx_courses_category ON public.courses(category, published);
 
 CREATE TABLE IF NOT EXISTS public.course_modules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS public.course_modules (
   quiz JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_modules_course ON public.course_modules(course_id, position);
+CREATE INDEX IF NOT EXISTS idx_modules_course ON public.course_modules(course_id, position);
 
 CREATE TABLE IF NOT EXISTS public.course_progress (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS public.businesses (
   review_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_businesses_category ON public.businesses(category);
+CREATE INDEX IF NOT EXISTS idx_businesses_category ON public.businesses(category);
 
 CREATE TABLE IF NOT EXISTS public.business_reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -279,7 +279,7 @@ CREATE TABLE IF NOT EXISTS public.guild_tasks (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at TIMESTAMPTZ
 );
-CREATE INDEX idx_guild_tasks_status ON public.guild_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_guild_tasks_status ON public.guild_tasks(status);
 
 CREATE TABLE IF NOT EXISTS public.guild_conflicts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -303,7 +303,7 @@ CREATE TABLE IF NOT EXISTS public.guild_checkins (
   earned_mly NUMERIC(10,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_guild_checkins_user ON public.guild_checkins(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guild_checkins_user ON public.guild_checkins(user_id, created_at DESC);
 
 -- ============================================
 -- MEDIA CONTENT
@@ -323,8 +323,8 @@ CREATE TABLE IF NOT EXISTS public.media_content (
   likes INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_media_content_type ON public.media_content(type, status, created_at DESC);
-CREATE INDEX idx_media_content_creator ON public.media_content(creator_id);
+CREATE INDEX IF NOT EXISTS idx_media_content_type ON public.media_content(type, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_media_content_creator ON public.media_content(creator_id);
 
 CREATE TABLE IF NOT EXISTS public.media_likes (
   media_id UUID NOT NULL REFERENCES public.media_content(id) ON DELETE CASCADE,
@@ -361,7 +361,7 @@ CREATE TABLE IF NOT EXISTS public.proposals (
   ends_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_proposals_status ON public.proposals(status, ends_at);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON public.proposals(status, ends_at);
 
 CREATE TABLE IF NOT EXISTS public.proposal_votes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -386,8 +386,8 @@ CREATE TABLE IF NOT EXISTS public.feed_posts (
   comments_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_feed_posts_user ON public.feed_posts(user_id, created_at DESC);
-CREATE INDEX idx_feed_posts_recent ON public.feed_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feed_posts_user ON public.feed_posts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feed_posts_recent ON public.feed_posts(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.feed_likes (
   post_id UUID NOT NULL REFERENCES public.feed_posts(id) ON DELETE CASCADE,
@@ -435,7 +435,7 @@ CREATE TABLE IF NOT EXISTS public.police_interactions (
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_police_interactions_user ON public.police_interactions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_police_interactions_user ON public.police_interactions(user_id, created_at DESC);
 
 -- ============================================
 -- SUPPORT TICKETS
@@ -480,7 +480,7 @@ CREATE TABLE IF NOT EXISTS public.resources (
   submitted_by UUID REFERENCES public.profiles(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_resources_category ON public.resources(category);
+CREATE INDEX IF NOT EXISTS idx_resources_category ON public.resources(category);
 
 -- ============================================
 -- EMERGENCY BROADCASTS
@@ -521,7 +521,7 @@ CREATE TABLE IF NOT EXISTS public.content_flags (
   action_taken TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_content_flags_status ON public.content_flags(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_content_flags_status ON public.content_flags(status, created_at);
 
 -- ============================================
 -- CONSEQUENCE / ACCOUNTABILITY
@@ -552,7 +552,7 @@ CREATE TABLE IF NOT EXISTS public.user_restrictions (
   ends_at TIMESTAMPTZ,
   active BOOLEAN NOT NULL DEFAULT TRUE
 );
-CREATE INDEX idx_restrictions_user ON public.user_restrictions(user_id, active);
+CREATE INDEX IF NOT EXISTS idx_restrictions_user ON public.user_restrictions(user_id, active);
 
 CREATE TABLE IF NOT EXISTS public.community_juries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -595,7 +595,7 @@ CREATE TABLE IF NOT EXISTS public.community_recordings (
   lng DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_recordings_status ON public.community_recordings(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recordings_status ON public.community_recordings(status, created_at DESC);
 
 -- ============================================
 -- WIKI / KNOWLEDGE BASE
@@ -614,8 +614,8 @@ CREATE TABLE IF NOT EXISTS public.wiki_pages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_wiki_pages_slug ON public.wiki_pages(slug);
-CREATE INDEX idx_wiki_pages_category ON public.wiki_pages(category);
+CREATE INDEX IF NOT EXISTS idx_wiki_pages_slug ON public.wiki_pages(slug);
+CREATE INDEX IF NOT EXISTS idx_wiki_pages_category ON public.wiki_pages(category);
 
 CREATE TABLE IF NOT EXISTS public.wiki_revisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -626,7 +626,7 @@ CREATE TABLE IF NOT EXISTS public.wiki_revisions (
   version INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_wiki_revisions_page ON public.wiki_revisions(page_id, version DESC);
+CREATE INDEX IF NOT EXISTS idx_wiki_revisions_page ON public.wiki_revisions(page_id, version DESC);
 
 -- ============================================
 -- CONSTITUTION (Interactive)
@@ -687,7 +687,7 @@ CREATE TABLE IF NOT EXISTS public.user_badges (
   earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(user_id, badge_id)
 );
-CREATE INDEX idx_user_badges_user ON public.user_badges(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_badges_user ON public.user_badges(user_id);
 
 CREATE TABLE IF NOT EXISTS public.challenges (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -743,7 +743,7 @@ CREATE TABLE IF NOT EXISTS public.mly_daily_stats (
   new_users INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_mly_daily_stats_date ON public.mly_daily_stats(date DESC);
+CREATE INDEX IF NOT EXISTS idx_mly_daily_stats_date ON public.mly_daily_stats(date DESC);
 
 -- ============================================
 -- ADDITIONAL STORAGE BUCKETS
@@ -753,14 +753,14 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('recordings', 'recordings
 INSERT INTO storage.buckets (id, name, public) VALUES ('wiki', 'wiki', true) ON CONFLICT DO NOTHING;
 
 -- Storage policies for new buckets
-CREATE POLICY "Media files are public" ON storage.objects FOR SELECT USING (bucket_id = 'media');
-CREATE POLICY "Users can upload media" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'media' AND auth.role() = 'authenticated');
+CREATE POLICY IF NOT EXISTS "Media files are public" ON storage.objects FOR SELECT USING (bucket_id = 'media');
+CREATE POLICY IF NOT EXISTS "Users can upload media" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'media' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Recordings private to owner" ON storage.objects FOR SELECT USING (bucket_id = 'recordings' AND auth.uid()::text = (storage.foldername(name))[1]);
-CREATE POLICY "Users can upload recordings" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'recordings' AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY IF NOT EXISTS "Recordings private to owner" ON storage.objects FOR SELECT USING (bucket_id = 'recordings' AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY IF NOT EXISTS "Users can upload recordings" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'recordings' AND auth.uid()::text = (storage.foldername(name))[1]);
 
-CREATE POLICY "Wiki images are public" ON storage.objects FOR SELECT USING (bucket_id = 'wiki');
-CREATE POLICY "Authenticated can upload wiki images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'wiki' AND auth.role() = 'authenticated');
+CREATE POLICY IF NOT EXISTS "Wiki images are public" ON storage.objects FOR SELECT USING (bucket_id = 'wiki');
+CREATE POLICY IF NOT EXISTS "Authenticated can upload wiki images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'wiki' AND auth.role() = 'authenticated');
 
 -- ============================================
 -- RLS POLICIES FOR ALL NEW TABLES
@@ -821,131 +821,131 @@ ALTER TABLE public.mly_treasury ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mly_daily_stats ENABLE ROW LEVEL SECURITY;
 
 -- === POLICIES: PUBLIC READ ===
-CREATE POLICY "Public read" ON public.housing_listings FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.housing_reviews FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.rideshare_rides FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.jobs FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.courses FOR SELECT USING (published = true);
-CREATE POLICY "Public read" ON public.course_modules FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.course_discussions FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.businesses FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.business_reviews FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.guild_members FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.guild_tasks FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.guild_conflicts FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.media_content FOR SELECT USING (status = 'published');
-CREATE POLICY "Public read" ON public.media_likes FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.radio_stations FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.proposals FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.proposal_votes FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.feed_posts FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.feed_likes FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.feed_comments FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.resources FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.broadcasts FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.broadcast_acks FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.wiki_pages FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.wiki_revisions FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.constitution_articles FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.constitution_amendments FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.constitution_annotations FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.badges FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.user_badges FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.challenges FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.challenge_progress FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.mly_treasury FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.mly_daily_stats FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.community_recordings FOR SELECT USING (privacy_level = 'public');
+CREATE POLICY IF NOT EXISTS "Public read" ON public.housing_listings FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.housing_reviews FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.rideshare_rides FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.jobs FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.courses FOR SELECT USING (published = true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.course_modules FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.course_discussions FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.businesses FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.business_reviews FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.guild_members FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.guild_tasks FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.guild_conflicts FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.media_content FOR SELECT USING (status = 'published');
+CREATE POLICY IF NOT EXISTS "Public read" ON public.media_likes FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.radio_stations FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.proposals FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.proposal_votes FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.feed_posts FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.feed_likes FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.feed_comments FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.resources FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.broadcasts FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.broadcast_acks FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.wiki_pages FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.wiki_revisions FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.constitution_articles FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.constitution_amendments FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.constitution_annotations FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.badges FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.user_badges FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.challenges FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.challenge_progress FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.mly_treasury FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.mly_daily_stats FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.community_recordings FOR SELECT USING (privacy_level = 'public');
 
 -- === POLICIES: USER-SPECIFIC READ ===
-CREATE POLICY "Own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own preferences" ON public.notification_preferences FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own push subs" ON public.push_subscriptions FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own applications" ON public.job_applications FOR SELECT USING (auth.uid() = applicant_id);
-CREATE POLICY "Job poster sees apps" ON public.job_applications FOR SELECT USING (EXISTS(SELECT 1 FROM jobs WHERE id = job_applications.job_id AND poster_id = auth.uid()));
-CREATE POLICY "Own resume" ON public.resumes FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own progress" ON public.course_progress FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Family members see family" ON public.families FOR SELECT USING (EXISTS(SELECT 1 FROM family_members WHERE family_id = families.id AND user_id = auth.uid()));
-CREATE POLICY "Family members see members" ON public.family_members FOR SELECT USING (EXISTS(SELECT 1 FROM family_members fm WHERE fm.family_id = family_members.family_id AND fm.user_id = auth.uid()));
-CREATE POLICY "Family members see events" ON public.family_events FOR SELECT USING (EXISTS(SELECT 1 FROM family_members WHERE family_id = family_events.family_id AND user_id = auth.uid()));
-CREATE POLICY "Own checkins" ON public.guild_checkins FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own walks" ON public.safety_walks FOR SELECT USING (auth.uid() = user_id OR auth.uid() = ANY(guardian_ids));
-CREATE POLICY "Own interactions" ON public.police_interactions FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own tickets" ON public.support_tickets FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own ticket messages" ON public.support_messages FOR SELECT USING (EXISTS(SELECT 1 FROM support_tickets WHERE id = support_messages.ticket_id AND user_id = auth.uid()));
-CREATE POLICY "Own flags" ON public.content_flags FOR SELECT USING (auth.uid() = reporter_id);
-CREATE POLICY "Own violations" ON public.violations FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own restrictions" ON public.user_restrictions FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own recordings" ON public.community_recordings FOR SELECT USING (auth.uid() = recorder_id);
-CREATE POLICY "Own appeals" ON public.appeals FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own preferences" ON public.notification_preferences FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own push subs" ON public.push_subscriptions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own applications" ON public.job_applications FOR SELECT USING (auth.uid() = applicant_id);
+CREATE POLICY IF NOT EXISTS "Job poster sees apps" ON public.job_applications FOR SELECT USING (EXISTS(SELECT 1 FROM jobs WHERE id = job_applications.job_id AND poster_id = auth.uid()));
+CREATE POLICY IF NOT EXISTS "Own resume" ON public.resumes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own progress" ON public.course_progress FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Family members see family" ON public.families FOR SELECT USING (EXISTS(SELECT 1 FROM family_members WHERE family_id = families.id AND user_id = auth.uid()));
+CREATE POLICY IF NOT EXISTS "Family members see members" ON public.family_members FOR SELECT USING (EXISTS(SELECT 1 FROM family_members fm WHERE fm.family_id = family_members.family_id AND fm.user_id = auth.uid()));
+CREATE POLICY IF NOT EXISTS "Family members see events" ON public.family_events FOR SELECT USING (EXISTS(SELECT 1 FROM family_members WHERE family_id = family_events.family_id AND user_id = auth.uid()));
+CREATE POLICY IF NOT EXISTS "Own checkins" ON public.guild_checkins FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own walks" ON public.safety_walks FOR SELECT USING (auth.uid() = user_id OR auth.uid() = ANY(guardian_ids));
+CREATE POLICY IF NOT EXISTS "Own interactions" ON public.police_interactions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own tickets" ON public.support_tickets FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own ticket messages" ON public.support_messages FOR SELECT USING (EXISTS(SELECT 1 FROM support_tickets WHERE id = support_messages.ticket_id AND user_id = auth.uid()));
+CREATE POLICY IF NOT EXISTS "Own flags" ON public.content_flags FOR SELECT USING (auth.uid() = reporter_id);
+CREATE POLICY IF NOT EXISTS "Own violations" ON public.violations FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own restrictions" ON public.user_restrictions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own recordings" ON public.community_recordings FOR SELECT USING (auth.uid() = recorder_id);
+CREATE POLICY IF NOT EXISTS "Own appeals" ON public.appeals FOR SELECT USING (auth.uid() = user_id);
 
 -- === POLICIES: AUTHENTICATED INSERT ===
-CREATE POLICY "Create notifications" ON public.notifications FOR INSERT WITH CHECK (true);
-CREATE POLICY "Manage own preferences" ON public.notification_preferences FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Manage own preferences update" ON public.notification_preferences FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Register push" ON public.push_subscriptions FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create housing" ON public.housing_listings FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update own housing" ON public.housing_listings FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Create review" ON public.housing_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create ride" ON public.rideshare_rides FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update own ride" ON public.rideshare_rides FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Create job" ON public.jobs FOR INSERT WITH CHECK (auth.uid() = poster_id);
-CREATE POLICY "Update own job" ON public.jobs FOR UPDATE USING (auth.uid() = poster_id);
-CREATE POLICY "Apply to job" ON public.job_applications FOR INSERT WITH CHECK (auth.uid() = applicant_id);
-CREATE POLICY "Create resume" ON public.resumes FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update own resume" ON public.resumes FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Enroll course" ON public.course_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update progress" ON public.course_progress FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Post discussion" ON public.course_discussions FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create course" ON public.courses FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Create family" ON public.families FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Add family member" ON public.family_members FOR INSERT WITH CHECK (true);
-CREATE POLICY "Create family event" ON public.family_events FOR INSERT WITH CHECK (auth.uid() = created_by);
-CREATE POLICY "Register business" ON public.businesses FOR INSERT WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY "Update own business" ON public.businesses FOR UPDATE USING (auth.uid() = owner_id);
-CREATE POLICY "Review business" ON public.business_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Join guild" ON public.guild_members FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Claim task" ON public.guild_tasks FOR UPDATE USING (true);
-CREATE POLICY "Create task" ON public.guild_tasks FOR INSERT WITH CHECK (true);
-CREATE POLICY "Report conflict" ON public.guild_conflicts FOR INSERT WITH CHECK (auth.uid() = reporter_id);
-CREATE POLICY "Update conflict" ON public.guild_conflicts FOR UPDATE USING (true);
-CREATE POLICY "Guild checkin" ON public.guild_checkins FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Upload media" ON public.media_content FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Update own media" ON public.media_content FOR UPDATE USING (auth.uid() = creator_id);
-CREATE POLICY "Like media" ON public.media_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Unlike media" ON public.media_likes FOR DELETE USING (auth.uid() = user_id);
-CREATE POLICY "Create station" ON public.radio_stations FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Create proposal" ON public.proposals FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Vote on proposal" ON public.proposal_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create post" ON public.feed_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Like post" ON public.feed_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Unlike post" ON public.feed_likes FOR DELETE USING (auth.uid() = user_id);
-CREATE POLICY "Comment on post" ON public.feed_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Start walk" ON public.safety_walks FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update own walk" ON public.safety_walks FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Log interaction" ON public.police_interactions FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create ticket" ON public.support_tickets FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Send ticket message" ON public.support_messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
-CREATE POLICY "Submit resource" ON public.resources FOR INSERT WITH CHECK (true);
-CREATE POLICY "Send broadcast" ON public.broadcasts FOR INSERT WITH CHECK (auth.uid() = sender_id);
-CREATE POLICY "Acknowledge broadcast" ON public.broadcast_acks FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Flag content" ON public.content_flags FOR INSERT WITH CHECK (auth.uid() = reporter_id);
-CREATE POLICY "Upload recording" ON public.community_recordings FOR INSERT WITH CHECK (auth.uid() = recorder_id);
-CREATE POLICY "Create wiki page" ON public.wiki_pages FOR INSERT WITH CHECK (auth.uid() = created_by);
-CREATE POLICY "Update wiki page" ON public.wiki_pages FOR UPDATE USING (locked = false);
-CREATE POLICY "Create wiki revision" ON public.wiki_revisions FOR INSERT WITH CHECK (auth.uid() = editor_id);
-CREATE POLICY "Propose amendment" ON public.constitution_amendments FOR INSERT WITH CHECK (auth.uid() = proposed_by);
-CREATE POLICY "Annotate constitution" ON public.constitution_annotations FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Award badge" ON public.user_badges FOR INSERT WITH CHECK (true);
-CREATE POLICY "Join challenge" ON public.challenge_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update challenge progress" ON public.challenge_progress FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "File appeal" ON public.appeals FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create notifications" ON public.notifications FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Manage own preferences" ON public.notification_preferences FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Manage own preferences update" ON public.notification_preferences FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Register push" ON public.push_subscriptions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create housing" ON public.housing_listings FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update own housing" ON public.housing_listings FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create review" ON public.housing_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create ride" ON public.rideshare_rides FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update own ride" ON public.rideshare_rides FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create job" ON public.jobs FOR INSERT WITH CHECK (auth.uid() = poster_id);
+CREATE POLICY IF NOT EXISTS "Update own job" ON public.jobs FOR UPDATE USING (auth.uid() = poster_id);
+CREATE POLICY IF NOT EXISTS "Apply to job" ON public.job_applications FOR INSERT WITH CHECK (auth.uid() = applicant_id);
+CREATE POLICY IF NOT EXISTS "Create resume" ON public.resumes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update own resume" ON public.resumes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Enroll course" ON public.course_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update progress" ON public.course_progress FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Post discussion" ON public.course_discussions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create course" ON public.courses FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Create family" ON public.families FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Add family member" ON public.family_members FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Create family event" ON public.family_events FOR INSERT WITH CHECK (auth.uid() = created_by);
+CREATE POLICY IF NOT EXISTS "Register business" ON public.businesses FOR INSERT WITH CHECK (auth.uid() = owner_id);
+CREATE POLICY IF NOT EXISTS "Update own business" ON public.businesses FOR UPDATE USING (auth.uid() = owner_id);
+CREATE POLICY IF NOT EXISTS "Review business" ON public.business_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Join guild" ON public.guild_members FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Claim task" ON public.guild_tasks FOR UPDATE USING (true);
+CREATE POLICY IF NOT EXISTS "Create task" ON public.guild_tasks FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Report conflict" ON public.guild_conflicts FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+CREATE POLICY IF NOT EXISTS "Update conflict" ON public.guild_conflicts FOR UPDATE USING (true);
+CREATE POLICY IF NOT EXISTS "Guild checkin" ON public.guild_checkins FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Upload media" ON public.media_content FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Update own media" ON public.media_content FOR UPDATE USING (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Like media" ON public.media_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Unlike media" ON public.media_likes FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create station" ON public.radio_stations FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Create proposal" ON public.proposals FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Vote on proposal" ON public.proposal_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create post" ON public.feed_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Like post" ON public.feed_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Unlike post" ON public.feed_likes FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Comment on post" ON public.feed_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Start walk" ON public.safety_walks FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update own walk" ON public.safety_walks FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Log interaction" ON public.police_interactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create ticket" ON public.support_tickets FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Send ticket message" ON public.support_messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
+CREATE POLICY IF NOT EXISTS "Submit resource" ON public.resources FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Send broadcast" ON public.broadcasts FOR INSERT WITH CHECK (auth.uid() = sender_id);
+CREATE POLICY IF NOT EXISTS "Acknowledge broadcast" ON public.broadcast_acks FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Flag content" ON public.content_flags FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+CREATE POLICY IF NOT EXISTS "Upload recording" ON public.community_recordings FOR INSERT WITH CHECK (auth.uid() = recorder_id);
+CREATE POLICY IF NOT EXISTS "Create wiki page" ON public.wiki_pages FOR INSERT WITH CHECK (auth.uid() = created_by);
+CREATE POLICY IF NOT EXISTS "Update wiki page" ON public.wiki_pages FOR UPDATE USING (locked = false);
+CREATE POLICY IF NOT EXISTS "Create wiki revision" ON public.wiki_revisions FOR INSERT WITH CHECK (auth.uid() = editor_id);
+CREATE POLICY IF NOT EXISTS "Propose amendment" ON public.constitution_amendments FOR INSERT WITH CHECK (auth.uid() = proposed_by);
+CREATE POLICY IF NOT EXISTS "Annotate constitution" ON public.constitution_annotations FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Award badge" ON public.user_badges FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Join challenge" ON public.challenge_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update challenge progress" ON public.challenge_progress FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "File appeal" ON public.appeals FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Mark notifications read
-CREATE POLICY "Mark own read" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Mark own read" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
 
 -- Delete own push subscription
-CREATE POLICY "Delete own push" ON public.push_subscriptions FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Delete own push" ON public.push_subscriptions FOR DELETE USING (auth.uid() = user_id);
 
 -- ============================================
 -- REALTIME ADDITIONS

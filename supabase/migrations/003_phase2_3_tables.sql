@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.forum_spaces (
   post_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_forum_spaces_slug ON public.forum_spaces(slug);
+CREATE INDEX IF NOT EXISTS idx_forum_spaces_slug ON public.forum_spaces(slug);
 
 CREATE TABLE IF NOT EXISTS public.forum_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS public.forum_posts (
   pinned BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_forum_posts_space ON public.forum_posts(space_id, created_at DESC);
-CREATE INDEX idx_forum_posts_hot ON public.forum_posts(space_id, upvotes DESC);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_space ON public.forum_posts(space_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_hot ON public.forum_posts(space_id, upvotes DESC);
 
 CREATE TABLE IF NOT EXISTS public.forum_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.forum_comments (
   depth INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_forum_comments_post ON public.forum_comments(post_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_forum_comments_post ON public.forum_comments(post_id, created_at);
 
 CREATE TABLE IF NOT EXISTS public.forum_memberships (
   space_id UUID NOT NULL REFERENCES public.forum_spaces(id) ON DELETE CASCADE,
@@ -94,8 +94,8 @@ CREATE TABLE IF NOT EXISTS public.follows (
   UNIQUE(follower_id, following_id),
   CONSTRAINT no_self_follow CHECK (follower_id != following_id)
 );
-CREATE INDEX idx_follows_follower ON public.follows(follower_id);
-CREATE INDEX idx_follows_following ON public.follows(following_id);
+CREATE INDEX IF NOT EXISTS idx_follows_follower ON public.follows(follower_id);
+CREATE INDEX IF NOT EXISTS idx_follows_following ON public.follows(following_id);
 
 CREATE TABLE IF NOT EXISTS public.stories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS public.stories (
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_stories_user ON public.stories(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stories_user ON public.stories(user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.reels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS public.reels (
   duration INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_reels_recent ON public.reels(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reels_recent ON public.reels(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.social_reactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS public.news_articles (
   submitted_by UUID REFERENCES public.profiles(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_news_articles_category ON public.news_articles(category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_articles_category ON public.news_articles(category, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.news_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS public.call_sessions (
   duration_seconds INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_calls_participants ON public.call_sessions(caller_id, callee_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_calls_participants ON public.call_sessions(caller_id, callee_id, created_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════════
 -- MIACADEMIA — R&D + Education
@@ -274,8 +274,8 @@ CREATE TABLE IF NOT EXISTS public.marketplace_listings (
   views INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_marketplace_type ON public.marketplace_listings(type, status, created_at DESC);
-CREATE INDEX idx_marketplace_category ON public.marketplace_listings(category, status);
+CREATE INDEX IF NOT EXISTS idx_marketplace_type ON public.marketplace_listings(type, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_marketplace_category ON public.marketplace_listings(category, status);
 
 CREATE TABLE IF NOT EXISTS public.service_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -291,7 +291,7 @@ CREATE TABLE IF NOT EXISTS public.service_requests (
   lng DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_service_requests_status ON public.service_requests(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_service_requests_status ON public.service_requests(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.escrow_holds (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -375,8 +375,8 @@ CREATE TABLE IF NOT EXISTS public.map_reports (
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_map_reports_geo ON public.map_reports(lat, lng);
-CREATE INDEX idx_map_reports_active ON public.map_reports(expires_at) WHERE expires_at > NOW();
+CREATE INDEX IF NOT EXISTS idx_map_reports_geo ON public.map_reports(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_map_reports_active ON public.map_reports(expires_at) WHERE expires_at > NOW();
 
 CREATE TABLE IF NOT EXISTS public.map_routes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -422,7 +422,7 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
   image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_vehicles_owner ON public.vehicles(owner_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON public.vehicles(owner_id);
 
 CREATE TABLE IF NOT EXISTS public.maintenance_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -463,7 +463,7 @@ CREATE TABLE IF NOT EXISTS public.parking_spots (
   reported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ
 );
-CREATE INDEX idx_parking_geo ON public.parking_spots(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_parking_geo ON public.parking_spots(lat, lng);
 
 -- ═══════════════════════════════════════════════════════════════════
 -- RLS POLICIES
@@ -505,82 +505,82 @@ ALTER TABLE public.car_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.parking_spots ENABLE ROW LEVEL SECURITY;
 
 -- PUBLIC READ policies (content that's publicly viewable)
-CREATE POLICY "Public read" ON public.forum_spaces FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.forum_posts FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.forum_comments FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.forum_memberships FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.forum_votes FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.social_profiles FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.follows FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.stories FOR SELECT USING (expires_at > NOW());
-CREATE POLICY "Public read" ON public.reels FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.social_reactions FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.news_sources FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.news_articles FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.news_comments FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.research_projects FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.research_members FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.study_groups FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.academic_papers FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.research_grants FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.marketplace_listings FOR SELECT USING (status = 'active');
-CREATE POLICY "Public read" ON public.civic_projects FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.civic_milestones FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.civic_repair_claims FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.repair_certifications FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.map_reports FOR SELECT USING (expires_at > NOW());
-CREATE POLICY "Public read" ON public.transit_stops FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.car_shares FOR SELECT USING (true);
-CREATE POLICY "Public read" ON public.parking_spots FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.forum_spaces FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.forum_posts FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.forum_comments FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.forum_memberships FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.forum_votes FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.social_profiles FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.follows FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.stories FOR SELECT USING (expires_at > NOW());
+CREATE POLICY IF NOT EXISTS "Public read" ON public.reels FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.social_reactions FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.news_sources FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.news_articles FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.news_comments FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.research_projects FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.research_members FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.study_groups FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.academic_papers FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.research_grants FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.marketplace_listings FOR SELECT USING (status = 'active');
+CREATE POLICY IF NOT EXISTS "Public read" ON public.civic_projects FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.civic_milestones FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.civic_repair_claims FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.repair_certifications FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.map_reports FOR SELECT USING (expires_at > NOW());
+CREATE POLICY IF NOT EXISTS "Public read" ON public.transit_stops FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.car_shares FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read" ON public.parking_spots FOR SELECT USING (true);
 
 -- USER-SPECIFIC READ
-CREATE POLICY "Own calls" ON public.call_sessions FOR SELECT USING (auth.uid() = caller_id OR auth.uid() = callee_id);
-CREATE POLICY "Own service requests" ON public.service_requests FOR SELECT USING (auth.uid() = requester_id OR auth.uid() = matched_provider_id);
-CREATE POLICY "Own escrow" ON public.escrow_holds FOR SELECT USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
-CREATE POLICY "Own routes" ON public.map_routes FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own vehicles" ON public.vehicles FOR SELECT USING (auth.uid() = owner_id);
-CREATE POLICY "Own maintenance" ON public.maintenance_records FOR SELECT USING (EXISTS(SELECT 1 FROM vehicles WHERE id = maintenance_records.vehicle_id AND owner_id = auth.uid()));
+CREATE POLICY IF NOT EXISTS "Own calls" ON public.call_sessions FOR SELECT USING (auth.uid() = caller_id OR auth.uid() = callee_id);
+CREATE POLICY IF NOT EXISTS "Own service requests" ON public.service_requests FOR SELECT USING (auth.uid() = requester_id OR auth.uid() = matched_provider_id);
+CREATE POLICY IF NOT EXISTS "Own escrow" ON public.escrow_holds FOR SELECT USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+CREATE POLICY IF NOT EXISTS "Own routes" ON public.map_routes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own vehicles" ON public.vehicles FOR SELECT USING (auth.uid() = owner_id);
+CREATE POLICY IF NOT EXISTS "Own maintenance" ON public.maintenance_records FOR SELECT USING (EXISTS(SELECT 1 FROM vehicles WHERE id = maintenance_records.vehicle_id AND owner_id = auth.uid()));
 
 -- AUTHENTICATED INSERT policies
-CREATE POLICY "Create space" ON public.forum_spaces FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Create post" ON public.forum_posts FOR INSERT WITH CHECK (auth.uid() = author_id);
-CREATE POLICY "Create comment" ON public.forum_comments FOR INSERT WITH CHECK (auth.uid() = author_id);
-CREATE POLICY "Join space" ON public.forum_memberships FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Vote" ON public.forum_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create profile" ON public.social_profiles FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update profile" ON public.social_profiles FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Follow" ON public.follows FOR INSERT WITH CHECK (auth.uid() = follower_id);
-CREATE POLICY "Unfollow" ON public.follows FOR DELETE USING (auth.uid() = follower_id);
-CREATE POLICY "Post story" ON public.stories FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Post reel" ON public.reels FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "React" ON public.social_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Unreact" ON public.social_reactions FOR DELETE USING (auth.uid() = user_id);
-CREATE POLICY "Submit article" ON public.news_articles FOR INSERT WITH CHECK (auth.uid() = submitted_by);
-CREATE POLICY "Comment news" ON public.news_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Start call" ON public.call_sessions FOR INSERT WITH CHECK (auth.uid() = caller_id);
-CREATE POLICY "Update call" ON public.call_sessions FOR UPDATE USING (auth.uid() = caller_id OR auth.uid() = callee_id);
-CREATE POLICY "Create project" ON public.research_projects FOR INSERT WITH CHECK (auth.uid() = lead_id);
-CREATE POLICY "Join research" ON public.research_members FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create study group" ON public.study_groups FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Submit paper" ON public.academic_papers FOR INSERT WITH CHECK (auth.uid() = submitted_by);
-CREATE POLICY "Fund research" ON public.research_grants FOR INSERT WITH CHECK (auth.uid() = funder_id);
-CREATE POLICY "Create listing" ON public.marketplace_listings FOR INSERT WITH CHECK (auth.uid() = seller_id);
-CREATE POLICY "Update listing" ON public.marketplace_listings FOR UPDATE USING (auth.uid() = seller_id);
-CREATE POLICY "Request service" ON public.service_requests FOR INSERT WITH CHECK (auth.uid() = requester_id);
-CREATE POLICY "Update service" ON public.service_requests FOR UPDATE USING (auth.uid() = requester_id OR auth.uid() = matched_provider_id);
-CREATE POLICY "Create escrow" ON public.escrow_holds FOR INSERT WITH CHECK (auth.uid() = buyer_id);
-CREATE POLICY "Create civic project" ON public.civic_projects FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Create milestone" ON public.civic_milestones FOR INSERT WITH CHECK (true);
-CREATE POLICY "Claim repair" ON public.civic_repair_claims FOR INSERT WITH CHECK (auth.uid() = claimer_id);
-CREATE POLICY "Update repair" ON public.civic_repair_claims FOR UPDATE USING (auth.uid() = claimer_id);
-CREATE POLICY "Report map" ON public.map_reports FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Save route" ON public.map_routes FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Add vehicle" ON public.vehicles FOR INSERT WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY "Update vehicle" ON public.vehicles FOR UPDATE USING (auth.uid() = owner_id);
-CREATE POLICY "Log maintenance" ON public.maintenance_records FOR INSERT WITH CHECK (true);
-CREATE POLICY "Share car" ON public.car_shares FOR INSERT WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY "Update share" ON public.car_shares FOR UPDATE USING (auth.uid() = owner_id);
-CREATE POLICY "Report parking" ON public.parking_spots FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+CREATE POLICY IF NOT EXISTS "Create space" ON public.forum_spaces FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Create post" ON public.forum_posts FOR INSERT WITH CHECK (auth.uid() = author_id);
+CREATE POLICY IF NOT EXISTS "Create comment" ON public.forum_comments FOR INSERT WITH CHECK (auth.uid() = author_id);
+CREATE POLICY IF NOT EXISTS "Join space" ON public.forum_memberships FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Vote" ON public.forum_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create profile" ON public.social_profiles FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update profile" ON public.social_profiles FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Follow" ON public.follows FOR INSERT WITH CHECK (auth.uid() = follower_id);
+CREATE POLICY IF NOT EXISTS "Unfollow" ON public.follows FOR DELETE USING (auth.uid() = follower_id);
+CREATE POLICY IF NOT EXISTS "Post story" ON public.stories FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Post reel" ON public.reels FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "React" ON public.social_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Unreact" ON public.social_reactions FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Submit article" ON public.news_articles FOR INSERT WITH CHECK (auth.uid() = submitted_by);
+CREATE POLICY IF NOT EXISTS "Comment news" ON public.news_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Start call" ON public.call_sessions FOR INSERT WITH CHECK (auth.uid() = caller_id);
+CREATE POLICY IF NOT EXISTS "Update call" ON public.call_sessions FOR UPDATE USING (auth.uid() = caller_id OR auth.uid() = callee_id);
+CREATE POLICY IF NOT EXISTS "Create project" ON public.research_projects FOR INSERT WITH CHECK (auth.uid() = lead_id);
+CREATE POLICY IF NOT EXISTS "Join research" ON public.research_members FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create study group" ON public.study_groups FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Submit paper" ON public.academic_papers FOR INSERT WITH CHECK (auth.uid() = submitted_by);
+CREATE POLICY IF NOT EXISTS "Fund research" ON public.research_grants FOR INSERT WITH CHECK (auth.uid() = funder_id);
+CREATE POLICY IF NOT EXISTS "Create listing" ON public.marketplace_listings FOR INSERT WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY IF NOT EXISTS "Update listing" ON public.marketplace_listings FOR UPDATE USING (auth.uid() = seller_id);
+CREATE POLICY IF NOT EXISTS "Request service" ON public.service_requests FOR INSERT WITH CHECK (auth.uid() = requester_id);
+CREATE POLICY IF NOT EXISTS "Update service" ON public.service_requests FOR UPDATE USING (auth.uid() = requester_id OR auth.uid() = matched_provider_id);
+CREATE POLICY IF NOT EXISTS "Create escrow" ON public.escrow_holds FOR INSERT WITH CHECK (auth.uid() = buyer_id);
+CREATE POLICY IF NOT EXISTS "Create civic project" ON public.civic_projects FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY IF NOT EXISTS "Create milestone" ON public.civic_milestones FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Claim repair" ON public.civic_repair_claims FOR INSERT WITH CHECK (auth.uid() = claimer_id);
+CREATE POLICY IF NOT EXISTS "Update repair" ON public.civic_repair_claims FOR UPDATE USING (auth.uid() = claimer_id);
+CREATE POLICY IF NOT EXISTS "Report map" ON public.map_reports FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Save route" ON public.map_routes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Add vehicle" ON public.vehicles FOR INSERT WITH CHECK (auth.uid() = owner_id);
+CREATE POLICY IF NOT EXISTS "Update vehicle" ON public.vehicles FOR UPDATE USING (auth.uid() = owner_id);
+CREATE POLICY IF NOT EXISTS "Log maintenance" ON public.maintenance_records FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Share car" ON public.car_shares FOR INSERT WITH CHECK (auth.uid() = owner_id);
+CREATE POLICY IF NOT EXISTS "Update share" ON public.car_shares FOR UPDATE USING (auth.uid() = owner_id);
+CREATE POLICY IF NOT EXISTS "Report parking" ON public.parking_spots FOR INSERT WITH CHECK (auth.uid() = reporter_id);
 
 -- REALTIME
 ALTER PUBLICATION supabase_realtime ADD TABLE public.call_sessions;
@@ -592,12 +592,12 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('social', 'social', true)
 INSERT INTO storage.buckets (id, name, public) VALUES ('forum', 'forum', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('vehicles', 'vehicles', true) ON CONFLICT DO NOTHING;
 
-CREATE POLICY "Social media public" ON storage.objects FOR SELECT USING (bucket_id = 'social');
-CREATE POLICY "Upload social" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'social' AND auth.role() = 'authenticated');
-CREATE POLICY "Forum media public" ON storage.objects FOR SELECT USING (bucket_id = 'forum');
-CREATE POLICY "Upload forum" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'forum' AND auth.role() = 'authenticated');
-CREATE POLICY "Vehicle media public" ON storage.objects FOR SELECT USING (bucket_id = 'vehicles');
-CREATE POLICY "Upload vehicle" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vehicles' AND auth.role() = 'authenticated');
+CREATE POLICY IF NOT EXISTS "Social media public" ON storage.objects FOR SELECT USING (bucket_id = 'social');
+CREATE POLICY IF NOT EXISTS "Upload social" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'social' AND auth.role() = 'authenticated');
+CREATE POLICY IF NOT EXISTS "Forum media public" ON storage.objects FOR SELECT USING (bucket_id = 'forum');
+CREATE POLICY IF NOT EXISTS "Upload forum" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'forum' AND auth.role() = 'authenticated');
+CREATE POLICY IF NOT EXISTS "Vehicle media public" ON storage.objects FOR SELECT USING (bucket_id = 'vehicles');
+CREATE POLICY IF NOT EXISTS "Upload vehicle" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vehicles' AND auth.role() = 'authenticated');
 
 -- TRIGGERS: Auto-update follower/following counts
 CREATE OR REPLACE FUNCTION update_follow_counts()
@@ -615,7 +615,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER on_follow_change
+DROP TRIGGER IF EXISTS on_follow_change
+CREATE TRIGGER 
 AFTER INSERT OR DELETE ON public.follows
 FOR EACH ROW EXECUTE FUNCTION update_follow_counts();
 
@@ -633,6 +634,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER on_membership_change
+DROP TRIGGER IF EXISTS on_membership_change
+CREATE TRIGGER 
 AFTER INSERT OR DELETE ON public.forum_memberships
 FOR EACH ROW EXECUTE FUNCTION update_space_member_count();

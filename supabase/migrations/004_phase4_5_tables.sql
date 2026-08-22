@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.ai_conversations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_ai_conversations_user ON public.ai_conversations(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations(user_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.ai_function_calls (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.bounties (
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_bounties_status ON public.bounties(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bounties_status ON public.bounties(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.developer_contributions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS public.twin_insights (
   data JSONB NOT NULL DEFAULT '{}',
   generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_twin_insights_user ON public.twin_insights(user_id, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_twin_insights_user ON public.twin_insights(user_id, generated_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PRIVACY & CONSENT
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS public.consent_records (
   granted BOOLEAN NOT NULL DEFAULT FALSE,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX idx_consent_user_category ON public.consent_records(user_id, category);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_consent_user_category ON public.consent_records(user_id, category);
 
 CREATE TABLE IF NOT EXISTS public.data_export_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -221,39 +221,39 @@ ALTER TABLE public.ap_followers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feature_flags ENABLE ROW LEVEL SECURITY;
 
 -- User-specific
-CREATE POLICY "Own AI conversations" ON public.ai_conversations FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Create AI conversation" ON public.ai_conversations FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update AI conversation" ON public.ai_conversations FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Own function calls" ON public.ai_function_calls FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own twin" ON public.digital_twins FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Create twin" ON public.digital_twins FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update twin" ON public.digital_twins FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Own twin actions" ON public.twin_actions FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own insights" ON public.twin_insights FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Own consent" ON public.consent_records FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Manage consent" ON public.consent_records FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Update consent" ON public.consent_records FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Own export requests" ON public.data_export_requests FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Request export" ON public.data_export_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Own deletion" ON public.deletion_requests FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Request deletion" ON public.deletion_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Cancel deletion" ON public.deletion_requests FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own AI conversations" ON public.ai_conversations FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create AI conversation" ON public.ai_conversations FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update AI conversation" ON public.ai_conversations FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own function calls" ON public.ai_function_calls FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own twin" ON public.digital_twins FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create twin" ON public.digital_twins FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update twin" ON public.digital_twins FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own twin actions" ON public.twin_actions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own insights" ON public.twin_insights FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own consent" ON public.consent_records FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Manage consent" ON public.consent_records FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Update consent" ON public.consent_records FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own export requests" ON public.data_export_requests FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Request export" ON public.data_export_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Own deletion" ON public.deletion_requests FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Request deletion" ON public.deletion_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Cancel deletion" ON public.deletion_requests FOR UPDATE USING (auth.uid() = user_id);
 
 -- Public read
-CREATE POLICY "Public apps" ON public.developer_apps FOR SELECT USING (status = 'active');
-CREATE POLICY "Public reviews" ON public.app_reviews FOR SELECT USING (true);
-CREATE POLICY "Public bounties" ON public.bounties FOR SELECT USING (true);
-CREATE POLICY "Public contributions" ON public.developer_contributions FOR SELECT USING (true);
-CREATE POLICY "Public feature flags" ON public.feature_flags FOR SELECT USING (true);
-CREATE POLICY "Public AP actors" ON public.ap_actors FOR SELECT USING (true);
-CREATE POLICY "Public AP followers" ON public.ap_followers FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public apps" ON public.developer_apps FOR SELECT USING (status = 'active');
+CREATE POLICY IF NOT EXISTS "Public reviews" ON public.app_reviews FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public bounties" ON public.bounties FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public contributions" ON public.developer_contributions FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public feature flags" ON public.feature_flags FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public AP actors" ON public.ap_actors FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public AP followers" ON public.ap_followers FOR SELECT USING (true);
 
 -- Authenticated write
-CREATE POLICY "Create app" ON public.developer_apps FOR INSERT WITH CHECK (auth.uid() = developer_id);
-CREATE POLICY "Update own app" ON public.developer_apps FOR UPDATE USING (auth.uid() = developer_id);
-CREATE POLICY "Review app" ON public.app_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Post bounty" ON public.bounties FOR INSERT WITH CHECK (auth.uid() = posted_by);
-CREATE POLICY "Claim bounty" ON public.bounties FOR UPDATE USING (true);
-CREATE POLICY "Log contribution" ON public.developer_contributions FOR INSERT WITH CHECK (auth.uid() = developer_id);
-CREATE POLICY "Create AI func call" ON public.ai_function_calls FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Create twin action" ON public.twin_actions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create app" ON public.developer_apps FOR INSERT WITH CHECK (auth.uid() = developer_id);
+CREATE POLICY IF NOT EXISTS "Update own app" ON public.developer_apps FOR UPDATE USING (auth.uid() = developer_id);
+CREATE POLICY IF NOT EXISTS "Review app" ON public.app_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Post bounty" ON public.bounties FOR INSERT WITH CHECK (auth.uid() = posted_by);
+CREATE POLICY IF NOT EXISTS "Claim bounty" ON public.bounties FOR UPDATE USING (true);
+CREATE POLICY IF NOT EXISTS "Log contribution" ON public.developer_contributions FOR INSERT WITH CHECK (auth.uid() = developer_id);
+CREATE POLICY IF NOT EXISTS "Create AI func call" ON public.ai_function_calls FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY IF NOT EXISTS "Create twin action" ON public.twin_actions FOR INSERT WITH CHECK (auth.uid() = user_id);
