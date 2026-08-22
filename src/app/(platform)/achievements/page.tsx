@@ -1,295 +1,242 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useAppStore } from '@/lib/store/app-store';
-import { cn } from '@/lib/utils/cn';
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { useAppStore } from '@/lib/store/app-store'
+import { cn } from '@/lib/utils/cn'
+import { toast } from 'sonner'
+
+type Tab = 'badges' | 'paths' | 'challenges' | 'leaderboard'
 
 interface Badge {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  icon: string;
-  category: string;
-  points: number;
+  id: string
+  name: string
+  icon: string
+  description: string
+  criteria: string
+  earned: boolean
+  earnedDate?: string
+  category: string
 }
 
-interface UserBadge {
-  badge_id: string;
-  earned_at: string;
+interface AchievementPath {
+  id: string
+  name: string
+  stages: { name: string; completed: boolean }[]
+  currentStage: number
+  totalStages: number
 }
 
 interface Challenge {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
-  reward_mly: number;
-  starts_at: string;
-  ends_at: string;
-}
-
-interface ChallengeProgress {
-  challenge_id: string;
-  progress: number;
-  completed: boolean;
+  id: string
+  title: string
+  description: string
+  type: 'streak' | 'event' | 'skill'
+  progress: number
+  target: number
+  endsAt: string
+  reward: string
+  active: boolean
 }
 
 interface LeaderboardEntry {
-  id: string;
-  display_name: string;
-  trust_score: number;
-  mly_balance: number;
-  health_streak: number;
+  id: string
+  name: string
+  badges: number
+  neighborhood: string
+  rank: number
+  monthlyPoints: number
 }
 
-type AchievementTab = 'badges' | 'challenges' | 'leaderboard';
-
-// Default badges to show even if DB is empty
-const DEFAULT_BADGES: Badge[] = [
-  { id: 'b1', slug: 'first_checkin', name: 'First Check-in', description: 'Complete your first health check-in', icon: '💚', category: 'onboarding', points: 5 },
-  { id: 'b2', slug: 'first_report', name: 'Civic Voice', description: 'Report your first community issue', icon: '📢', category: 'civic', points: 10 },
-  { id: 'b3', slug: 'first_vote', name: 'Democracy!', description: 'Cast your first governance vote', icon: '🗳️', category: 'civic', points: 10 },
-  { id: 'b4', slug: 'week_streak', name: '7-Day Warrior', description: 'Check in 7 days in a row', icon: '🔥', category: 'engagement', points: 25 },
-  { id: 'b5', slug: 'month_streak', name: '30-Day Legend', description: 'Check in 30 days in a row', icon: '⚡', category: 'engagement', points: 100 },
-  { id: 'b6', slug: 'first_course', name: 'Scholar', description: 'Complete your first course', icon: '🎓', category: 'education', points: 15 },
-  { id: 'b7', slug: 'five_courses', name: 'Knowledge Seeker', description: 'Complete 5 courses', icon: '📚', category: 'education', points: 50 },
-  { id: 'b8', slug: 'first_sale', name: 'Entrepreneur', description: 'Make your first sale on MiShop', icon: '💰', category: 'economic', points: 10 },
-  { id: 'b9', slug: 'hundred_mly', name: '$100 Club', description: 'Earn 100 $MLY total', icon: '💎', category: 'economic', points: 20 },
-  { id: 'b10', slug: 'first_media', name: 'Creator', description: 'Upload your first media content', icon: '🎬', category: 'social', points: 10 },
-  { id: 'b11', slug: 'guild_join', name: 'Peace Keeper', description: 'Join the MiGuild', icon: '🛡️', category: 'civic', points: 20 },
-  { id: 'b12', slug: 'ten_votes', name: 'Civic Champion', description: 'Vote on 10 proposals', icon: '🏛️', category: 'civic', points: 30 },
-  { id: 'b13', slug: 'first_recording', name: 'Community Witness', description: 'Submit your first recording', icon: '📹', category: 'civic', points: 15 },
-  { id: 'b14', slug: 'refer_friend', name: 'Connector', description: 'Invite someone who joins MiLyfe', icon: '🤝', category: 'social', points: 20 },
-  { id: 'b15', slug: 'constitution_voter', name: 'Founding Voice', description: 'Vote on a constitutional amendment', icon: '📜', category: 'leadership', points: 25 },
-  { id: 'b16', slug: 'level_3', name: 'Active Member', description: 'Reach Level 3 standing', icon: '⭐', category: 'engagement', points: 50 },
-  { id: 'b17', slug: 'level_5', name: 'Community Leader', description: 'Reach Level 5 standing', icon: '👑', category: 'leadership', points: 200 },
-  { id: 'b18', slug: 'wiki_editor', name: 'Knowledge Builder', description: 'Create or edit a wiki page', icon: '📖', category: 'education', points: 10 },
-];
-
-const BADGE_CATEGORIES = ['all', 'onboarding', 'engagement', 'civic', 'social', 'economic', 'education', 'leadership'];
-
 export default function AchievementsPage() {
-  const [tab, setTab] = useState<AchievementTab>('badges');
-  const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES);
-  const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [progress, setProgress] = useState<ChallengeProgress[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [badgeCategory, setBadgeCategory] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>('badges')
+  const [loading, setLoading] = useState(true)
+  const [badges, setBadges] = useState<Badge[]>([])
+  const [paths, setPaths] = useState<AchievementPath[]>([])
+  const [challenges, setChallenges] = useState<Challenge[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const supabase = createClient()
+  const { user } = useAppStore()
 
-  const { user } = useAppStore();
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'badges', label: 'Badges' },
+    { key: 'paths', label: 'Paths' },
+    { key: 'challenges', label: 'Challenges' },
+    { key: 'leaderboard', label: 'Leaderboard' },
+  ]
 
   useEffect(() => {
-    loadData();
-  }, [user]);
+    loadAchievementData()
+  }, [])
 
-  async function loadData() {
-    const supabase = createClient();
-
-    // Load badges from DB (or use defaults)
-    const { data: dbBadges } = await supabase.from('badges').select('*');
-    if (dbBadges && dbBadges.length > 0) setBadges(dbBadges);
-
-    // Load user's earned badges
-    if (user) {
-      const { data: earned } = await supabase.from('user_badges').select('badge_id, earned_at').eq('user_id', user.id);
-      if (earned) setUserBadges(earned);
+  async function loadAchievementData() {
+    setLoading(true)
+    try {
+      setBadges([
+        { id: '1', name: 'First Steps', icon: '👣', description: 'Complete your profile and onboarding', criteria: 'Finish all onboarding steps', earned: true, earnedDate: '2024-01-01', category: 'Getting Started' },
+        { id: '2', name: 'Community Voice', icon: '📣', description: 'Cast your first governance vote', criteria: 'Vote on any active proposal', earned: true, earnedDate: '2024-01-05', category: 'Governance' },
+        { id: '3', name: 'Good Neighbor', icon: '🤝', description: 'Help 5 community members', criteria: 'Respond to 5 help requests', earned: true, earnedDate: '2024-01-10', category: 'Community' },
+        { id: '4', name: 'Market Maven', icon: '🛒', description: 'Complete 10 marketplace transactions', criteria: '10 successful trades or purchases', earned: false, category: 'Marketplace' },
+        { id: '5', name: 'Night Owl Patrol', icon: '🦉', description: 'Complete 5 evening guild patrols', criteria: '5 patrol shifts completed after 6 PM', earned: false, category: 'Safety' },
+        { id: '6', name: 'Knowledge Keeper', icon: '📚', description: 'Create 3 wiki articles', criteria: 'Publish 3 community wiki pages', earned: true, earnedDate: '2024-01-12', category: 'Wiki' },
+        { id: '7', name: 'Health Champion', icon: '💪', description: 'Log health data for 30 consecutive days', criteria: '30-day health tracking streak', earned: false, category: 'Health' },
+        { id: '8', name: 'Eagle Eye', icon: '🦅', description: 'Submit 10 verified community recordings', criteria: '10 recordings verified by community', earned: false, category: 'Recording' },
+        { id: '9', name: 'Money Wise', icon: '💰', description: 'Stay under budget for 3 months', criteria: 'No budget overages for 3 consecutive months', earned: false, category: 'Finance' },
+        { id: '10', name: 'Transit Pro', icon: '🚌', description: 'Use public transit 50 times', criteria: 'Log 50 transit trips', earned: true, earnedDate: '2024-01-14', category: 'Transit' },
+        { id: '11', name: 'Green Thumb', icon: '🌱', description: 'Participate in community garden for a season', criteria: 'Active garden member for 3+ months', earned: false, category: 'Community' },
+        { id: '12', name: 'Fact Finder', icon: '🔍', description: 'Verify 5 news stories', criteria: 'Participate in 5 community fact-checks', earned: false, category: 'News' },
+      ])
+      setPaths([
+        { id: '1', name: 'Community Pillar', stages: [{ name: 'Newcomer', completed: true }, { name: 'Contributor', completed: true }, { name: 'Pillar', completed: false }, { name: 'Legend', completed: false }], currentStage: 2, totalStages: 4 },
+        { id: '2', name: 'Safety Guardian', stages: [{ name: 'Observer', completed: true }, { name: 'Reporter', completed: true }, { name: 'Patroller', completed: true }, { name: 'Guardian', completed: false }], currentStage: 3, totalStages: 4 },
+        { id: '3', name: 'Knowledge Seeker', stages: [{ name: 'Reader', completed: true }, { name: 'Editor', completed: false }, { name: 'Author', completed: false }, { name: 'Sage', completed: false }], currentStage: 1, totalStages: 4 },
+      ])
+      setChallenges([
+        { id: '1', title: '30-Day Fitness Streak', description: 'Log activity every day for 30 days', type: 'streak', progress: 18, target: 30, endsAt: '2024-02-15', reward: '50 $MLY + Health Champion Badge', active: true },
+        { id: '2', title: 'Community Cleanup Weekend', description: 'Participate in the neighborhood cleanup event', type: 'event', progress: 0, target: 1, endsAt: '2024-01-20', reward: '25 $MLY', active: true },
+        { id: '3', title: 'Learn a New Skill', description: 'Complete 5 community workshop sessions', type: 'skill', progress: 3, target: 5, endsAt: '2024-02-28', reward: '30 $MLY + Skill Badge', active: true },
+        { id: '4', title: 'Weekly Transit Challenge', description: 'Use public transit at least 3 times this week', type: 'streak', progress: 2, target: 3, endsAt: '2024-01-21', reward: '15 $MLY', active: true },
+      ])
+      setLeaderboard([
+        { id: '1', name: 'Maria S.', badges: 18, neighborhood: 'Riverside', rank: 1, monthlyPoints: 450 },
+        { id: '2', name: 'DeShawn M.', badges: 15, neighborhood: 'Springfield', rank: 2, monthlyPoints: 380 },
+        { id: '3', name: 'Tanya A.', badges: 14, neighborhood: 'Downtown', rank: 3, monthlyPoints: 355 },
+        { id: '4', name: 'You', badges: 5, neighborhood: 'Riverside', rank: 12, monthlyPoints: 180 },
+        { id: '5', name: 'Jordan W.', badges: 12, neighborhood: 'Eastside', rank: 4, monthlyPoints: 320 },
+        { id: '6', name: 'Patricia C.', badges: 11, neighborhood: 'San Marco', rank: 5, monthlyPoints: 290 },
+      ])
+    } finally {
+      setLoading(false)
     }
-
-    // Load challenges
-    const { data: challs } = await supabase.from('challenges').select('*')
-      .gt('ends_at', new Date().toISOString())
-      .order('ends_at');
-    if (challs) setChallenges(challs);
-
-    // Load user challenge progress
-    if (user) {
-      const { data: prog } = await supabase.from('challenge_progress').select('challenge_id, progress, completed').eq('user_id', user.id);
-      if (prog) setProgress(prog);
-    }
-
-    // Leaderboard (top 20 by trust_score)
-    const { data: leaders } = await supabase.from('profiles')
-      .select('id, display_name, trust_score, mly_balance, health_streak')
-      .order('trust_score', { ascending: false })
-      .limit(20);
-    if (leaders) setLeaderboard(leaders);
-
-    setLoading(false);
   }
 
-  const earnedIds = new Set(userBadges.map((ub) => ub.badge_id));
-  const filteredBadges = badgeCategory === 'all' ? badges : badges.filter((b) => b.category === badgeCategory);
-  const earnedCount = userBadges.length;
-  const totalPoints = badges.filter((b) => earnedIds.has(b.id)).reduce((sum, b) => sum + b.points, 0);
+  function handleJoinChallenge(challengeId: string) {
+    toast.success('Challenge joined! Track your progress here.')
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <div className="skeleton h-10 w-56 rounded-lg" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="skeleton h-32 rounded-xl" />)}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-4 animate-slide-up">
-      <div>
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">🏆 Achievements</h1>
-        <p className="text-xs text-gray-500">Badges, challenges, and community leaderboard</p>
+    <div className="p-6 max-w-7xl mx-auto space-y-6 animate-slide-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-harbor-900">Badges & Achievements</h1>
+          <p className="text-harbor-500 mt-1">Earn recognition for your community impact</p>
+        </div>
+        <Link href="/dashboard" className="btn-teal px-4 py-2 rounded-lg text-sm">Back to Dashboard</Link>
       </div>
 
-      {/* Stats summary */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card text-center !p-3">
-          <p className="text-xl font-bold text-harbor-800 dark:text-white">{earnedCount}</p>
-          <p className="text-xs text-gray-500">Badges</p>
-        </div>
-        <div className="card text-center !p-3">
-          <p className="text-xl font-bold text-teal-600">{totalPoints}</p>
-          <p className="text-xs text-gray-500">Points</p>
-        </div>
-        <div className="card text-center !p-3">
-          <p className="text-xl font-bold text-mly-600">{challenges.length}</p>
-          <p className="text-xs text-gray-500">Active Challenges</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {([
-          { key: 'badges', label: '🏅 Badges' },
-          { key: 'challenges', label: '⚡ Challenges' },
-          { key: 'leaderboard', label: '🏆 Leaderboard' },
-        ] as { key: AchievementTab; label: string }[]).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'flex-1 py-2.5 px-2 rounded-lg text-xs font-medium transition-all',
-              tab === t.key ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500'
-            )}
-          >
-            {t.label}
+      <nav className="flex gap-1 bg-harbor-100 p-1 rounded-xl overflow-x-auto">
+        {tabs.map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn('px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all', activeTab === tab.key ? 'bg-teal-600 text-white shadow-sm' : 'text-harbor-600 hover:bg-harbor-200')}>
+            {tab.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {/* Badges */}
-      {tab === 'badges' && (
-        <div className="space-y-3">
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-            {BADGE_CATEGORIES.map((c) => (
-              <button
-                key={c}
-                onClick={() => setBadgeCategory(c)}
-                className={cn(
-                  'px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap',
-                  badgeCategory === c ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600'
+      {activeTab === 'badges' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 mb-2">
+            <span className="text-sm text-harbor-600">Earned: <strong className="text-teal-600">{badges.filter(b => b.earned).length}</strong> / {badges.length}</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {badges.map(badge => (
+              <div key={badge.id} className={cn('card p-4 rounded-xl text-center transition-all', badge.earned ? 'border-teal-200 bg-gradient-to-b from-teal-50 to-white' : 'opacity-60 grayscale')}>
+                <span className="text-3xl block mb-2">{badge.icon}</span>
+                <h4 className="font-semibold text-harbor-800 text-sm">{badge.name}</h4>
+                <p className="text-xs text-harbor-500 mt-1">{badge.description}</p>
+                {badge.earned ? (
+                  <p className="text-xs text-teal-600 mt-2 font-medium">Earned {badge.earnedDate}</p>
+                ) : (
+                  <p className="text-xs text-harbor-400 mt-2">{badge.criteria}</p>
                 )}
-              >
-                {c}
-              </button>
+              </div>
             ))}
           </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {filteredBadges.map((badge) => {
-              const earned = earnedIds.has(badge.id);
-              return (
-                <div
-                  key={badge.id}
-                  className={cn(
-                    'card text-center !p-3 transition-all',
-                    earned ? 'border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-900/10' : 'opacity-50 grayscale'
-                  )}
-                >
-                  <p className="text-2xl mb-1">{badge.icon}</p>
-                  <p className="text-xs font-medium text-harbor-800 dark:text-white line-clamp-1">{badge.name}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{badge.points} pts</p>
-                  {earned && <p className="text-[10px] text-teal-600 mt-0.5">✓ Earned</p>}
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 
-      {/* Challenges */}
-      {tab === 'challenges' && (
-        <div className="space-y-3">
-          {challenges.length === 0 ? (
-            <div className="card text-center py-8">
-              <p className="text-3xl mb-2">⚡</p>
-              <p className="text-sm text-gray-500">No active challenges right now.</p>
-              <p className="text-xs text-gray-400 mt-1">Check back soon!</p>
+      {activeTab === 'paths' && (
+        <div className="space-y-6">
+          <h2 className="text-lg font-semibold text-harbor-800">Achievement Paths</h2>
+          {paths.map(path => (
+            <div key={path.id} className="card p-5 rounded-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-harbor-800">{path.name}</h3>
+                <span className="text-sm text-teal-600 font-medium">Stage {path.currentStage}/{path.totalStages}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {path.stages.map((stage, idx) => (
+                  <div key={idx} className="flex items-center gap-2 flex-1">
+                    <div className={cn('flex-1 text-center py-2 px-3 rounded-lg text-xs font-medium', stage.completed ? 'bg-teal-100 text-teal-700' : 'bg-harbor-100 text-harbor-500')}>
+                      {stage.name}
+                    </div>
+                    {idx < path.stages.length - 1 && <span className={cn('text-sm', stage.completed ? 'text-teal-400' : 'text-harbor-300')}>→</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="w-full h-2 bg-harbor-100 rounded-full mt-4 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-teal-400 to-mly-500 rounded-full" style={{ width: `${(path.currentStage / path.totalStages) * 100}%` }} />
+              </div>
             </div>
-          ) : challenges.map((challenge) => {
-            const userProgress = progress.find((p) => p.challenge_id === challenge.id);
-            const progressPct = userProgress ? Math.min(userProgress.progress, 100) : 0;
-
-            return (
-              <div key={challenge.id} className="card">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-sm font-bold text-harbor-800 dark:text-white">{challenge.title}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{challenge.description}</p>
-                  </div>
-                  <span className="text-xs bg-mly-100 dark:bg-mly-900/20 text-mly-700 dark:text-mly-400 px-2 py-0.5 rounded-full font-medium">
-                    +${challenge.reward_mly}
-                  </span>
-                </div>
-                <div className="mt-3 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500 capitalize">{challenge.type}</span>
-                    <span className="text-gray-400">{progressPct}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 dark:bg-harbor-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    Ends {new Date(challenge.ends_at).toLocaleDateString()}
-                  </p>
-                </div>
-                {userProgress?.completed && (
-                  <p className="text-xs text-green-600 font-medium mt-2">✓ Completed!</p>
-                )}
-              </div>
-            );
-          })}
+          ))}
         </div>
       )}
 
-      {/* Leaderboard */}
-      {tab === 'leaderboard' && (
-        <div className="space-y-2">
-          {leaderboard.map((entry, idx) => {
-            const isMe = user?.id === entry.id;
-            return (
-              <div
-                key={entry.id}
-                className={cn(
-                  'card flex items-center gap-3 !py-3',
-                  isMe && 'border-teal-300 dark:border-teal-700 bg-teal-50/50 dark:bg-teal-900/10'
-                )}
-              >
-                <span className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0',
-                  idx === 0 ? 'bg-amber-400 text-amber-900' :
-                  idx === 1 ? 'bg-gray-300 text-gray-700' :
-                  idx === 2 ? 'bg-orange-300 text-orange-800' :
-                  'bg-gray-100 dark:bg-harbor-800 text-gray-600'
-                )}>
-                  {idx + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium truncate', isMe ? 'text-teal-700 dark:text-teal-400' : 'text-harbor-800 dark:text-white')}>
-                    {entry.display_name} {isMe && '(you)'}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    🔥 {entry.health_streak}d streak · 💰 ${entry.mly_balance?.toFixed(0)} MLY
-                  </p>
+      {activeTab === 'challenges' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-harbor-800">Active Challenges</h2>
+          {challenges.map(challenge => (
+            <div key={challenge.id} className="card p-5 rounded-xl">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{challenge.type === 'streak' ? '🔥' : challenge.type === 'event' ? '🎉' : '🎯'}</span>
+                  <h4 className="font-semibold text-harbor-800">{challenge.title}</h4>
                 </div>
-                <span className="text-sm font-bold text-harbor-800 dark:text-white">{entry.trust_score}</span>
+                <span className="text-xs text-harbor-500">Ends: {challenge.endsAt}</span>
               </div>
-            );
-          })}
+              <p className="text-sm text-harbor-500 mb-3">{challenge.description}</p>
+              <div className="w-full h-2.5 bg-harbor-100 rounded-full overflow-hidden mb-2">
+                <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${(challenge.progress / challenge.target) * 100}%` }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-harbor-500">{challenge.progress}/{challenge.target} completed</span>
+                <span className="text-xs text-mly-600 font-medium">Reward: {challenge.reward}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'leaderboard' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-harbor-800">Monthly Leaderboard</h2>
+          {leaderboard.sort((a, b) => a.rank - b.rank).map(entry => (
+            <div key={entry.id} className={cn('card p-4 rounded-xl flex items-center justify-between', entry.name === 'You' ? 'border-2 border-teal-300 bg-teal-50' : '')}>
+              <div className="flex items-center gap-3">
+                <span className={cn('w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold', entry.rank <= 3 ? 'bg-mly-100 text-mly-700' : 'bg-harbor-100 text-harbor-600')}>
+                  {entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : entry.rank}
+                </span>
+                <div>
+                  <p className={cn('font-medium', entry.name === 'You' ? 'text-teal-700' : 'text-harbor-800')}>{entry.name}</p>
+                  <p className="text-xs text-harbor-500">{entry.neighborhood} | {entry.badges} badges</p>
+                </div>
+              </div>
+              <span className="text-sm font-bold text-mly-600">{entry.monthlyPoints} pts</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  );
+  )
 }

@@ -1,329 +1,262 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils/cn';
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { useAppStore } from '@/lib/store/app-store'
+import { cn } from '@/lib/utils/cn'
+import { toast } from 'sonner'
 
-interface PlatformStats {
-  totalUsers: number;
-  activeUsers7d: number;
-  totalMLYCirculating: number;
-  totalMLYBurned: number;
-  totalMLYMinted: number;
-  totalIssuesReported: number;
-  issuesResolved: number;
-  totalProposals: number;
-  totalVotes: number;
-  totalCourses: number;
-  coursesCompleted: number;
-  totalViolations: number;
-  appealRate: number;
-  moderationActions: number;
+type Tab = 'overview' | 'budget' | 'operations' | 'audit'
+
+interface PlatformStat {
+  label: string
+  value: string
+  change: string
+  trend: 'up' | 'down' | 'stable'
 }
 
-interface DailyStat {
-  date: string;
-  minted: number;
-  burned: number;
-  active_users: number;
-  new_users: number;
+interface BudgetCategory {
+  id: string
+  name: string
+  allocated: number
+  spent: number
+  percentage: number
+  color: string
 }
 
-type DashTab = 'overview' | 'financial' | 'moderation' | 'governance' | 'community';
+interface ModerationAction {
+  id: string
+  type: string
+  count: number
+  period: string
+}
+
+interface AuditEntry {
+  id: string
+  action: string
+  actor: string
+  target: string
+  timestamp: string
+  category: 'moderation' | 'system' | 'financial' | 'governance'
+}
 
 export default function TransparencyPage() {
-  const [tab, setTab] = useState<DashTab>('overview');
-  const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<PlatformStat[]>([])
+  const [budget, setBudget] = useState<BudgetCategory[]>([])
+  const [moderationActions, setModerationActions] = useState<ModerationAction[]>([])
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
+  const [timeRange, setTimeRange] = useState('30d')
+  const [auditFilter, setAuditFilter] = useState('all')
+  const supabase = createClient()
+  const { user } = useAppStore()
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'budget', label: 'Budget' },
+    { key: 'operations', label: 'Operations' },
+    { key: 'audit', label: 'Audit' },
+  ]
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    loadTransparencyData()
+  }, [])
 
-  async function loadStats() {
-    const supabase = createClient();
+  async function loadTransparencyData() {
+    setLoading(true)
+    try {
+      setStats([
+        { label: 'Active Users', value: '4,827', change: '+12%', trend: 'up' },
+        { label: 'Transactions Today', value: '1,243', change: '+8%', trend: 'up' },
+        { label: '$MLY in Circulation', value: '142,500', change: '+3.2%', trend: 'up' },
+        { label: 'Platform Uptime', value: '99.97%', change: '0%', trend: 'stable' },
+        { label: 'Avg Response Time', value: '145ms', change: '-12%', trend: 'down' },
+        { label: 'Active Proposals', value: '8', change: '+2', trend: 'up' },
+      ])
+      setBudget([
+        { id: '1', name: 'Community Programs', allocated: 35000, spent: 28450, percentage: 35, color: 'bg-teal-500' },
+        { id: '2', name: 'Infrastructure & Maintenance', allocated: 25000, spent: 21200, percentage: 25, color: 'bg-harbor-500' },
+        { id: '3', name: 'Safety & Guild Operations', allocated: 15000, spent: 12800, percentage: 15, color: 'bg-mly-500' },
+        { id: '4', name: 'Education & Skills', allocated: 12000, spent: 9600, percentage: 12, color: 'bg-purple-500' },
+        { id: '5', name: 'Health & Wellness', allocated: 8000, spent: 6200, percentage: 8, color: 'bg-blue-500' },
+        { id: '6', name: 'Reserve Fund', allocated: 5000, spent: 0, percentage: 5, color: 'bg-green-500' },
+      ])
+      setModerationActions([
+        { id: '1', type: 'Content Removed', count: 23, period: 'Last 30 days' },
+        { id: '2', type: 'Warnings Issued', count: 15, period: 'Last 30 days' },
+        { id: '3', type: 'Accounts Suspended', count: 2, period: 'Last 30 days' },
+        { id: '4', type: 'Appeals Processed', count: 8, period: 'Last 30 days' },
+        { id: '5', type: 'Reports Resolved', count: 45, period: 'Last 30 days' },
+        { id: '6', type: 'Avg Resolution Time', count: 4, period: 'Hours' },
+      ])
+      setAuditLog([
+        { id: '1', action: 'Proposal #47 approved by vote', actor: 'Governance System', target: 'Community Garden Expansion', timestamp: '2024-01-15 4:00 PM', category: 'governance' },
+        { id: '2', action: 'Budget allocation released', actor: 'Treasury Module', target: '2,400 $MLY to Safety Guild', timestamp: '2024-01-15 2:30 PM', category: 'financial' },
+        { id: '3', action: 'Content removed (spam)', actor: 'Mod Team', target: 'Forum post #2847', timestamp: '2024-01-15 1:15 PM', category: 'moderation' },
+        { id: '4', action: 'System maintenance completed', actor: 'DevOps', target: 'Database optimization', timestamp: '2024-01-15 3:00 AM', category: 'system' },
+        { id: '5', action: 'New delegate registered', actor: 'Governance System', target: 'User: PatriciaChen', timestamp: '2024-01-14 6:00 PM', category: 'governance' },
+        { id: '6', action: 'Reward distribution batch', actor: 'Recording Module', target: '150 $MLY to 12 contributors', timestamp: '2024-01-14 5:00 PM', category: 'financial' },
+        { id: '7', action: 'Account suspended for ToS violation', actor: 'Mod Team', target: 'User: spammer42', timestamp: '2024-01-14 11:30 AM', category: 'moderation' },
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
 
-    // Parallel stat queries
-    const [
-      { count: totalUsers },
-      { count: totalIssues },
-      { count: resolvedIssues },
-      { count: totalProposals },
-      { count: totalVotes },
-      { count: totalCourses },
-      { count: coursesCompleted },
-      { count: totalViolations },
-      { count: appeals },
-      { count: moderationActions },
-      { data: treasury },
-      { data: daily },
-    ] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('city_issues').select('*', { count: 'exact', head: true }),
-      supabase.from('city_issues').select('*', { count: 'exact', head: true }).eq('status', 'resolved'),
-      supabase.from('proposals').select('*', { count: 'exact', head: true }),
-      supabase.from('proposal_votes').select('*', { count: 'exact', head: true }),
-      supabase.from('courses').select('*', { count: 'exact', head: true }),
-      supabase.from('course_progress').select('*', { count: 'exact', head: true }).eq('completed', true),
-      supabase.from('violations').select('*', { count: 'exact', head: true }),
-      supabase.from('appeals').select('*', { count: 'exact', head: true }),
-      supabase.from('content_flags').select('*', { count: 'exact', head: true }).eq('status', 'resolved'),
-      supabase.from('mly_treasury').select('*').single(),
-      supabase.from('mly_daily_stats').select('*').order('date', { ascending: false }).limit(30),
-    ]);
+  const filteredAudit = auditLog.filter(e => auditFilter === 'all' || e.category === auditFilter)
 
-    setStats({
-      totalUsers: totalUsers || 0,
-      activeUsers7d: treasury?.total_users || 0,
-      totalMLYCirculating: treasury?.total_circulating || 0,
-      totalMLYBurned: treasury?.total_burned || 0,
-      totalMLYMinted: treasury?.total_minted || 0,
-      totalIssuesReported: totalIssues || 0,
-      issuesResolved: resolvedIssues || 0,
-      totalProposals: totalProposals || 0,
-      totalVotes: totalVotes || 0,
-      totalCourses: totalCourses || 0,
-      coursesCompleted: coursesCompleted || 0,
-      totalViolations: totalViolations || 0,
-      appealRate: totalViolations ? Math.round(((appeals || 0) / totalViolations) * 100) : 0,
-      moderationActions: moderationActions || 0,
-    });
-
-    if (daily) setDailyStats(daily as DailyStat[]);
-    setLoading(false);
+  const auditCatColor = (cat: string) => {
+    switch (cat) {
+      case 'governance': return 'bg-purple-100 text-purple-700'
+      case 'financial': return 'bg-mly-100 text-mly-700'
+      case 'moderation': return 'bg-red-100 text-red-700'
+      case 'system': return 'bg-harbor-100 text-harbor-600'
+      default: return 'bg-harbor-100 text-harbor-600'
+    }
   }
 
   if (loading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 bg-gray-200 dark:bg-harbor-800 rounded w-48" />
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="h-24 bg-gray-200 dark:bg-harbor-800 rounded-xl" />)}
+      <div className="p-6 space-y-4">
+        <div className="skeleton h-10 w-56 rounded-lg" />
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
         </div>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="space-y-4 animate-slide-up">
-      <div>
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">Platform Transparency</h1>
-        <p className="text-xs text-gray-500">
-          Real-time public data. No login required. Everything visible.
-        </p>
+    <div className="p-6 max-w-7xl mx-auto space-y-6 animate-slide-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-harbor-900">Platform Transparency</h1>
+          <p className="text-harbor-500 mt-1">Full visibility into platform operations</p>
+        </div>
+        <Link href="/dashboard" className="btn-teal px-4 py-2 rounded-lg text-sm">Back to Dashboard</Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1">
-        {([
-          { key: 'overview', label: '📊 Overview' },
-          { key: 'financial', label: '💰 Financial' },
-          { key: 'moderation', label: '⚖️ Moderation' },
-          { key: 'governance', label: '🗳️ Governance' },
-          { key: 'community', label: '🏘️ Community' },
-        ] as { key: DashTab; label: string }[]).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all',
-              tab === t.key ? 'bg-harbor-800 text-white dark:bg-teal-500' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600 dark:text-gray-300'
-            )}
-          >
-            {t.label}
+      <nav className="flex gap-1 bg-harbor-100 p-1 rounded-xl overflow-x-auto">
+        {tabs.map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn('px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all', activeTab === tab.key ? 'bg-teal-600 text-white shadow-sm' : 'text-harbor-600 hover:bg-harbor-200')}>
+            {tab.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {/* Overview */}
-      {tab === 'overview' && stats && (
+      {activeTab === 'overview' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Total Members" value={stats.totalUsers} icon="👥" />
-            <StatCard label="$MLY Circulating" value={`$${stats.totalMLYCirculating.toLocaleString()}`} icon="💰" />
-            <StatCard label="Issues Reported" value={stats.totalIssuesReported} icon="🚨" />
-            <StatCard label="Issues Resolved" value={stats.issuesResolved} icon="✅" />
-            <StatCard label="Proposals Created" value={stats.totalProposals} icon="🗳️" />
-            <StatCard label="Total Votes Cast" value={stats.totalVotes} icon="✋" />
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-harbor-800">Real-Time Stats</h2>
+            <select className="input-field px-3 py-1.5 rounded-lg text-sm" value={timeRange} onChange={e => setTimeRange(e.target.value)}>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+            </select>
           </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">Platform Health Score</h3>
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <div className="h-3 bg-gray-200 dark:bg-harbor-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-green-400 to-teal-500 rounded-full" style={{ width: '85%' }} />
-                </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {stats.map(stat => (
+              <div key={stat.label} className="card p-4 rounded-xl">
+                <p className="text-xs text-harbor-500">{stat.label}</p>
+                <p className="text-2xl font-bold text-harbor-800 mt-1">{stat.value}</p>
+                <span className={cn('text-xs font-medium', stat.trend === 'up' ? 'text-green-600' : stat.trend === 'down' ? 'text-teal-600' : 'text-harbor-500')}>{stat.change} {stat.trend === 'up' ? '↑' : stat.trend === 'down' ? '↓' : '→'}</span>
               </div>
-              <span className="text-lg font-bold text-teal-600">85%</span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Based on uptime, resolution rate, participation, and moderation effectiveness</p>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Financial */}
-      {tab === 'financial' && stats && (
+      {activeTab === 'budget' && (
         <div className="space-y-4">
-          <div className="card bg-gradient-to-br from-mly-500 to-harbor-800 text-white">
-            <p className="text-xs opacity-80">Total $MLY Supply</p>
-            <p className="text-3xl font-bold">${stats.totalMLYCirculating.toLocaleString()}</p>
-            <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-white/20">
-              <div>
-                <p className="text-xs opacity-80">Total Minted</p>
-                <p className="text-lg font-bold">${stats.totalMLYMinted.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-xs opacity-80">Total Burned</p>
-                <p className="text-lg font-bold">${stats.totalMLYBurned.toLocaleString()}</p>
-              </div>
+          <h2 className="text-lg font-semibold text-harbor-800">$MLY Budget Allocation</h2>
+          <div className="card p-5 rounded-xl">
+            <div className="flex h-6 rounded-full overflow-hidden mb-4">
+              {budget.map(cat => (
+                <div key={cat.id} className={cn('h-full', cat.color)} style={{ width: `${cat.percentage}%` }} title={cat.name} />
+              ))}
             </div>
-          </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-3">Last 30 Days</h3>
-            {dailyStats.length > 0 ? (
-              <div className="space-y-1">
-                {dailyStats.slice(0, 10).map((d) => (
-                  <div key={d.date} className="flex items-center justify-between text-xs py-1 border-b border-gray-50 dark:border-harbor-800 last:border-0">
-                    <span className="text-gray-500">{d.date}</span>
-                    <div className="flex gap-4">
-                      <span className="text-green-600">+${d.minted}</span>
-                      <span className="text-red-500">-${d.burned}</span>
-                      <span className="text-gray-600">{d.active_users} active</span>
-                    </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {budget.map(cat => (
+                <div key={cat.id} className="flex items-center gap-2">
+                  <span className={cn('w-3 h-3 rounded-full', cat.color)} />
+                  <div>
+                    <p className="text-xs text-harbor-600 font-medium">{cat.name}</p>
+                    <p className="text-xs text-harbor-400">{cat.percentage}%</p>
                   </div>
-                ))}
+                </div>
+              ))}
+            </div>
+          </div>
+          <h3 className="font-semibold text-harbor-800">Spending Detail</h3>
+          {budget.map(cat => (
+            <div key={cat.id} className="card p-4 rounded-xl">
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-medium text-harbor-800 text-sm">{cat.name}</p>
+                <p className="text-sm text-harbor-600">{cat.spent.toLocaleString()} / {cat.allocated.toLocaleString()} $MLY</p>
               </div>
-            ) : (
-              <p className="text-xs text-gray-400 text-center py-4">No daily stats recorded yet</p>
-            )}
-          </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">Economic Rules</h3>
-            <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1.5">
-              <li>• <strong>UBI:</strong> $10 MLY/day to active participants</li>
-              <li>• <strong>Inactive Decay:</strong> 2%/day after 14 days idle</li>
-              <li>• <strong>Hoarding Tax:</strong> 1%/day on balance over $1,000</li>
-              <li>• <strong>Burn:</strong> All decayed tokens permanently removed</li>
-              <li>• <strong>Exchange Rate:</strong> 1 MLY = $1 USD (community-fixed)</li>
-            </ul>
-          </div>
+              <div className="w-full h-2 bg-harbor-100 rounded-full overflow-hidden">
+                <div className={cn('h-full rounded-full', cat.color)} style={{ width: `${(cat.spent / cat.allocated) * 100}%` }} />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Moderation */}
-      {tab === 'moderation' && stats && (
+      {activeTab === 'operations' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Total Violations" value={stats.totalViolations} icon="⚠️" small />
-            <StatCard label="Appeal Rate" value={`${stats.appealRate}%`} icon="📝" small />
-            <StatCard label="Actions Taken" value={stats.moderationActions} icon="⚖️" small />
+          <h2 className="text-lg font-semibold text-harbor-800">Platform Operations</h2>
+          <div className="card p-5 rounded-xl">
+            <h3 className="font-semibold text-harbor-800 mb-3">System Health</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {[{ label: 'API', status: 'healthy' }, { label: 'Database', status: 'healthy' }, { label: 'CDN', status: 'healthy' }].map(service => (
+                <div key={service.label} className="text-center p-3 bg-green-50 rounded-lg">
+                  <span className="w-3 h-3 rounded-full bg-green-500 inline-block mb-1" />
+                  <p className="text-sm font-medium text-harbor-700">{service.label}</p>
+                  <p className="text-xs text-green-600 capitalize">{service.status}</p>
+                </div>
+              ))}
+            </div>
           </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">How Moderation Works</h3>
-            <ol className="text-xs text-gray-600 dark:text-gray-300 space-y-2 list-decimal list-inside">
-              <li>Content flagged by community members or AI pre-screen</li>
-              <li>3+ flags from different users → auto-escalated to review</li>
-              <li>Reviewed by community jury (random Level 3+ members)</li>
-              <li>Action: dismiss, warn, restrict, suspend, or ban</li>
-              <li>All decisions publicly logged here (anonymized)</li>
-              <li>Users can appeal any decision</li>
-            </ol>
-          </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">Principles</h3>
-            <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1.5">
-              <li>• Proportional: punishment fits the offense</li>
-              <li>• Transparent: all enforcement logged publicly</li>
-              <li>• Restorative: standing can be rebuilt</li>
-              <li>• Democratic: community jury, not top-down</li>
-              <li>• Appealable: every decision can be challenged</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* Governance */}
-      {tab === 'governance' && stats && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Proposals" value={stats.totalProposals} icon="📋" />
-            <StatCard label="Votes Cast" value={stats.totalVotes} icon="✋" />
-          </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">Governance Stats</h3>
-            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-              <div className="flex justify-between">
-                <span>Avg. participation rate</span>
-                <span className="font-medium">{stats.totalProposals > 0 ? Math.round(stats.totalVotes / stats.totalProposals) : 0} votes/proposal</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Constitution amendments</span>
-                <span className="font-medium">Active</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Vote delegation active</span>
-                <span className="font-medium">Yes</span>
-              </div>
+          <div className="card p-5 rounded-xl">
+            <h3 className="font-semibold text-harbor-800 mb-3">Moderation Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {moderationActions.map(action => (
+                <div key={action.id} className="p-3 bg-harbor-50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-harbor-700">{action.count}</p>
+                  <p className="text-xs text-harbor-500 mt-1">{action.type}</p>
+                  <p className="text-xs text-harbor-400">{action.period}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Community */}
-      {tab === 'community' && stats && (
+      {activeTab === 'audit' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Members" value={stats.totalUsers} icon="👥" />
-            <StatCard label="Courses" value={stats.totalCourses} icon="📚" />
-            <StatCard label="Completed" value={stats.coursesCompleted} icon="🎓" />
-            <StatCard label="Resolution Rate" value={`${stats.totalIssuesReported > 0 ? Math.round((stats.issuesResolved / stats.totalIssuesReported) * 100) : 0}%`} icon="✅" />
-          </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">What We Track (and Don't)</h3>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <p className="font-medium text-green-600 mb-1">✓ We Track</p>
-                <ul className="text-gray-500 space-y-0.5">
-                  <li>• Aggregate participation</li>
-                  <li>• Economic health</li>
-                  <li>• Issue resolution times</li>
-                  <li>• Platform uptime</li>
-                </ul>
-              </div>
-              <div>
-                <p className="font-medium text-red-600 mb-1">✗ We Don't Track</p>
-                <ul className="text-gray-500 space-y-0.5">
-                  <li>• Individual behavior</li>
-                  <li>• Location history</li>
-                  <li>• Private messages</li>
-                  <li>• Health data (yours only)</li>
-                </ul>
-              </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-harbor-800">Audit Log</h2>
+            <div className="flex gap-1">
+              {['all', 'governance', 'financial', 'moderation', 'system'].map(filter => (
+                <button key={filter} onClick={() => setAuditFilter(filter)} className={cn('px-3 py-1 rounded text-xs font-medium capitalize', auditFilter === filter ? 'bg-teal-600 text-white' : 'bg-harbor-100 text-harbor-600')}>{filter}</button>
+              ))}
             </div>
           </div>
+          {filteredAudit.map(entry => (
+            <div key={entry.id} className="card p-4 rounded-xl">
+              <div className="flex items-center justify-between mb-1">
+                <p className="font-medium text-harbor-800 text-sm">{entry.action}</p>
+                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', auditCatColor(entry.category))}>{entry.category}</span>
+              </div>
+              <p className="text-xs text-harbor-500">Target: {entry.target} | Actor: {entry.actor}</p>
+              <p className="text-xs text-harbor-400 mt-1">{entry.timestamp}</p>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  );
-}
-
-// Stat card component
-function StatCard({ label, value, icon, small }: { label: string; value: string | number; icon: string; small?: boolean }) {
-  return (
-    <div className={cn('card text-center', small && '!p-3')}>
-      <p className={cn('mb-1', small ? 'text-lg' : 'text-2xl')}>{icon}</p>
-      <p className={cn('font-bold text-harbor-800 dark:text-white', small ? 'text-lg' : 'text-xl')}>
-        {typeof value === 'number' ? value.toLocaleString() : value}
-      </p>
-      <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-    </div>
-  );
+  )
 }

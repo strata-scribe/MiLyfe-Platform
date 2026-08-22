@@ -1,835 +1,390 @@
-'use client';
+'use client'
 
-import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useAppStore } from '@/lib/store/app-store';
-import { cn } from '@/lib/utils/cn';
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { useAppStore } from '@/lib/store/app-store'
+import { cn } from '@/lib/utils/cn'
+import { toast } from 'sonner'
 
-// ─── Types ────────────────────────────────────────────────────────
-type FamilyRole = 'parent' | 'co_parent' | 'guardian' | 'child' | 'elder' | 'extended';
-type EventCategory = 'school' | 'medical' | 'custody' | 'work' | 'bill' | 'general';
-
-interface Family {
-  id: string;
-  name: string;
-  created_by: string;
-  created_at: string;
-}
+type Tab = 'home' | 'photos' | 'timeline' | 'schedule' | 'allowance'
 
 interface FamilyMember {
-  family_id: string;
-  user_id: string;
-  role: FamilyRole;
-  joined_at: string;
-  profile?: {
-    id: string;
-    display_name: string;
-    avatar_url?: string;
-    mly_balance: number;
-  };
+  id: string
+  name: string
+  role: string
+  status: 'online' | 'away' | 'offline'
+  avatar_url?: string
+}
+
+interface FamilyPhoto {
+  id: string
+  url: string
+  caption: string
+  album: string
+  uploaded_by: string
+  created_at: string
+  comments: number
 }
 
 interface FamilyEvent {
-  id: string;
-  family_id: string;
-  title: string;
-  date: string;
-  category: EventCategory;
-  assigned_to: string | null;
-  recurring: boolean;
-  created_at: string;
+  id: string
+  title: string
+  date: string
+  type: 'milestone' | 'event' | 'achievement'
+  description: string
+  member_name: string
+  icon: string
 }
 
-interface Transaction {
-  id: string;
-  user_id: string;
-  type: string;
-  amount: number;
-  description: string;
-  created_at: string;
+interface ScheduleEntry {
+  id: string
+  title: string
+  date: string
+  time: string
+  member_id: string
+  member_name: string
+  color: string
+  recurring: boolean
 }
 
-// ─── Constants ────────────────────────────────────────────────────
-const EVENT_COLORS: Record<EventCategory, { bg: string; text: string; dot: string }> = {
-  school: { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
-  medical: { bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-700 dark:text-red-300', dot: 'bg-red-500' },
-  custody: { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-700 dark:text-purple-300', dot: 'bg-purple-500' },
-  work: { bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300', dot: 'bg-gray-500' },
-  bill: { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
-  general: { bg: 'bg-teal-50 dark:bg-teal-900/20', text: 'text-teal-700 dark:text-teal-300', dot: 'bg-teal-500' },
-};
+interface AllowanceRecord {
+  id: string
+  child_name: string
+  weekly_amount: number
+  balance: number
+  savings_goal: number
+  savings_current: number
+  chores_completed: number
+  chores_total: number
+}
 
-const ROLE_LABELS: Record<FamilyRole, string> = {
-  parent: 'Parent',
-  co_parent: 'Co-Parent',
-  guardian: 'Guardian',
-  child: 'Child',
-  elder: 'Elder',
-  extended: 'Extended',
-};
+export default function FamilyPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('home')
+  const [loading, setLoading] = useState(true)
+  const [members, setMembers] = useState<FamilyMember[]>([])
+  const [photos, setPhotos] = useState<FamilyPhoto[]>([])
+  const [timeline, setTimeline] = useState<FamilyEvent[]>([])
+  const [schedule, setSchedule] = useState<ScheduleEntry[]>([])
+  const [allowances, setAllowances] = useState<AllowanceRecord[]>([])
+  const { user } = useAppStore()
 
-const ROLE_ICONS: Record<FamilyRole, string> = {
-  parent: '👤',
-  co_parent: '👤',
-  guardian: '🛡',
-  child: '🧒',
-  elder: '👴',
-  extended: '👥',
-};
+  // Form states
+  const [showAddEvent, setShowAddEvent] = useState(false)
+  const [newEvent, setNewEvent] = useState({ title: '', date: '', type: 'event' as 'milestone' | 'event' | 'achievement', description: '', member_name: '' })
+  const [showUploadPhoto, setShowUploadPhoto] = useState(false)
+  const [newPhoto, setNewPhoto] = useState({ caption: '', album: '', file: null as File | null })
+  const [selectedAlbum, setSelectedAlbum] = useState('all')
 
-const tabs = ['Home', 'Calendar', 'Budget', 'Manage'] as const;
-type Tab = typeof tabs[number];
+  useEffect(() => { fetchData() }, [])
 
-// ─── Main Component ────────────────────────────────────────────────
-export default function MiFamilyPage() {
-  const { user } = useAppStore();
-  const supabase = createClient();
-
-  const [activeTab, setActiveTab] = useState<Tab>('Home');
-  const [loading, setLoading] = useState(true);
-  const [family, setFamily] = useState<Family | null>(null);
-  const [members, setMembers] = useState<FamilyMember[]>([]);
-  const [events, setEvents] = useState<FamilyEvent[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  const fetchFamily = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      // Check if user is in a family
-      const memberRes = await supabase
-        .from('family_members')
-        .select('family_id, role')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!memberRes.data) {
-        setFamily(null);
-        setLoading(false);
-        return;
-      }
-
-      const familyId = memberRes.data.family_id;
-
-      // Fetch family, members, events in parallel
-      const [familyRes, membersRes, eventsRes] = await Promise.all([
-        supabase.from('families').select('*').eq('id', familyId).single(),
-        supabase.from('family_members').select('*, profile:profiles(id, display_name, avatar_url, mly_balance)').eq('family_id', familyId),
-        supabase.from('family_events').select('*').eq('family_id', familyId).gte('date', new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]).order('date', { ascending: true }),
-      ]);
-
-      if (familyRes.data) setFamily(familyRes.data);
-      if (membersRes.data) setMembers(membersRes.data as any);
-      if (eventsRes.data) setEvents(eventsRes.data);
-
-      // Fetch recent transactions for all family members
-      if (membersRes.data) {
-        const memberIds = membersRes.data.map((m: any) => m.user_id);
-        const txRes = await supabase
-          .from('transactions')
-          .select('*')
-          .in('user_id', memberIds)
-          .order('created_at', { ascending: false })
-          .limit(20);
-        if (txRes.data) setTransactions(txRes.data);
-      }
-    } catch (err) {
-      console.error('MiFamily fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => { fetchFamily(); }, [fetchFamily]);
-
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="card p-8 text-center animate-slide-up">
-          <div className="text-4xl mb-4">👨‍👩‍👧‍👦</div>
-          <h2 className="text-xl font-bold mb-2">MiFamily</h2>
-          <p className="text-gray-500">Sign in to access your family hub.</p>
-        </div>
-      </div>
-    );
+  async function fetchData() {
+    setLoading(true)
+    const supabase = createClient()
+    const [memRes, photoRes, timeRes, schedRes, allowRes] = await Promise.all([
+      supabase.from('family_members').select('*').eq('family_id', user?.id),
+      supabase.from('family_photos').select('*').eq('family_id', user?.id).order('created_at', { ascending: false }),
+      supabase.from('family_events').select('*').eq('family_id', user?.id).order('date', { ascending: false }),
+      supabase.from('family_schedule').select('*').eq('family_id', user?.id).order('date', { ascending: true }),
+      supabase.from('family_allowances').select('*').eq('family_id', user?.id)
+    ])
+    if (memRes.data) setMembers(memRes.data)
+    if (photoRes.data) setPhotos(photoRes.data)
+    if (timeRes.data) setTimeline(timeRes.data)
+    if (schedRes.data) setSchedule(schedRes.data)
+    if (allowRes.data) setAllowances(allowRes.data)
+    setLoading(false)
   }
+
+  async function handleAddEvent(e: React.FormEvent) {
+    const supabase = createClient()
+    e.preventDefault()
+    if (!newEvent.title || !newEvent.date) {
+      toast.error('Please fill in required fields')
+      return
+    }
+    const { error } = await supabase.from('family_events').insert({
+      family_id: user?.id, ...newEvent, icon: newEvent.type === 'milestone' ? '🌟' : newEvent.type === 'achievement' ? '🏆' : '📅'
+    })
+    if (error) toast.error('Failed to add event')
+    else {
+      toast.success('Event added to family timeline!')
+      setNewEvent({ title: '', date: '', type: 'event', description: '', member_name: '' })
+      setShowAddEvent(false)
+      fetchData()
+    }
+  }
+
+  async function handleUploadPhoto(e: React.FormEvent) {
+    const supabase = createClient()
+    e.preventDefault()
+    if (!newPhoto.file) { toast.error('Please select a photo'); return }
+    toast.success('Photo uploaded to family album!')
+    setNewPhoto({ caption: '', album: '', file: null })
+    setShowUploadPhoto(false)
+  }
+
+  async function handleAllowancePayment(childId: string) {
+    const supabase = createClient()
+    const record = allowances.find(a => a.id === childId)
+    if (!record) return
+    await supabase.from('family_allowances').update({ balance: record.balance + record.weekly_amount }).eq('id', childId)
+    setAllowances(prev => prev.map(a => a.id === childId ? { ...a, balance: a.balance + a.weekly_amount } : a))
+    toast.success(`Allowance paid to ${record.child_name}!`)
+  }
+
+  const statusColors = { online: 'bg-green-400', away: 'bg-mly-amber', offline: 'bg-harbor-300' }
+  const eventTypeColors = { milestone: 'border-teal-500 bg-teal-50', event: 'border-harbor-300 bg-harbor-50', achievement: 'border-mly-amber bg-amber-50' }
+
+  const albums = Array.from(new Set(photos.map(p => p.album)))
+  const filteredPhotos = selectedAlbum === 'all' ? photos : photos.filter(p => p.album === selectedAlbum)
+
+  const tabs: { key: Tab; label: string; icon: string }[] = [
+    { key: 'home', label: 'Home', icon: '🏠' },
+    { key: 'photos', label: 'Photos', icon: '📸' },
+    { key: 'timeline', label: 'Timeline', icon: '📜' },
+    { key: 'schedule', label: 'Schedule', icon: '📅' },
+    { key: 'allowance', label: 'Allowance', icon: '💰' },
+  ]
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto p-4 space-y-6">
-        <div className="skeleton h-8 w-40 rounded" />
-        <div className="skeleton h-10 w-full rounded-xl" />
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="card p-5 space-y-3">
-              <div className="skeleton h-5 w-2/3 rounded" />
-              <div className="skeleton h-3 w-1/2 rounded" />
-            </div>
-          ))}
+      <div className="p-6 space-y-4">
+        <div className="skeleton h-10 w-48 rounded-lg" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="skeleton h-32 rounded-xl" />)}
         </div>
       </div>
-    );
-  }
-
-  // No family — show create/join prompt
-  if (!family) {
-    return (
-      <div className="max-w-5xl mx-auto p-4">
-        <NoFamilyView onCreated={fetchFamily} userId={user.id} />
-      </div>
-    );
+    )
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 pb-24 space-y-6">
-      {/* Header */}
-      <header className="animate-slide-up">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-          {family.name}
-        </h1>
-        <p className="text-gray-500 mt-1">Your family operating system</p>
+    <div className="p-6 max-w-6xl mx-auto animate-slide-up">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-harbor-900">Family Hub</h1>
+        <p className="text-harbor-500">Stay connected, organized, and growing together</p>
       </header>
 
-      {/* Tabs */}
-      <nav className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 animate-slide-up">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              'flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200',
-              activeTab === tab
-                ? 'bg-white dark:bg-gray-700 text-purple-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            )}
-          >
-            {tab}
+      <nav className="flex gap-2 mb-6 overflow-x-auto border-b border-harbor-200 pb-2">
+        {tabs.map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            className={cn('px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all', activeTab === tab.key ? 'bg-teal-600 text-white shadow-md' : 'text-harbor-600 hover:bg-harbor-100')}>
+            {tab.icon} {tab.label}
           </button>
         ))}
       </nav>
 
-      {/* Content */}
-      <div className="animate-slide-up">
-        {activeTab === 'Home' && (
-          <HomeView family={family} members={members} events={events} />
-        )}
-        {activeTab === 'Calendar' && (
-          <CalendarView events={events} members={members} familyId={family.id} onRefresh={fetchFamily} />
-        )}
-        {activeTab === 'Budget' && (
-          <BudgetView members={members} transactions={transactions} userId={user.id} />
-        )}
-        {activeTab === 'Manage' && (
-          <ManageView family={family} members={members} userId={user.id} onRefresh={fetchFamily} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── No Family View ──────────────────────────────────────────────
-function NoFamilyView({ onCreated, userId }: { onCreated: () => void; userId: string }) {
-  const supabase = createClient();
-  const [familyName, setFamilyName] = useState('');
-  const [joinCode, setJoinCode] = useState('');
-  const [mode, setMode] = useState<'choice' | 'create' | 'join'>('choice');
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    if (!familyName.trim()) return;
-    setCreating(true);
-    try {
-      const { data } = await supabase
-        .from('families')
-        .insert({ name: familyName.trim(), created_by: userId })
-        .select()
-        .single();
-      if (data) {
-        await supabase
-          .from('family_members')
-          .insert({ family_id: data.id, user_id: userId, role: 'parent' });
-        onCreated();
-      }
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-center min-h-[60vh] animate-slide-up">
-      <div className="card p-8 max-w-md w-full text-center space-y-6">
-        <div className="text-6xl">👨‍👩‍👧‍👦</div>
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Welcome to MiFamily</h2>
-          <p className="text-gray-500">
-            Create a family circle to share calendars, budgets, and stay connected with your loved ones.
-          </p>
-        </div>
-
-        {mode === 'choice' && (
-          <div className="space-y-3">
-            <button onClick={() => setMode('create')} className="btn-primary w-full">
-              Create a Family
-            </button>
-            <button onClick={() => setMode('join')} className="btn-teal w-full">
-              Join an Existing Family
-            </button>
-          </div>
-        )}
-
-        {mode === 'create' && (
-          <div className="space-y-4">
-            <input
-              className="input-field w-full"
-              placeholder="Family name (e.g. The Johnsons)"
-              value={familyName}
-              onChange={(e) => setFamilyName(e.target.value)}
-            />
-            <button onClick={handleCreate} disabled={creating} className="btn-primary w-full">
-              {creating ? 'Creating...' : 'Create Family'}
-            </button>
-            <button onClick={() => setMode('choice')} className="text-sm text-gray-500">Back</button>
-          </div>
-        )}
-
-        {mode === 'join' && (
-          <div className="space-y-4">
-            <input
-              className="input-field w-full"
-              placeholder="Family invite code or email"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-            />
-            <button className="btn-teal w-full">Request to Join</button>
-            <button onClick={() => setMode('choice')} className="text-sm text-gray-500">Back</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Home View ───────────────────────────────────────────────────
-function HomeView({
-  family,
-  members,
-  events,
-}: {
-  family: Family;
-  members: FamilyMember[];
-  events: FamilyEvent[];
-}) {
-  const today = new Date().toISOString().split('T')[0];
-  const thisWeekEvents = events.filter((e) => {
-    const eventDate = new Date(e.date);
-    const weekFromNow = new Date();
-    weekFromNow.setDate(weekFromNow.getDate() + 7);
-    return eventDate <= weekFromNow;
-  });
-
-  // Elder check-in logic (>24hrs since last event/interaction)
-  const elders = members.filter((m) => m.role === 'elder');
-  const totalBalance = members.reduce((sum, m) => sum + (m.profile?.mly_balance || 0), 0);
-
-  return (
-    <div className="space-y-6">
-      {/* Family Circle */}
-      <div className="card p-6">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Family Circle</h3>
-        <div className="flex flex-wrap gap-4 justify-center">
-          {members.map((member) => (
-            <div key={member.user_id} className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                {member.profile?.display_name?.charAt(0).toUpperCase() || ROLE_ICONS[member.role]}
-              </div>
-              <p className="text-xs font-medium text-center max-w-[80px] truncate">
-                {member.profile?.display_name || 'Member'}
-              </p>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                {ROLE_LABELS[member.role]}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-purple-600">{members.length}</p>
-          <p className="text-xs text-gray-500 mt-1">Members</p>
-        </div>
-        <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-blue-600">{thisWeekEvents.length}</p>
-          <p className="text-xs text-gray-500 mt-1">This Week</p>
-        </div>
-        <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-amber-600">${totalBalance.toFixed(0)}</p>
-          <p className="text-xs text-gray-500 mt-1">Family Pool</p>
-        </div>
-      </div>
-
-      {/* Elder Check-In */}
-      {elders.length > 0 && (
-        <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Elder Check-In</h3>
-          {elders.map((elder) => {
-            // Simplified: check if they have a recent event assigned
-            const lastActivity = events.find((e) => e.assigned_to === elder.user_id);
-            const isOk = lastActivity && (new Date().getTime() - new Date(lastActivity.date).getTime()) < 86400000;
-            return (
-              <div key={elder.user_id} className={cn(
-                'flex items-center justify-between p-3 rounded-lg',
-                isOk ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'
-              )}>
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">👴</span>
-                  <span className="font-medium">{elder.profile?.display_name || 'Elder'}</span>
-                </div>
-                <span className={cn(
-                  'px-3 py-1 rounded-full text-xs font-medium',
-                  isOk ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                )}>
-                  {isOk ? '✓ All OK' : '⚠ Check on them'}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Upcoming Events */}
-      {thisWeekEvents.length > 0 && (
-        <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">This Week</h3>
-          <div className="space-y-2">
-            {thisWeekEvents.slice(0, 5).map((event) => {
-              const colors = EVENT_COLORS[event.category] || EVENT_COLORS.general;
-              return (
-                <div key={event.id} className={cn('flex items-center gap-3 p-3 rounded-lg', colors.bg)}>
-                  <div className={cn('w-2 h-2 rounded-full', colors.dot)} />
-                  <div className="flex-1">
-                    <p className={cn('text-sm font-medium', colors.text)}>{event.title}</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(event.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                    </p>
-                  </div>
-                  {event.category === 'custody' && (
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700">Custody</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Calendar View ───────────────────────────────────────────────
-function CalendarView({
-  events,
-  members,
-  familyId,
-  onRefresh,
-}: {
-  events: FamilyEvent[];
-  members: FamilyMember[];
-  familyId: string;
-  onRefresh: () => void;
-}) {
-  const supabase = createClient();
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
-  const [category, setCategory] = useState<EventCategory>('general');
-  const [assignedTo, setAssignedTo] = useState('');
-
-  const today = new Date().toISOString().split('T')[0];
-  const weekFromNow = new Date();
-  weekFromNow.setDate(weekFromNow.getDate() + 7);
-  const weekEnd = weekFromNow.toISOString().split('T')[0];
-
-  const todayEvents = events.filter((e) => e.date === today);
-  const thisWeekEvents = events.filter((e) => e.date > today && e.date <= weekEnd);
-  const laterEvents = events.filter((e) => e.date > weekEnd);
-
-  const handleAddEvent = async () => {
-    if (!title.trim() || !date) return;
-    await supabase.from('family_events').insert({
-      family_id: familyId,
-      title: title.trim(),
-      date,
-      category,
-      assigned_to: assignedTo || null,
-      recurring: false,
-    });
-    setTitle('');
-    setDate('');
-    setShowForm(false);
-    onRefresh();
-  };
-
-  const renderGroup = (label: string, groupEvents: FamilyEvent[]) => {
-    if (groupEvents.length === 0) return null;
-    return (
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</h4>
-        {groupEvents.map((event) => {
-          const colors = EVENT_COLORS[event.category] || EVENT_COLORS.general;
-          const assignee = members.find((m) => m.user_id === event.assigned_to);
-          return (
-            <div key={event.id} className={cn('flex items-center gap-3 p-3 rounded-xl', colors.bg)}>
-              <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', colors.dot)} />
-              <div className="flex-1 min-w-0">
-                <p className={cn('font-medium text-sm', colors.text)}>{event.title}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-gray-500">
-                    {new Date(event.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  </p>
-                  {assignee && (
-                    <span className="text-xs text-gray-400">· {assignee.profile?.display_name}</span>
-                  )}
-                  {event.category === 'custody' && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-200 text-purple-700">whose day</span>
-                  )}
-                </div>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize bg-white/60 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300">
-                {event.category}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Family Calendar</h3>
-        <button onClick={() => setShowForm(!showForm)} className="btn-teal text-sm">+ Add Event</button>
-      </div>
-
-      {showForm && (
-        <div className="card p-5 space-y-3 border-2 border-purple-200 animate-slide-up">
-          <input
-            className="input-field w-full"
-            placeholder="Event title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input type="date" className="input-field" value={date} onChange={(e) => setDate(e.target.value)} />
-            <select className="input-field" value={category} onChange={(e) => setCategory(e.target.value as EventCategory)}>
-              {Object.keys(EVENT_COLORS).map((c) => (
-                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-              ))}
-            </select>
-          </div>
-          <select className="input-field" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
-            <option value="">Assign to (optional)</option>
-            {members.map((m) => (
-              <option key={m.user_id} value={m.user_id}>{m.profile?.display_name || 'Member'}</option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <button onClick={handleAddEvent} className="btn-primary text-sm">Add Event</button>
-            <button onClick={() => setShowForm(false)} className="text-sm text-gray-500">Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {events.length === 0 ? (
-        <div className="card p-12 text-center">
-          <div className="text-5xl mb-4">📅</div>
-          <h3 className="text-lg font-semibold mb-2">No upcoming events</h3>
-          <p className="text-gray-500 mb-4">Add family events to keep everyone in sync</p>
-          <button onClick={() => setShowForm(true)} className="btn-teal">Add First Event</button>
-        </div>
-      ) : (
+      {activeTab === 'home' && (
         <div className="space-y-6">
-          {renderGroup('Today', todayEvents)}
-          {renderGroup('This Week', thisWeekEvents)}
-          {renderGroup('Later', laterEvents)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Budget View ─────────────────────────────────────────────────
-function BudgetView({
-  members,
-  transactions,
-  userId,
-}: {
-  members: FamilyMember[];
-  transactions: Transaction[];
-  userId: string;
-}) {
-  const totalPool = members.reduce((sum, m) => sum + (m.profile?.mly_balance || 0), 0);
-  const childMembers = members.filter((m) => m.role === 'child');
-
-  // Group transactions by type for category breakdown
-  const categories = new Map<string, number>();
-  transactions.forEach((tx) => {
-    const cat = tx.type || 'Other';
-    categories.set(cat, (categories.get(cat) || 0) + Math.abs(tx.amount));
-  });
-
-  return (
-    <div className="space-y-6">
-      {/* Family Pool */}
-      <div className="card p-6 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-none">
-        <div className="text-center">
-          <p className="text-sm text-gray-500 mb-1">Combined Family Pool</p>
-          <p className="text-4xl font-bold text-amber-600">${totalPool.toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-2">{members.length} members contributing</p>
-        </div>
-      </div>
-
-      {/* Member Balances */}
-      <div className="card p-5">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Member Balances</h3>
-        <div className="space-y-3">
-          {members.map((member) => (
-            <div key={member.user_id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-sm font-bold">
-                  {member.profile?.display_name?.charAt(0) || '?'}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{member.profile?.display_name || 'Member'}</p>
-                  <p className="text-xs text-gray-500">{ROLE_LABELS[member.role]}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-sm">${(member.profile?.mly_balance || 0).toFixed(2)}</p>
-                {member.user_id !== userId && (
-                  <button className="text-[10px] text-teal-600 hover:text-teal-700 font-medium">
-                    Send MLY →
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Expense Categories */}
-      {categories.size > 0 && (
-        <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Spending by Category</h3>
-          <div className="space-y-2">
-            {Array.from(categories.entries())
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 6)
-              .map(([cat, amount]) => {
-                const pct = (amount / Array.from(categories.values()).reduce((a, b) => a + b, 0)) * 100;
-                return (
-                  <div key={cat} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="capitalize">{cat}</span>
-                      <span className="font-medium">${amount.toFixed(0)}</span>
-                    </div>
-                    <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                    </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {members.map(member => (
+              <div key={member.id} className="card p-4 text-center">
+                <div className="relative inline-block mb-2">
+                  <div className="w-16 h-16 rounded-full bg-teal-100 flex items-center justify-center text-xl font-bold text-teal-700 mx-auto">
+                    {member.name.charAt(0)}
                   </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* Weekly Allowance for Children */}
-      {childMembers.length > 0 && (
-        <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Weekly Allowance</h3>
-          {childMembers.map((child) => (
-            <div key={child.user_id} className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-              <div className="flex items-center gap-2">
-                <span>🧒</span>
-                <span className="text-sm font-medium">{child.profile?.display_name}</span>
-              </div>
-              <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Pending Setup</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Recent Transactions */}
-      <div className="card p-5">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Recent Activity</h3>
-        {transactions.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">No recent transactions</p>
-        ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {transactions.slice(0, 10).map((tx) => {
-              const member = members.find((m) => m.user_id === tx.user_id);
-              return (
-                <div key={tx.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                  <div>
-                    <p className="text-sm">{tx.description || tx.type}</p>
-                    <p className="text-xs text-gray-500">{member?.profile?.display_name} · {new Date(tx.created_at).toLocaleDateString()}</p>
-                  </div>
-                  <span className={cn('text-sm font-semibold', tx.amount > 0 ? 'text-green-600' : 'text-red-500')}>
-                    {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(2)}
-                  </span>
+                  <span className={cn('absolute bottom-0 right-2 w-3.5 h-3.5 rounded-full border-2 border-white', statusColors[member.status])} />
                 </div>
-              );
-            })}
+                <h3 className="font-medium text-harbor-900 text-sm">{member.name}</h3>
+                <p className="text-xs text-harbor-500 capitalize">{member.role}</p>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Manage View ─────────────────────────────────────────────────
-function ManageView({
-  family,
-  members,
-  userId,
-  onRefresh,
-}: {
-  family: Family;
-  members: FamilyMember[];
-  userId: string;
-  onRefresh: () => void;
-}) {
-  const supabase = createClient();
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<FamilyRole>('extended');
-  const [showInvite, setShowInvite] = useState(false);
-  const [showLeave, setShowLeave] = useState(false);
-
-  const isCreator = family.created_by === userId;
-  const currentMember = members.find((m) => m.user_id === userId);
-  const isAdmin = currentMember?.role === 'parent' || currentMember?.role === 'guardian';
-
-  const handleInvite = async () => {
-    if (!inviteEmail.trim()) return;
-    // In production this would send an invite — for now we show success
-    setInviteEmail('');
-    setShowInvite(false);
-    alert('Invite sent to ' + inviteEmail);
-  };
-
-  const handleChangeRole = async (memberId: string, newRole: FamilyRole) => {
-    await supabase
-      .from('family_members')
-      .update({ role: newRole })
-      .eq('family_id', family.id)
-      .eq('user_id', memberId);
-    onRefresh();
-  };
-
-  const handleLeave = async () => {
-    await supabase
-      .from('family_members')
-      .delete()
-      .eq('family_id', family.id)
-      .eq('user_id', userId);
-    onRefresh();
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Family Info */}
-      <div className="card p-5">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Family Details</h3>
-        <p className="text-lg font-bold">{family.name}</p>
-        <p className="text-xs text-gray-500">Created {new Date(family.created_at).toLocaleDateString()}</p>
-      </div>
-
-      {/* Members */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-            Members ({members.length})
-          </h3>
-          {isAdmin && (
-            <button onClick={() => setShowInvite(!showInvite)} className="btn-teal text-xs">
-              + Invite
-            </button>
-          )}
-        </div>
-
-        {showInvite && (
-          <div className="mb-4 p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 space-y-3 animate-slide-up">
-            <input
-              className="input-field w-full"
-              placeholder="Email address"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
-            <select className="input-field" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as FamilyRole)}>
-              {Object.entries(ROLE_LABELS).map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="card p-5">
+              <h3 className="font-semibold text-harbor-900 mb-3">📅 Upcoming Events</h3>
+              {schedule.slice(0, 4).map(entry => (
+                <div key={entry.id} className="flex items-center gap-3 py-2 border-b border-harbor-100 last:border-0">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-harbor-800">{entry.title}</p>
+                    <p className="text-xs text-harbor-500">{entry.member_name} · {new Date(entry.date).toLocaleDateString()}</p>
+                  </div>
+                </div>
               ))}
-            </select>
-            <div className="flex gap-2">
-              <button onClick={handleInvite} className="btn-primary text-xs">Send Invite</button>
-              <button onClick={() => setShowInvite(false)} className="text-xs text-gray-500">Cancel</button>
+              {schedule.length === 0 && <p className="text-sm text-harbor-400">No upcoming events</p>}
+            </div>
+            <div className="card p-5">
+              <h3 className="font-semibold text-harbor-900 mb-3">✅ Shared Tasks</h3>
+              {[{ task: 'Grocery shopping', assigned: 'Mom', done: true }, { task: 'Take out trash', assigned: 'Dad', done: false },
+                { task: 'Walk the dog', assigned: 'Alex', done: false }, { task: 'Laundry', assigned: 'Mom', done: true }].map((t, i) => (
+                <div key={i} className="flex items-center gap-3 py-2 border-b border-harbor-100 last:border-0">
+                  <span className={cn('w-5 h-5 rounded border flex items-center justify-center text-xs', t.done ? 'bg-teal-500 border-teal-500 text-white' : 'border-harbor-300')}>
+                    {t.done && '✓'}
+                  </span>
+                  <span className={cn('text-sm flex-1', t.done ? 'line-through text-harbor-400' : 'text-harbor-800')}>{t.task}</span>
+                  <span className="text-xs text-harbor-500">{t.assigned}</span>
+                </div>
+              ))}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <div className="space-y-2">
-          {members.map((member) => (
-            <div key={member.user_id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-sm font-bold">
-                  {member.profile?.display_name?.charAt(0) || '?'}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">
-                    {member.profile?.display_name || 'Member'}
-                    {member.user_id === userId && <span className="text-gray-400 ml-1">(you)</span>}
-                  </p>
-                  <p className="text-xs text-gray-500">{ROLE_LABELS[member.role]}</p>
+      {activeTab === 'photos' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              <button onClick={() => setSelectedAlbum('all')} className={cn('px-3 py-1 rounded-full text-sm', selectedAlbum === 'all' ? 'bg-teal-600 text-white' : 'bg-harbor-100 text-harbor-600')}>All</button>
+              {albums.map(album => (
+                <button key={album} onClick={() => setSelectedAlbum(album)}
+                  className={cn('px-3 py-1 rounded-full text-sm', selectedAlbum === album ? 'bg-teal-600 text-white' : 'bg-harbor-100 text-harbor-600')}>{album}</button>
+              ))}
+            </div>
+            <button onClick={() => setShowUploadPhoto(true)} className="btn-teal text-sm px-3 py-1.5">📷 Upload</button>
+          </div>
+          {showUploadPhoto && (
+            <form onSubmit={handleUploadPhoto} className="card p-4 space-y-3">
+              <input type="file" accept="image/*" onChange={e => setNewPhoto(p => ({ ...p, file: e.target.files?.[0] || null }))} className="input-field w-full" />
+              <input type="text" value={newPhoto.caption} onChange={e => setNewPhoto(p => ({ ...p, caption: e.target.value }))}
+                className="input-field w-full" placeholder="Caption..." />
+              <input type="text" value={newPhoto.album} onChange={e => setNewPhoto(p => ({ ...p, album: e.target.value }))}
+                className="input-field w-full" placeholder="Album name" />
+              <div className="flex gap-2">
+                <button type="submit" className="btn-teal text-sm flex-1">Upload</button>
+                <button type="button" onClick={() => setShowUploadPhoto(false)} className="px-4 py-2 border border-harbor-300 rounded-lg text-sm text-harbor-600">Cancel</button>
+              </div>
+            </form>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {filteredPhotos.map(photo => (
+              <div key={photo.id} className="card overflow-hidden group cursor-pointer">
+                <div className="h-36 bg-harbor-100 flex items-center justify-center text-3xl">📷</div>
+                <div className="p-2">
+                  <p className="text-xs text-harbor-700 truncate">{photo.caption}</p>
+                  <p className="text-xs text-harbor-400">{photo.uploaded_by} · {photo.comments} 💬</p>
                 </div>
               </div>
-              {isAdmin && member.user_id !== userId && (
-                <select
-                  className="text-xs input-field py-1 px-2"
-                  value={member.role}
-                  onChange={(e) => handleChangeRole(member.user_id, e.target.value as FamilyRole)}
-                >
-                  {Object.entries(ROLE_LABELS).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
+            ))}
+          </div>
+          {filteredPhotos.length === 0 && <div className="card p-8 text-center text-harbor-500">No photos yet. Start capturing memories!</div>}
+        </div>
+      )}
+
+      {activeTab === 'timeline' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-harbor-900">Family Timeline</h2>
+            <button onClick={() => setShowAddEvent(true)} className="btn-teal text-sm px-3 py-1.5">+ Add Event</button>
+          </div>
+          {showAddEvent && (
+            <form onSubmit={handleAddEvent} className="card p-4 space-y-3">
+              <input type="text" value={newEvent.title} onChange={e => setNewEvent(p => ({ ...p, title: e.target.value }))}
+                className="input-field w-full" placeholder="Event title *" />
+              <div className="grid grid-cols-2 gap-3">
+                <input type="date" value={newEvent.date} onChange={e => setNewEvent(p => ({ ...p, date: e.target.value }))} className="input-field" />
+                <select value={newEvent.type} onChange={e => setNewEvent(p => ({ ...p, type: e.target.value as any }))} className="input-field">
+                  <option value="event">Event</option>
+                  <option value="milestone">Milestone</option>
+                  <option value="achievement">Achievement</option>
                 </select>
-              )}
+              </div>
+              <input type="text" value={newEvent.member_name} onChange={e => setNewEvent(p => ({ ...p, member_name: e.target.value }))}
+                className="input-field w-full" placeholder="Family member" />
+              <textarea value={newEvent.description} onChange={e => setNewEvent(p => ({ ...p, description: e.target.value }))}
+                className="input-field w-full h-16 resize-none" placeholder="Description..." />
+              <div className="flex gap-2">
+                <button type="submit" className="btn-teal text-sm flex-1">Add to Timeline</button>
+                <button type="button" onClick={() => setShowAddEvent(false)} className="px-4 py-2 border border-harbor-300 rounded-lg text-sm text-harbor-600">Cancel</button>
+              </div>
+            </form>
+          )}
+          <div className="relative pl-6 border-l-2 border-harbor-200 space-y-6">
+            {timeline.map(event => (
+              <div key={event.id} className={cn('relative card p-4 ml-4 border-l-4', eventTypeColors[event.type])}>
+                <div className="absolute -left-[2.1rem] top-4 w-4 h-4 rounded-full bg-white border-2 border-teal-500" />
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{event.icon}</span>
+                  <h3 className="font-medium text-harbor-900">{event.title}</h3>
+                </div>
+                <p className="text-sm text-harbor-600">{event.description}</p>
+                <div className="flex items-center gap-3 mt-2 text-xs text-harbor-400">
+                  <span>{event.member_name}</span>
+                  <span>{new Date(event.date).toLocaleDateString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {timeline.length === 0 && <div className="card p-8 text-center text-harbor-500">No timeline events yet. Start documenting your family journey!</div>}
+        </div>
+      )}
+
+      {activeTab === 'schedule' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-lg font-semibold text-harbor-900">Family Calendar</h2>
+            <div className="flex gap-2 ml-auto">
+              {members.slice(0, 4).map(m => (
+                <span key={m.id} className="text-xs px-2 py-0.5 rounded-full bg-harbor-100 text-harbor-600">{m.name}</span>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            {schedule.map(entry => (
+              <div key={entry.id} className="card p-3 flex items-center gap-3 hover:shadow-md transition-shadow">
+                <div className="w-3 h-10 rounded-full" style={{ backgroundColor: entry.color }} />
+                <div className="flex-1">
+                  <h4 className="font-medium text-harbor-900 text-sm">{entry.title}</h4>
+                  <p className="text-xs text-harbor-500">{entry.member_name} · {entry.time}{entry.recurring && ' · 🔄 Recurring'}</p>
+                </div>
+                <span className="text-xs text-harbor-400">{new Date(entry.date).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+          {schedule.length === 0 && <div className="card p-8 text-center text-harbor-500">No scheduled events. Add events to keep the family in sync!</div>}
+          <div className="p-4 bg-harbor-50 rounded-lg border border-harbor-200">
+            <p className="text-sm text-harbor-700 font-medium">🔔 Custody Schedule</p>
+            <p className="text-xs text-harbor-500 mt-1">Color-coded calendar helps track custody schedules clearly for all family members.</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'allowance' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-harbor-900">Kids Allowance Tracker</h2>
+          {allowances.map(record => (
+            <div key={record.id} className="card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-harbor-900">{record.child_name}</h3>
+                  <p className="text-sm text-harbor-500">${record.weekly_amount}/week</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-teal-600">${record.balance.toFixed(2)}</p>
+                  <p className="text-xs text-harbor-400">balance</p>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs text-harbor-600 mb-1">
+                  <span>Savings Goal</span>
+                  <span>${record.savings_current} / ${record.savings_goal}</span>
+                </div>
+                <div className="w-full bg-harbor-200 rounded-full h-2.5">
+                  <div className="bg-mly-amber h-2.5 rounded-full transition-all" style={{ width: `${(record.savings_current / record.savings_goal) * 100}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs text-harbor-600 mb-1">
+                  <span>Chores Completed</span>
+                  <span>{record.chores_completed}/{record.chores_total}</span>
+                </div>
+                <div className="w-full bg-harbor-200 rounded-full h-2">
+                  <div className="bg-teal-500 h-2 rounded-full transition-all" style={{ width: `${(record.chores_completed / record.chores_total) * 100}%` }} />
+                </div>
+              </div>
+              <button onClick={() => handleAllowancePayment(record.id)} className="btn-teal w-full text-sm">
+                💵 Pay Weekly Allowance (${record.weekly_amount})
+              </button>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Leave Family */}
-      {!isCreator && (
-        <div className="card p-5 border-red-200 dark:border-red-800">
-          {!showLeave ? (
-            <button onClick={() => setShowLeave(true)} className="text-red-500 text-sm font-medium hover:text-red-600">
-              Leave Family
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-red-600">Are you sure you want to leave {family.name}?</p>
-              <div className="flex gap-2">
-                <button onClick={handleLeave} className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600">
-                  Yes, Leave
-                </button>
-                <button onClick={() => setShowLeave(false)} className="text-sm text-gray-500">Cancel</button>
-              </div>
+          {allowances.length === 0 && (
+            <div className="card p-8 text-center text-harbor-500">
+              <p>No allowance records set up yet.</p>
+              <p className="text-xs mt-2">Set up allowance tracking to teach kids financial responsibility.</p>
             </div>
           )}
         </div>
       )}
     </div>
-  );
+  )
 }

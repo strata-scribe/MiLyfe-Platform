@@ -1,371 +1,338 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
-import { PresenceDot, OnlineCountBadge } from '@/components/ui/presence-dot';
-
-type ConnectTab = 'messages' | 'groups' | 'neighbors';
+import { toast } from 'sonner';
 
 interface Conversation {
   id: string;
-  type: string;
+  type: 'direct' | 'group';
   name: string | null;
-  last_message?: string;
-  last_time?: string;
-  unread: boolean;
-  other_name?: string;
-  other_avatar?: string;
+  participants: { id: string; display_name: string; avatar_url: string | null; online: boolean }[];
+  last_message: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  typing: string[];
 }
 
-interface NearbyUser {
+interface Message {
   id: string;
-  display_name: string;
-  avatar_url: string | null;
-  neighborhood: string | null;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  type: 'text' | 'image' | 'file' | 'voice' | 'system';
+  file_url: string | null;
+  file_name: string | null;
+  reactions: { emoji: string; user_ids: string[] }[];
+  read_by: string[];
+  created_at: string;
+  sender_name?: string;
 }
+
+type ConnectTab = 'messages' | 'groups' | 'new';
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
 export default function ConnectPage() {
-  const [activeTab, setActiveTab] = useState<ConnectTab>('messages');
+  const [tab, setTab] = useState<ConnectTab>('messages');
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [neighbors, setNeighbors] = useState<NearbyUser[]>([]);
+  const [activeConvo, setActiveConvo] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newChatEmail, setNewChatEmail] = useState('');
-  const [showNewChat, setShowNewChat] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [messageInput, setMessageInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [otherTyping, setOtherTyping] = useState<string[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // New group form
+  const [groupName, setGroupName] = useState('');
+  const [groupMembers, setGroupMembers] = useState('');
+
+  // File sharing
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { user } = useAppStore();
-  const supabase = createClient();
-  const router = useRouter();
 
-  // Load conversations
-  useEffect(() => {
-    if (!user) return;
+  useEffect(() => { loadConversations(); }, []);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    const loadConversations = async () => {
-      // Get user's conversation memberships
-      const { data: memberships } = await supabase
-        .from('conversation_members')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', user.id);
-
-      if (!memberships || memberships.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      const convIds = memberships.map((m) => m.conversation_id);
-
-      // Get conversations
-      const { data: convs } = await supabase
-        .from('conversations')
-        .select('*')
-        .in('id', convIds);
-
-      // Get latest message per conversation
-      const convList: Conversation[] = [];
-
-      for (const conv of convs ?? []) {
-        const { data: lastMsg } = await supabase
-          .from('messages')
-          .select('content, created_at')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        // For direct chats, get the other person's name
-        let otherName = conv.name ?? 'Chat';
-        if (conv.type === 'direct') {
-          const { data: otherMember } = await supabase
-            .from('conversation_members')
-            .select('user_id, profiles!conversation_members_user_id_fkey(display_name)')
-            .eq('conversation_id', conv.id)
-            .neq('user_id', user.id)
-            .maybeSingle();
-
-          if (otherMember?.profiles) {
-            otherName = (otherMember.profiles as any).display_name;
-          }
-        }
-
-        const membership = memberships.find((m) => m.conversation_id === conv.id);
-        const unread = lastMsg?.created_at && membership?.last_read_at
-          ? new Date(lastMsg.created_at) > new Date(membership.last_read_at)
-          : !!lastMsg && !membership?.last_read_at;
-
-        convList.push({
-          id: conv.id,
-          type: conv.type,
-          name: conv.name,
-          last_message: lastMsg?.content ?? '',
-          last_time: lastMsg?.created_at ? getRelativeTime(lastMsg.created_at) : '',
-          unread,
-          other_name: otherName,
-        });
-      }
-
-      setConversations(convList);
-      setLoading(false);
-    };
-
-    loadConversations();
-  }, [user, supabase]);
-
-  // Load neighbors
-  useEffect(() => {
-    if (!user || activeTab !== 'neighbors') return;
-
-    const loadNeighbors = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, display_name, avatar_url, neighborhood')
-        .neq('id', user.id)
-        .limit(20);
-
-      if (data) setNeighbors(data);
-    };
-
-    loadNeighbors();
-  }, [user, activeTab, supabase]);
-
-  // Start new conversation
-  const startConversation = async (otherUserId: string) => {
-    if (!user) return;
-    setCreating(true);
-
-    // Create conversation
-    const { data: conv, error: convError } = await supabase
-      .from('conversations')
-      .insert({ type: 'direct' })
-      .select()
-      .single();
-
-    if (convError || !conv) {
-      setCreating(false);
-      return;
+  async function loadConversations() {
+    setLoading(true);
+    const supabase = createClient();
+    if (user) {
+      const { data } = await supabase.from('conversations').select('*').contains('participant_ids', [user.id]).order('last_message_at', { ascending: false });
+      if (data) setConversations(data as any);
     }
+    setLoading(false);
+  }
 
-    // Add both members
-    await supabase.from('conversation_members').insert([
-      { conversation_id: conv.id, user_id: user.id },
-      { conversation_id: conv.id, user_id: otherUserId },
-    ]);
-
-    setCreating(false);
-    router.push(`/connect/chat?id=${conv.id}`);
-  };
-
-  // Start chat by looking up user email
-  const handleNewChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newChatEmail.trim() || !user) return;
-
-    const { data: otherUser } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', newChatEmail.trim())
-      .maybeSingle();
-
-    if (!otherUser) {
-      alert('User not found. They need a MiLyfe account first.');
-      return;
+  async function openConversation(convo: Conversation) {
+    setActiveConvo(convo);
+    const supabase = createClient();
+    const { data } = await supabase.from('messages').select('*').eq('conversation_id', convo.id).order('created_at', { ascending: true }).limit(50);
+    if (data) setMessages(data as any);
+    // Mark as read
+    if (user) {
+      await supabase.from('conversations').update({ unread_count: 0 }).eq('id', convo.id);
     }
+  }
 
-    await startConversation(otherUser.id);
-  };
+  async function sendMessage() {
+    if (!user || !messageInput.trim() || !activeConvo) return;
+    setSending(true);
+    const supabase = createClient();
+    const msg = {
+      conversation_id: activeConvo.id, sender_id: user.id,
+      content: messageInput.trim(), type: 'text' as const,
+      reactions: [], read_by: [user.id], sender_name: user.display_name,
+    };
+    await supabase.from('messages').insert(msg);
+    await supabase.from('conversations').update({ last_message: messageInput.trim(), last_message_at: new Date().toISOString() }).eq('id', activeConvo.id);
+    setMessages(prev => [...prev, { ...msg, id: Date.now().toString(), file_url: null, file_name: null, created_at: new Date().toISOString() }]);
+    setMessageInput('');
+    setSending(false);
+  }
+
+  async function sendFile(file: File) {
+    if (!user || !activeConvo) return;
+    const supabase = createClient();
+    const objectName = `messages/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from('uploads').upload(objectName, file);
+    if (error) { toast.error('Upload failed'); return; }
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/uploads/${objectName}`;
+    await supabase.from('messages').insert({
+      conversation_id: activeConvo.id, sender_id: user.id,
+      content: file.name, type: file.type.startsWith('image/') ? 'image' : 'file',
+      file_url: url, file_name: file.name, reactions: [], read_by: [user.id], sender_name: user.display_name,
+    });
+    toast.success('File sent!');
+    openConversation(activeConvo);
+  }
+
+  async function addReaction(messageId: string, emoji: string) {
+    if (!user) return;
+    const supabase = createClient();
+    const msg = messages.find(m => m.id === messageId);
+    if (!msg) return;
+    const reactions = [...msg.reactions];
+    const existing = reactions.find(r => r.emoji === emoji);
+    if (existing) {
+      if (existing.user_ids.includes(user.id)) {
+        existing.user_ids = existing.user_ids.filter(id => id !== user.id);
+      } else {
+        existing.user_ids.push(user.id);
+      }
+    } else {
+      reactions.push({ emoji, user_ids: [user.id] });
+    }
+    await supabase.from('messages').update({ reactions }).eq('id', messageId);
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
+    setShowReactions(null);
+  }
+
+  async function createGroup() {
+    if (!user || !groupName.trim()) return;
+    const supabase = createClient();
+    const memberNames = groupMembers.split(',').map(n => n.trim()).filter(Boolean);
+    await supabase.from('conversations').insert({
+      type: 'group', name: groupName.trim(),
+      participant_ids: [user.id], participants: [{ id: user.id, display_name: user.display_name, avatar_url: null, online: true }],
+      last_message: `Group "${groupName}" created`, last_message_at: new Date().toISOString(), unread_count: 0, typing: [],
+    });
+    setGroupName(''); setGroupMembers('');
+    toast.success('Group created!');
+    setTab('messages'); loadConversations();
+  }
+
+  function handleTyping() {
+    if (!isTyping) {
+      setIsTyping(true);
+      setTimeout(() => setIsTyping(false), 3000);
+    }
+  }
+
+  function timeAgo(date: string) {
+    const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+    if (s < 60) return 'now';
+    if (s < 3600) return `${Math.floor(s / 60)}m`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h`;
+    return `${Math.floor(s / 86400)}d`;
+  }
+
+  // Active conversation view
+  if (activeConvo) {
+    const otherParticipant = activeConvo.participants?.find(p => p.id !== user?.id);
+    return (
+      <div className="flex flex-col h-[calc(100vh-8rem)] animate-slide-up">
+        {/* Header */}
+        <div className="flex items-center gap-3 pb-3 border-b border-gray-100 dark:border-harbor-800">
+          <button onClick={() => setActiveConvo(null)} className="text-gray-400 hover:text-gray-600">←</button>
+          <div className="w-9 h-9 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-sm relative">
+            {(activeConvo.name || otherParticipant?.display_name || '?').charAt(0)}
+            {otherParticipant?.online && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-harbor-950 rounded-full" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-harbor-800 dark:text-white truncate">{activeConvo.name || otherParticipant?.display_name}</p>
+            <p className="text-[10px] text-gray-400">{otherParticipant?.online ? 'Online' : 'Offline'}{activeConvo.type === 'group' ? ` · ${activeConvo.participants?.length || 0} members` : ''}</p>
+          </div>
+          <button onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-teal-500 text-lg">📎</button>
+          <input ref={fileInputRef} type="file" className="hidden" onChange={e => e.target.files?.[0] && sendFile(e.target.files[0])} />
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto py-3 space-y-2">
+          {messages.map(msg => {
+            const isMine = msg.sender_id === user?.id;
+            return (
+              <div key={msg.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
+                <div className={cn('max-w-[75%] group relative')}>
+                  {!isMine && activeConvo.type === 'group' && (
+                    <p className="text-[9px] text-gray-400 mb-0.5 ml-1">{msg.sender_name}</p>
+                  )}
+                  <div className={cn('rounded-2xl px-3 py-2 text-sm', isMine ? 'bg-teal-500 text-white rounded-br-sm' : 'bg-gray-100 dark:bg-harbor-800 text-harbor-800 dark:text-white rounded-bl-sm')}>
+                    {msg.type === 'image' && msg.file_url && (
+                      <img src={msg.file_url} alt="" className="rounded-xl max-w-full max-h-48 object-cover mb-1" />
+                    )}
+                    {msg.type === 'file' && msg.file_url && (
+                      <a href={msg.file_url} target="_blank" rel="noopener" className="flex items-center gap-2 text-xs underline">📄 {msg.file_name}</a>
+                    )}
+                    {msg.type === 'text' && <p>{msg.content}</p>}
+                  </div>
+
+                  {/* Reactions */}
+                  {msg.reactions.length > 0 && (
+                    <div className="flex gap-0.5 mt-0.5 flex-wrap">
+                      {msg.reactions.filter(r => r.user_ids.length > 0).map(r => (
+                        <button key={r.emoji} onClick={() => addReaction(msg.id, r.emoji)} className="text-[10px] px-1 py-0.5 bg-gray-100 dark:bg-harbor-800 rounded-full hover:scale-110 transition-transform">
+                          {r.emoji} {r.user_ids.length > 1 ? r.user_ids.length : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* React button (on hover) */}
+                  <button onClick={() => setShowReactions(showReactions === msg.id ? null : msg.id)} className="absolute -bottom-2 right-0 opacity-0 group-hover:opacity-100 text-[10px] bg-white dark:bg-harbor-900 border border-gray-200 dark:border-harbor-700 rounded-full px-1.5 py-0.5 shadow-sm transition-opacity">
+                    😊+
+                  </button>
+
+                  {/* Reaction picker */}
+                  {showReactions === msg.id && (
+                    <div className="absolute -bottom-8 right-0 flex gap-1 bg-white dark:bg-harbor-900 border border-gray-200 dark:border-harbor-700 rounded-full px-2 py-1 shadow-lg z-10">
+                      {QUICK_REACTIONS.map(emoji => (
+                        <button key={emoji} onClick={() => addReaction(msg.id, emoji)} className="text-sm hover:scale-125 transition-transform">{emoji}</button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Read receipts & time */}
+                  <div className={cn('flex items-center gap-1 mt-0.5', isMine ? 'justify-end' : 'justify-start')}>
+                    <span className="text-[9px] text-gray-400">{timeAgo(msg.created_at)}</span>
+                    {isMine && <span className="text-[9px] text-teal-500">{msg.read_by.length > 1 ? '✓✓' : '✓'}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Typing indicator */}
+          {otherTyping.length > 0 && (
+            <div className="flex items-center gap-2 px-2">
+              <div className="flex gap-0.5">
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-[10px] text-gray-400">typing...</span>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-harbor-800">
+          <button onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-teal-500">📎</button>
+          <input
+            value={messageInput}
+            onChange={e => { setMessageInput(e.target.value); handleTyping(); }}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+            placeholder="Type a message..."
+            className="flex-1 bg-gray-100 dark:bg-harbor-900 rounded-full px-4 py-2 text-sm text-harbor-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+          <button onClick={sendMessage} disabled={!messageInput.trim() || sending} className="w-9 h-9 rounded-full bg-teal-500 text-white flex items-center justify-center disabled:opacity-50">
+            ↑
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-slide-up">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiConnect</h1>
-          <OnlineCountBadge />
+        <div>
+          <h1 className="text-xl font-bold text-harbor-800 dark:text-white">Messages</h1>
+          <p className="text-xs text-gray-500">{conversations.filter(c => c.unread_count > 0).length} unread</p>
         </div>
-        <button
-          onClick={() => setShowNewChat(!showNewChat)}
-          className="btn-teal text-sm !py-2 !px-4"
-        >
-          + New
-        </button>
+        <button onClick={() => setTab('new')} className="btn-teal text-xs">+ New</button>
       </div>
 
-      {/* New Chat Modal */}
-      {showNewChat && (
-        <form onSubmit={handleNewChat} className="card space-y-3">
-          <h3 className="text-sm font-medium text-harbor-800 dark:text-white">Start a conversation</h3>
-          <input
-            type="email"
-            value={newChatEmail}
-            onChange={(e) => setNewChatEmail(e.target.value)}
-            className="input-field"
-            placeholder="Enter their email address"
-            required
-          />
-          <div className="flex gap-2">
-            <button type="submit" disabled={creating} className="btn-teal flex-1 text-sm !py-2">
-              {creating ? 'Starting...' : 'Start Chat'}
-            </button>
-            <button type="button" onClick={() => setShowNewChat(false)} className="btn-primary flex-1 text-sm !py-2">
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1" role="tablist">
-        {(['messages', 'groups', 'neighbors'] as ConnectTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            role="tab"
-            aria-selected={activeTab === tab}
-            className={cn(
-              'flex-1 py-2 px-3 rounded-lg text-sm font-medium capitalize transition-all',
-              activeTab === tab
-                ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm'
-                : 'text-gray-500 dark:text-gray-400'
-            )}
-          >
-            {tab}
-          </button>
+      <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
+        {(['messages', 'groups', 'new'] as ConnectTab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t === 'new' ? '+ Create' : t}</button>
         ))}
       </div>
 
-      {activeTab === 'messages' && (
-        <div className="space-y-2">
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="card flex gap-3">
-                  <div className="skeleton w-10 h-10 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <div className="skeleton h-4 w-24" />
-                    <div className="skeleton h-3 w-40" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : conversations.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-4xl mb-2">💬</p>
-              <p className="text-gray-500 dark:text-gray-400">No conversations yet.</p>
-              <p className="text-sm text-gray-400 mt-1">Start one by clicking &quot;+ New&quot; above or wave at a neighbor.</p>
-            </div>
-          ) : (
-            conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => router.push(`/connect/chat?id=${conv.id}`)}
-                className="card w-full flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-harbor-900 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-lg">
-                  {conv.type === 'group' ? '👥' : '👤'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className={cn(
-                      'text-sm truncate',
-                      conv.unread ? 'font-bold text-harbor-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'
-                    )}>
-                      {conv.other_name}
-                    </p>
-                    <span className="text-xs text-gray-400 flex-shrink-0">{conv.last_time}</span>
-                  </div>
-                  <p className={cn(
-                    'text-xs truncate mt-0.5',
-                    conv.unread ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400'
-                  )}>
-                    {conv.last_message || 'No messages yet'}
-                  </p>
-                </div>
-                {conv.unread && (
-                  <div className="w-2.5 h-2.5 bg-teal-500 rounded-full flex-shrink-0" />
-                )}
-              </button>
-            ))
-          )}
-        </div>
-      )}
-
-      {activeTab === 'groups' && (
-        <div className="space-y-3">
-          {conversations.filter((c) => c.type === 'group').length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-4xl mb-2">👥</p>
-              <p className="text-gray-500">No groups yet.</p>
-              <p className="text-sm text-gray-400 mt-1">Group messaging coming soon.</p>
-            </div>
-          ) : (
-            conversations
-              .filter((c) => c.type === 'group')
-              .map((group) => (
-                <button
-                  key={group.id}
-                  onClick={() => router.push(`/connect/chat?id=${group.id}`)}
-                  className="card w-full flex items-center gap-3 text-left"
-                >
-                  <span className="text-2xl">👥</span>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-harbor-800 dark:text-white">{group.name ?? 'Group'}</h3>
-                    <p className="text-xs text-gray-500">{group.last_message || 'No messages'}</p>
-                  </div>
-                </button>
-              ))
-          )}
-        </div>
-      )}
-
-      {activeTab === 'neighbors' && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Community members on MiLyfe.</p>
-          {neighbors.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-400">No neighbors found yet.</p>
-            </div>
-          ) : (
-            neighbors.map((neighbor) => (
-              <div key={neighbor.id} className="card flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-harbor-100 dark:bg-harbor-800 flex items-center justify-center text-lg">
-                    👤
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5">
-                    <PresenceDot userId={neighbor.id} size="md" />
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-harbor-800 dark:text-white">{neighbor.display_name}</h3>
-                  <PresenceDot userId={neighbor.id} size="sm" showLabel />
-                </div>
-                <button
-                  onClick={() => startConversation(neighbor.id)}
-                  disabled={creating}
-                  className="text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
-                >
-                  Wave
-                </button>
+      {/* Conversations List */}
+      {(tab === 'messages' || tab === 'groups') && (
+        <div className="space-y-1">
+          {loading ? [1, 2, 3, 4].map(i => <div key={i} className="card skeleton h-16" />) :
+            conversations.filter(c => tab === 'groups' ? c.type === 'group' : c.type === 'direct').length === 0 ? (
+              <div className="card text-center py-8">
+                <p className="text-2xl mb-2">✉️</p>
+                <p className="text-sm text-gray-500">No {tab === 'groups' ? 'group chats' : 'messages'} yet</p>
               </div>
-            ))
-          )}
+            ) : conversations.filter(c => tab === 'groups' ? c.type === 'group' : c.type === 'direct').map(convo => {
+              const other = convo.participants?.find(p => p.id !== user?.id);
+              return (
+                <button key={convo.id} onClick={() => openConversation(convo)} className="card w-full text-left flex items-center gap-3 hover:shadow-md transition-shadow py-3">
+                  <div className="w-11 h-11 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-sm relative flex-shrink-0">
+                    {(convo.name || other?.display_name || '?').charAt(0)}
+                    {other?.online && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-harbor-950 rounded-full" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-harbor-800 dark:text-white truncate">{convo.name || other?.display_name}</p>
+                      {convo.last_message_at && <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(convo.last_message_at)}</span>}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500 truncate">{convo.typing?.length ? 'typing...' : convo.last_message || 'No messages yet'}</p>
+                      {convo.unread_count > 0 && (
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-500 text-white text-[10px] flex items-center justify-center font-bold">{convo.unread_count}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          }
+        </div>
+      )}
+
+      {/* Create Group */}
+      {tab === 'new' && user && (
+        <div className="card space-y-3">
+          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Create Group Chat</h3>
+          <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Group name" className="input-field" />
+          <input value={groupMembers} onChange={e => setGroupMembers(e.target.value)} placeholder="Add members (comma separated names)" className="input-field" />
+          <button onClick={createGroup} disabled={!groupName.trim()} className="btn-teal w-full disabled:opacity-50">Create Group</button>
         </div>
       )}
     </div>
   );
-}
-
-function getRelativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = now - then;
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'now';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
 }

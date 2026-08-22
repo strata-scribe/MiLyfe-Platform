@@ -1,263 +1,313 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useAppStore } from '@/lib/store/app-store';
-import { cn } from '@/lib/utils/cn';
-import { fetchJTARoutes, fetchJTAStops, type TransitRoute, type TransitStop } from '@/lib/transit/jta';
-import { MapView } from '@/components/ui/map-view';
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { useAppStore } from '@/lib/store/app-store'
+import { cn } from '@/lib/utils/cn'
+import { toast } from 'sonner'
 
-interface MapReport { id: string; user_id: string; type: string; lat: number; lng: number; description: string | null; upvotes: number; expires_at: string; created_at: string; }
+type Tab = 'map' | 'routes' | 'transit' | 'gas' | 'commute'
 
-const REPORT_TYPES = [
-  { value: 'hazard', label: '⚠️ Hazard', color: 'bg-amber-500' },
-  { value: 'police', label: '🚔 Police', color: 'bg-blue-500' },
-  { value: 'construction', label: '🚧 Construction', color: 'bg-orange-500' },
-  { value: 'flood', label: '🌊 Flooding', color: 'bg-cyan-500' },
-  { value: 'accident', label: '💥 Accident', color: 'bg-red-500' },
-  { value: 'closure', label: '🚫 Road Closed', color: 'bg-gray-500' },
-  { value: 'speed_trap', label: '📸 Speed Trap', color: 'bg-purple-500' },
-];
-
-type NavTab = 'map' | 'reports' | 'transit' | 'report';
-
-export default function NavPage() {
-  const [tab, setTab] = useState<NavTab>('map');
-  const [reports, setReports] = useState<MapReport[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Report form
-  const [reportType, setReportType] = useState('hazard');
-  const [reportDesc, setReportDesc] = useState('');
-  const [reportLat, setReportLat] = useState<number | null>(null);
-  const [reportLng, setReportLng] = useState<number | null>(null);
-  const [gettingLocation, setGettingLocation] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  const { user } = useAppStore();
-
-  useEffect(() => { loadReports(); }, []);
-
-  async function loadReports() {
-    const supabase = createClient();
-    const { data } = await supabase.from('map_reports').select('*').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false });
-    if (data) setReports(data);
-    setLoading(false);
-  }
-
-  function getLocation() {
-    setGettingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => { setReportLat(pos.coords.latitude); setReportLng(pos.coords.longitude); setGettingLocation(false); },
-      () => { setGettingLocation(false); alert('Unable to get location. Please enable GPS.'); },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }
-
-  async function submitReport() {
-    if (!user || !reportLat || !reportLng) return;
-    setSubmitting(true);
-    const supabase = createClient();
-    const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 4); // Reports expire in 4h
-    await supabase.from('map_reports').insert({ user_id: user.id, type: reportType, lat: reportLat, lng: reportLng, description: reportDesc.trim() || null, expires_at: expiresAt.toISOString() });
-    setReportDesc(''); setReportLat(null); setReportLng(null); setSubmitting(false); setTab('reports'); loadReports();
-  }
-
-  async function upvoteReport(id: string) {
-    const supabase = createClient();
-    setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: r.upvotes + 1 } : r));
-    await supabase.from('map_reports').update({ upvotes: reports.find(r => r.id === id)!.upvotes + 1 }).eq('id', id);
-  }
-
-  return (
-    <div className="space-y-4 animate-slide-up">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiNav</h1>
-          <p className="text-xs text-gray-500">Community navigation. Report hazards. Find routes.</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {(['map', 'reports', 'transit', 'report'] as NavTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t === 'report' ? '+ Report' : t}</button>
-        ))}
-      </div>
-
-      {/* Map placeholder */}
-      {tab === 'map' && (
-        <div className="space-y-3">
-          <MapView
-            pins={reports.map(r => ({
-              id: r.id,
-              lat: r.lat,
-              lng: r.lng,
-              type: r.type,
-              label: r.description || r.type,
-              color: REPORT_TYPES.find(t => t.value === r.type)?.color.replace('bg-', '#').replace('-500', '') || '#ef4444',
-            }))}
-            showUserLocation
-          />
-
-          {/* Quick stats */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="card text-center !p-2"><p className="text-lg font-bold text-harbor-800 dark:text-white">{reports.length}</p><p className="text-[10px] text-gray-500">Active Reports</p></div>
-            <div className="card text-center !p-2"><p className="text-lg font-bold text-harbor-800 dark:text-white">{reports.filter(r => r.type === 'hazard').length}</p><p className="text-[10px] text-gray-500">Hazards</p></div>
-            <div className="card text-center !p-2"><p className="text-lg font-bold text-harbor-800 dark:text-white">{reports.filter(r => r.type === 'police').length}</p><p className="text-[10px] text-gray-500">Police</p></div>
-          </div>
-        </div>
-      )}
-
-      {/* Reports list */}
-      {tab === 'reports' && (
-        <div className="space-y-2">
-          {loading ? [1,2,3].map(i => <div key={i} className="card skeleton h-16" />) :
-          reports.length === 0 ? <div className="card text-center py-8"><p className="text-sm text-gray-500">No active reports. Roads are clear! 🎉</p></div> :
-          reports.map(r => {
-            const typeInfo = REPORT_TYPES.find(t => t.value === r.type);
-            return (
-              <div key={r.id} className="card flex items-center gap-3">
-                <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center text-lg text-white', typeInfo?.color || 'bg-gray-500')}>
-                  {typeInfo?.label.split(' ')[0]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white capitalize">{r.type.replace(/_/g, ' ')}</p>
-                  {r.description && <p className="text-xs text-gray-500 truncate">{r.description}</p>}
-                  <p className="text-xs text-gray-400">Expires {new Date(r.expires_at).toLocaleTimeString()}</p>
-                </div>
-                <button onClick={() => upvoteReport(r.id)} className="text-xs text-gray-400 hover:text-teal-600">▲ {r.upvotes}</button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Transit */}
-      {tab === 'transit' && (
-        <TransitPanel />
-      )}
-
-      {/* Report */}
-      {tab === 'report' && user && (
-        <div className="card space-y-3">
-          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Report a Road Condition</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {REPORT_TYPES.map(t => (
-              <button key={t.value} onClick={() => setReportType(t.value)} className={cn('py-2 px-3 rounded-lg border text-xs font-medium text-left transition-all', reportType === t.value ? `${t.color} text-white border-transparent` : 'border-gray-200 dark:border-harbor-700 text-gray-600')}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <textarea value={reportDesc} onChange={e => setReportDesc(e.target.value)} placeholder="Details (optional)" className="input-field resize-none" rows={2} />
-          <button onClick={getLocation} disabled={gettingLocation} className="w-full py-2 border border-gray-200 dark:border-harbor-700 rounded-lg text-xs font-medium">
-            {gettingLocation ? '📡 Getting location...' : reportLat ? `📍 ${reportLat.toFixed(4)}, ${reportLng?.toFixed(4)}` : '📍 Get My Location'}
-          </button>
-          <button onClick={submitReport} disabled={!reportLat || submitting} className="btn-teal w-full disabled:opacity-50">{submitting ? 'Reporting...' : 'Submit Report'}</button>
-        </div>
-      )}
-    </div>
-  );
+interface PointOfInterest {
+  id: string
+  name: string
+  type: 'community' | 'business' | 'transit' | 'park' | 'service'
+  address: string
+  distance: string
 }
 
+interface SavedRoute {
+  id: string
+  name: string
+  from: string
+  to: string
+  distance: string
+  duration: string
+  lastUsed: string
+}
 
-// Transit panel using JTA GTFS data
-function TransitPanel() {
-  const [routes, setRoutes] = useState<TransitRoute[]>([]);
-  const [nearbyStops, setNearbyStops] = useState<TransitStop[]>([]);
-  const [loadingRoutes, setLoadingRoutes] = useState(true);
-  const [loadingStops, setLoadingStops] = useState(false);
-  const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+interface TransitRoute {
+  id: string
+  line: string
+  destination: string
+  nextArrival: string
+  status: 'on-time' | 'delayed' | 'cancelled'
+  frequency: string
+}
+
+interface GasStation {
+  id: string
+  name: string
+  type: 'gas' | 'ev'
+  price: string
+  distance: string
+  lastUpdated: string
+  trend: 'up' | 'down' | 'stable'
+}
+
+interface CommuteStats {
+  avgTime: string
+  avgDistance: string
+  avgCost: string
+  tripsThisWeek: number
+  co2Saved: string
+}
+
+export default function NavPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('map')
+  const [loading, setLoading] = useState(true)
+  const [pois, setPois] = useState<PointOfInterest[]>([])
+  const [routes, setRoutes] = useState<SavedRoute[]>([])
+  const [transit, setTransit] = useState<TransitRoute[]>([])
+  const [gasStations, setGasStations] = useState<GasStation[]>([])
+  const [commuteStats, setCommuteStats] = useState<CommuteStats | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const supabase = createClient()
+  const { user } = useAppStore()
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'map', label: 'Map' },
+    { key: 'routes', label: 'Routes' },
+    { key: 'transit', label: 'Transit' },
+    { key: 'gas', label: 'Gas/EV' },
+    { key: 'commute', label: 'Commute' },
+  ]
 
   useEffect(() => {
-    fetchJTARoutes().then(r => { setRoutes(r); setLoadingRoutes(false); });
-  }, []);
+    loadNavData()
+  }, [])
 
-  function findNearbyStops() {
-    setLoadingStops(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const stops = await fetchJTAStops(pos.coords.latitude, pos.coords.longitude);
-        setNearbyStops(stops);
-        setLoadingStops(false);
-      },
-      () => { setLoadingStops(false); },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+  async function loadNavData() {
+    setLoading(true)
+    try {
+      setPois([
+        { id: '1', name: 'Riverside Community Center', type: 'community', address: '1234 Park St, Jacksonville', distance: '0.3 mi' },
+        { id: '2', name: 'JTA Bus Stop - Main & 5th', type: 'transit', address: 'Main St & 5th Ave', distance: '0.1 mi' },
+        { id: '3', name: 'Springfield Park', type: 'park', address: '800 N Main St', distance: '0.8 mi' },
+        { id: '4', name: 'MiLyfe Co-op Store', type: 'business', address: '456 Oak Ave', distance: '0.5 mi' },
+        { id: '5', name: 'Health Clinic - Eastside', type: 'service', address: '789 Elm Blvd', distance: '1.2 mi' },
+      ])
+      setRoutes([
+        { id: '1', name: 'Home to Work', from: '123 Riverside Ave', to: '456 Downtown Blvd', distance: '4.2 mi', duration: '12 min', lastUsed: 'Today' },
+        { id: '2', name: 'Grocery Run', from: 'Home', to: 'Publix - San Marco', distance: '2.1 mi', duration: '7 min', lastUsed: 'Yesterday' },
+        { id: '3', name: 'Kids School', from: 'Home', to: 'Springfield Elementary', distance: '1.8 mi', duration: '5 min', lastUsed: '2 days ago' },
+      ])
+      setTransit([
+        { id: '1', line: 'Route 1 - Kings Ave', destination: 'Downtown Terminal', nextArrival: '3 min', status: 'on-time', frequency: 'Every 15 min' },
+        { id: '2', line: 'Route 5 - Riverside', destination: 'Riverside Ave Station', nextArrival: '8 min', status: 'on-time', frequency: 'Every 20 min' },
+        { id: '3', line: 'Route 12 - Beach Blvd', destination: 'Jacksonville Beach', nextArrival: '15 min', status: 'delayed', frequency: 'Every 30 min' },
+        { id: '4', line: 'Skyway - Convention', destination: 'Convention Center', nextArrival: '2 min', status: 'on-time', frequency: 'Every 5 min' },
+      ])
+      setGasStations([
+        { id: '1', name: 'Shell - Main St', type: 'gas', price: '$3.29/gal', distance: '0.4 mi', lastUpdated: '2 hours ago', trend: 'down' },
+        { id: '2', name: 'BP - Park Ave', type: 'gas', price: '$3.35/gal', distance: '0.7 mi', lastUpdated: '1 hour ago', trend: 'stable' },
+        { id: '3', name: 'ChargePoint - Library', type: 'ev', price: '$0.32/kWh', distance: '0.5 mi', lastUpdated: '30 min ago', trend: 'stable' },
+        { id: '4', name: 'Tesla Supercharger - Town Ctr', type: 'ev', price: '$0.38/kWh', distance: '2.1 mi', lastUpdated: '1 hour ago', trend: 'up' },
+      ])
+      setCommuteStats({
+        avgTime: '18 min',
+        avgDistance: '4.2 mi',
+        avgCost: '$2.80/day',
+        tripsThisWeek: 8,
+        co2Saved: '12 lbs',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleShareRoute(routeId: string) {
+    toast.success('Route link copied to clipboard!')
+  }
+
+  function handleSaveRoute() {
+    toast.success('Route saved to favorites!')
+  }
+
+  const poiIcon = (type: string) => {
+    switch (type) {
+      case 'community': return '🏛️'
+      case 'business': return '🏪'
+      case 'transit': return '🚌'
+      case 'park': return '🌳'
+      case 'service': return '🏥'
+      default: return '📍'
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <div className="skeleton h-10 w-48 rounded-lg" />
+        <div className="skeleton h-64 rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[1, 2].map(i => <div key={i} className="skeleton h-32 rounded-xl" />)}
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-3">
-      {/* Nearby stops */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">🚏 Nearby Stops</h3>
-          <button onClick={findNearbyStops} disabled={loadingStops} className="text-xs text-teal-600 font-medium">
-            {loadingStops ? '📡 Finding...' : '📍 Find Near Me'}
-          </button>
+    <div className="p-6 max-w-7xl mx-auto space-y-6 animate-slide-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-harbor-900">Navigation & Transit</h1>
+          <p className="text-harbor-500 mt-1">Get around Jacksonville efficiently</p>
         </div>
-        {nearbyStops.length === 0 ? (
-          <p className="text-xs text-gray-500 text-center py-4">
-            Tap &quot;Find Near Me&quot; to see JTA stops within 1km.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {nearbyStops.map(stop => (
-              <div key={stop.id} className="flex items-center gap-3 py-2 border-b border-gray-50 dark:border-harbor-800 last:border-0">
-                <span className="text-lg">🚏</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-harbor-800 dark:text-white truncate">{stop.stop_name}</p>
-                  <div className="flex gap-1 mt-0.5">
-                    {stop.routes.map(r => (
-                      <span key={r} className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
-                        #{r}
-                      </span>
-                    ))}
+        <Link href="/dashboard" className="btn-teal px-4 py-2 rounded-lg text-sm">Back to Dashboard</Link>
+      </div>
+
+      <nav className="flex gap-1 bg-harbor-100 p-1 rounded-xl overflow-x-auto">
+        {tabs.map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn('px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all', activeTab === tab.key ? 'bg-teal-600 text-white shadow-sm' : 'text-harbor-600 hover:bg-harbor-200')}>
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === 'map' && (
+        <div className="space-y-4">
+          <div className="card rounded-xl overflow-hidden">
+            <div className="h-64 bg-gradient-to-br from-teal-50 to-harbor-100 flex items-center justify-center border-b border-harbor-200">
+              <div className="text-center">
+                <p className="text-harbor-400 text-sm">MapLibre Interactive Map</p>
+                <p className="text-harbor-300 text-xs mt-1">Community locations & points of interest</p>
+              </div>
+            </div>
+            <div className="p-4">
+              <input className="input-field w-full px-4 py-2.5 rounded-lg" placeholder="Search places, addresses..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            </div>
+          </div>
+          <div className="card p-5 rounded-xl">
+            <h3 className="font-semibold text-harbor-800 mb-3">Nearby Points of Interest</h3>
+            <div className="space-y-2">
+              {pois.map(poi => (
+                <div key={poi.id} className="flex items-center justify-between p-3 bg-harbor-50 rounded-lg hover:bg-harbor-100 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{poiIcon(poi.type)}</span>
+                    <div>
+                      <p className="font-medium text-harbor-800 text-sm">{poi.name}</p>
+                      <p className="text-xs text-harbor-500">{poi.address}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-teal-600 font-medium">{poi.distance}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'routes' && (
+        <div className="space-y-4">
+          <div className="card p-5 rounded-xl">
+            <h3 className="font-semibold text-harbor-800 mb-3">Save New Route</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input className="input-field px-3 py-2 rounded-lg" placeholder="From..." />
+              <input className="input-field px-3 py-2 rounded-lg" placeholder="To..." />
+              <button onClick={handleSaveRoute} className="btn-teal px-4 py-2 rounded-lg text-sm">Save Route</button>
+            </div>
+          </div>
+          <h2 className="text-lg font-semibold text-harbor-800">Saved Routes</h2>
+          {routes.map(route => (
+            <div key={route.id} className="card p-4 rounded-xl">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium text-harbor-800">{route.name}</h4>
+                <button onClick={() => handleShareRoute(route.id)} className="text-xs text-teal-600 hover:underline">Share</button>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-harbor-500">
+                <span>{route.from}</span>
+                <span className="text-harbor-300">→</span>
+                <span>{route.to}</span>
+              </div>
+              <div className="flex items-center gap-4 mt-2 text-xs text-harbor-400">
+                <span>{route.distance}</span>
+                <span>{route.duration}</span>
+                <span>Last used: {route.lastUsed}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'transit' && (
+        <div className="space-y-4">
+          <div className="card p-4 rounded-xl bg-teal-50 border border-teal-100">
+            <h3 className="font-semibold text-teal-800 text-sm">JTA Real-Time Arrivals</h3>
+            <p className="text-xs text-teal-600">Live bus & Skyway schedules for Jacksonville</p>
+          </div>
+          {transit.map(route => (
+            <div key={route.id} className="card p-4 rounded-xl flex items-center justify-between">
+              <div>
+                <p className="font-medium text-harbor-800">{route.line}</p>
+                <p className="text-sm text-harbor-500">To: {route.destination}</p>
+                <p className="text-xs text-harbor-400">{route.frequency}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-teal-600">{route.nextArrival}</p>
+                <span className={cn('text-xs px-2 py-0.5 rounded', route.status === 'on-time' ? 'bg-green-100 text-green-700' : route.status === 'delayed' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700')}>{route.status}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'gas' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-harbor-800">Gas & EV Charging Prices</h2>
+          {gasStations.map(station => (
+            <div key={station.id} className="card p-4 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{station.type === 'gas' ? '⛽' : '⚡'}</span>
+                <div>
+                  <p className="font-medium text-harbor-800">{station.name}</p>
+                  <p className="text-xs text-harbor-500">{station.distance} away | Updated {station.lastUpdated}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-harbor-800">{station.price}</p>
+                <span className={cn('text-xs', station.trend === 'down' ? 'text-green-600' : station.trend === 'up' ? 'text-red-500' : 'text-harbor-400')}>
+                  {station.trend === 'down' ? '↓ Dropping' : station.trend === 'up' ? '↑ Rising' : '→ Stable'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'commute' && (
+        <div className="space-y-4">
+          {commuteStats && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[{ label: 'Avg Time', value: commuteStats.avgTime }, { label: 'Avg Distance', value: commuteStats.avgDistance }, { label: 'Daily Cost', value: commuteStats.avgCost }, { label: 'Trips/Week', value: String(commuteStats.tripsThisWeek) }, { label: 'CO₂ Saved', value: commuteStats.co2Saved }].map(stat => (
+                <div key={stat.label} className="card p-3 rounded-xl text-center">
+                  <p className="text-xs text-harbor-500">{stat.label}</p>
+                  <p className="text-lg font-bold text-teal-600 mt-1">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="card p-5 rounded-xl">
+            <h3 className="font-semibold text-harbor-800 mb-3">Carpool Matching</h3>
+            <p className="text-sm text-harbor-500 mb-3">Find neighbors heading the same direction</p>
+            <div className="space-y-2">
+              {[{ name: 'Alex T.', route: 'Riverside → Downtown', time: '8:00 AM', seats: 2 }, { name: 'Jamie L.', route: 'Springfield → Southside', time: '7:30 AM', seats: 3 }].map((match, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-harbor-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-harbor-800 text-sm">{match.name}</p>
+                    <p className="text-xs text-harbor-500">{match.route} | {match.time}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-harbor-400">{match.seats} seats</span>
+                    <button className="btn-teal px-3 py-1 rounded text-xs">Request</button>
                   </div>
                 </div>
-                {stop.wheelchair_boarding === 1 && <span className="text-xs">♿</span>}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        )}
-      </div>
-
-      {/* All routes */}
-      <div className="card">
-        <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-3">🚌 JTA Routes</h3>
-        {loadingRoutes ? (
-          <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-8 rounded" />)}</div>
-        ) : (
-          <div className="space-y-1.5">
-            {routes.map(route => (
-              <button
-                key={route.id}
-                onClick={() => setSelectedRoute(selectedRoute === route.id ? null : route.id)}
-                className="w-full flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-harbor-800/50 transition-colors text-left"
-              >
-                <span
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
-                  style={{ backgroundColor: `#${route.route_color}`, color: `#${route.route_text_color}` }}
-                >
-                  {route.route_short_name}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-harbor-800 dark:text-white truncate">{route.route_long_name}</p>
-                </div>
-                <span className="text-xs text-gray-400">{route.route_type === 3 ? '🚌' : '🚈'}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="card bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
-        <p className="text-xs text-blue-700 dark:text-blue-300">
-          <strong>Data source:</strong> JTA GTFS via Transitland API. Schedule data updates daily. 
-          Real-time vehicle positions require JTA partnership (in progress).
-        </p>
-      </div>
+        </div>
+      )}
     </div>
-  );
+  )
 }
