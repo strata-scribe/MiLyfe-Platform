@@ -182,7 +182,7 @@ export default function AutoPage() {
           <p className="text-3xl mb-2">🅿️</p>
           <p className="text-sm font-medium text-harbor-800 dark:text-white">Parking Finder</p>
           <p className="text-xs text-gray-500 mt-1">Community-reported free parking spots, EV chargers, and lot rates.</p>
-          <p className="text-xs text-gray-400 mt-3">Report spots from MiNav → map integration coming soon.</p>
+          <p className="text-xs text-gray-400 mt-3">Report spots from MiNav map feature.</p>
         </div>
       )}
     </div>

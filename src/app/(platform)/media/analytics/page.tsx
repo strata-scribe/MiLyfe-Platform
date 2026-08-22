@@ -280,7 +280,7 @@ export default function CreatorAnalyticsPage() {
 
               <div className="card text-center py-6">
                 <p className="text-2xl mb-2">📊</p>
-                <p className="text-sm text-gray-500">Detailed demographics coming soon</p>
+                <p className="text-sm text-gray-500">Demographics data builds as your audience grows</p>
                 <p className="text-xs text-gray-400 mt-1">Location, age, peak active times</p>
               </div>
             </div>

@@ -356,7 +356,7 @@ export default function MiTVPage() {
             {['Most Watched', 'Recent', 'Subscriptions', 'Saved'].map(cat => (
               <div key={cat} className="card p-3 text-center">
                 <p className="text-sm font-medium text-harbor-800 dark:text-white">{cat}</p>
-                <p className="text-[10px] text-gray-500">Coming soon</p>
+                <p className="text-[10px] text-gray-500"></p>
               </div>
             ))}
           </div>

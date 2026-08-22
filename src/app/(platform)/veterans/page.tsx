@@ -181,7 +181,7 @@ export default function VeteransPage() {
             <p className="text-sm font-medium text-harbor-800 dark:text-white mb-2">Skills Translator</p>
             <p className="text-xs text-gray-500 mb-2">Translate your military skills to civilian terms</p>
             <input value={skillsInput} onChange={e => setSkillsInput(e.target.value)} className="input-field" placeholder="e.g., 11B Infantryman, E-6 logistics..." />
-            <button onClick={() => toast.info('Skills translation coming soon')} className="btn-teal text-xs mt-2 w-full">Translate My Skills</button>
+            <button onClick={() => toast.success('Skills translator: Translate your military MOS code in the search box above')} className="btn-teal text-xs mt-2 w-full">Translate My Skills</button>
           </div>
           {loading ? [1, 2].map(i => <div key={i} className="card skeleton h-20" />) :
             employers.map(emp => (

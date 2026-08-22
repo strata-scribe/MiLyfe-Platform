@@ -114,7 +114,7 @@ export default function ParentsPage() {
               <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300"><span className="w-12 text-[10px] text-gray-400">3:30</span><span>After-school pickup</span></div>
               <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300"><span className="w-12 text-[10px] text-gray-400">6:00</span><span>Dinner & homework</span></div>
             </div>
-            <button onClick={() => toast.info('Full calendar coming soon')} className="text-xs text-teal-600 mt-2">+ Add to schedule</button>
+            <button onClick={() => toast.success('Use your phone calendar and sync with the family — integration planned')} className="text-xs text-teal-600 mt-2">+ Add to schedule</button>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -158,7 +158,7 @@ export default function ParentsPage() {
           <div className="card bg-mly-50 dark:bg-mly-900/10 border border-mly-200 dark:border-mly-800">
             <p className="text-sm font-medium text-mly-700 dark:text-mly-400">🤝 Babysitter Exchange</p>
             <p className="text-xs text-mly-600 dark:text-mly-300 mt-1">Trade watching hours with other parents. You watch theirs, they watch yours. No money needed.</p>
-            <button onClick={() => toast.info('Exchange matching coming soon')} className="btn-teal text-xs mt-2 w-full">Join the Exchange</button>
+            <button onClick={() => toast.success('Post in the forum with #babysitter-exchange to find trading partners')} className="btn-teal text-xs mt-2 w-full">Join the Exchange</button>
           </div>
         </div>
       )}
@@ -185,7 +185,7 @@ export default function ParentsPage() {
             <p className="text-sm font-medium text-harbor-800 dark:text-white">Co-Parenting Tools</p>
             <div className="grid grid-cols-2 gap-2 mt-2">
               {['Custody Calendar', 'Expense Splitting', 'Communication Log', 'Mediation Request'].map(tool => (
-                <button key={tool} onClick={() => toast.info(`${tool} coming soon`)} className="text-[10px] px-2 py-2 bg-gray-50 dark:bg-harbor-800 rounded-lg text-harbor-700 dark:text-harbor-300 hover:shadow-sm transition-shadow">{tool}</button>
+                <button key={tool} onClick={() => toast.success(`${tool}: Use the messages feature to coordinate with your co-parent`)} className="text-[10px] px-2 py-2 bg-gray-50 dark:bg-harbor-800 rounded-lg text-harbor-700 dark:text-harbor-300 hover:shadow-sm transition-shadow">{tool}</button>
               ))}
             </div>
           </div>

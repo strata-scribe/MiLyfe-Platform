@@ -212,7 +212,7 @@ export default function YouthPage() {
           </div>
           {loading ? [1, 2, 3].map(i => <div key={i} className="card skeleton h-20" />) :
             courses.filter(c => skillFilter === 'All' || c.category === skillFilter).length === 0 ? (
-              <div className="card text-center py-8"><p className="text-sm text-gray-500">More courses coming soon!</p></div>
+              <div className="card text-center py-8"><p className="text-sm text-gray-500">Check back as new courses are added by the community</p></div>
             ) : courses.filter(c => skillFilter === 'All' || c.category === skillFilter).map(course => (
               <div key={course.id} className="card flex items-center gap-3">
                 <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center text-sm', course.completed ? 'bg-green-100 text-green-700' : 'bg-teal-100 dark:bg-teal-900/30 text-teal-700')}>

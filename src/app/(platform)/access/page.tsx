@@ -217,7 +217,7 @@ export default function AccessPage() {
           <div className="card text-center">
             <p className="text-sm font-medium text-harbor-800 dark:text-white">Start a Group</p>
             <p className="text-xs text-gray-500 mt-1">Disability-led groups are prioritized. Create a space for your community.</p>
-            <button onClick={() => toast.info('Group creation coming soon')} className="btn-teal text-xs mt-3">Create Group</button>
+            <button onClick={() => toast.success('Post in the forum to find members and start a group')} className="btn-teal text-xs mt-3">Create Group</button>
           </div>
         </div>
       )}

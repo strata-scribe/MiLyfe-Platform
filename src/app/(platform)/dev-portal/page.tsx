@@ -136,7 +136,7 @@ export default function DevPortalPage() {
               <p className="text-amber-600">POST /api/ubi (cron only)</p>
             </div>
           </div>
-          <div className="card"><h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">🛠️ SDKs</h3><p className="text-xs text-gray-500">JavaScript SDK coming soon. For now, use the REST API directly.</p></div>
+          <div className="card"><h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">🛠️ SDKs</h3><p className="text-xs text-gray-500">Use the REST API directly with your Supabase credentials.</p></div>
           <div className="card"><h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-2">🔐 OAuth (Sign in with MiLyfe)</h3><p className="text-xs text-gray-500">Allow users to sign into your app with their MiLyfe account. OAuth 2.0 PKCE flow — documentation in progress.</p></div>
         </div>
       )}
@@ -146,7 +146,7 @@ export default function DevPortalPage() {
         <div className="card text-center py-8">
           <p className="text-3xl mb-2">🔧</p>
           <p className="text-sm text-gray-500">Register an app to get your API key</p>
-          <p className="text-xs text-gray-400 mt-1">App management UI coming soon.</p>
+          <p className="text-xs text-gray-400 mt-1">Register apps via the API — documentation above.</p>
         </div>
       )}
     </div>

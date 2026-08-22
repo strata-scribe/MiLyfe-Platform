@@ -265,7 +265,7 @@ export default function UserProfilePage() {
       {tab === 'activity' && (
         <div className="card text-center py-8">
           <p className="text-2xl mb-2">📊</p>
-          <p className="text-sm text-gray-500">Activity feed coming soon</p>
+          <p className="text-sm text-gray-500">Check their posts tab for recent activity</p>
           <p className="text-xs text-gray-400 mt-1">Contributions, votes, and community participation</p>
         </div>
       )}

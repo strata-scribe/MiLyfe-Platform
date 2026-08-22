@@ -172,7 +172,7 @@ export default function ImmigrantPage() {
           <div className="card">
             <p className="text-sm font-medium text-harbor-800 dark:text-white">Language Exchange</p>
             <p className="text-xs text-gray-500 mt-1">Find a partner to practice with. You teach your language, they teach theirs.</p>
-            <button onClick={() => toast.info('Language exchange matching coming soon')} className="btn-teal text-xs mt-2 w-full">Find a Partner</button>
+            <button onClick={() => toast.success('Language exchange: Post in the forum with tag #language-exchange to find partners')} className="btn-teal text-xs mt-2 w-full">Find a Partner</button>
           </div>
         </div>
       )}
@@ -230,7 +230,7 @@ export default function ImmigrantPage() {
           <div className="card">
             <p className="text-sm font-medium text-harbor-800 dark:text-white">Newcomer Orientation</p>
             <p className="text-xs text-gray-500 mt-1">New to the area? Our community orientation helps you understand local services, transportation, schools, and connects you with others from your home country.</p>
-            <button onClick={() => toast.info('Orientation scheduling coming soon')} className="btn-teal text-xs mt-2 w-full">Schedule Orientation</button>
+            <button onClick={() => toast.success('Contact your nearest community center to schedule an orientation')} className="btn-teal text-xs mt-2 w-full">Schedule Orientation</button>
           </div>
         </div>
       )}

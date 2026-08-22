@@ -383,7 +383,7 @@ export default function HealthPage() {
             <div className="card text-center py-8">
               <p className="text-2xl mb-2">🎯</p>
               <p className="text-sm text-gray-500">No health goals set</p>
-              <p className="text-xs text-gray-400 mt-1">Coming soon: Set custom health targets</p>
+              <p className="text-xs text-gray-400 mt-1">Set goals in the habits tab above to track your targets</p>
             </div>
           ) : goals.map(goal => (
             <div key={goal.id} className="card space-y-2">

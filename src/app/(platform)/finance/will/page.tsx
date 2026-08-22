@@ -183,7 +183,7 @@ export default function WillBuilderPage() {
         <div className="card text-center py-8">
           <p className="text-2xl mb-2">{DOC_TYPES.find(d => d.type === docType)?.icon}</p>
           <p className="text-sm font-medium text-harbor-800 dark:text-white">{DOC_TYPES.find(d => d.type === docType)?.label}</p>
-          <p className="text-xs text-gray-500 mt-2">This template is coming soon.</p>
+          <p className="text-xs text-gray-500 mt-2">Select 'Last Will' above to use the full template builder.</p>
           <button onClick={() => setStep('type')} className="btn-teal text-xs mt-4">← Choose Different</button>
         </div>
       )}

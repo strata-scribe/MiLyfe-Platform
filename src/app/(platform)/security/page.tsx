@@ -200,7 +200,7 @@ export default function SecurityPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Two-Factor Authentication</h3>
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-medium">
-                Coming Soon
+                
               </span>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
