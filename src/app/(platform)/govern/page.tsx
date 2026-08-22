@@ -11,35 +11,40 @@ type Tab = 'proposals' | 'vote' | 'delegates' | 'history' | 'create'
 
 interface Proposal {
   id: string
+  author_id: string
+  author_name: string
   title: string
-  category: 'budget' | 'policy' | 'community' | 'infrastructure'
   description: string
+  category: string
+  budget_impact: string | null
+  timeline: string | null
   deadline: string
-  votesFor: number
-  votesAgainst: number
-  votesAbstain: number
-  discussionCount: number
-  status: 'active' | 'passed' | 'rejected' | 'pending'
-  author: string
-  budgetImpact?: string
+  votes_for: number
+  votes_against: number
+  votes_abstain: number
+  discussion_count: number
+  status: string
+  created_at: string
 }
 
 interface Delegate {
   id: string
-  name: string
-  trustScore: number
-  delegatedVotes: number
+  user_id: string
+  display_name: string
+  trust_score: number
+  delegated_votes: number
   categories: string[]
-  votingRecord: number
+  voting_record: number
 }
 
 interface VoteRecord {
   id: string
-  proposalTitle: string
-  result: 'passed' | 'rejected'
-  participationRate: number
-  yourVote?: 'for' | 'against' | 'abstain'
-  date: string
+  proposal_id: string
+  user_id: string
+  vote: string
+  created_at: string
+  proposal_title?: string
+  proposal_status?: string
 }
 
 export default function GovernPage() {
@@ -50,7 +55,6 @@ export default function GovernPage() {
   const [history, setHistory] = useState<VoteRecord[]>([])
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [createForm, setCreateForm] = useState({ title: '', category: 'community', description: '', budgetImpact: '', timeline: '' })
-  const supabase = createClient()
   const { user } = useAppStore()
 
   const tabs: { key: Tab; label: string }[] = [
@@ -68,44 +72,85 @@ export default function GovernPage() {
   async function loadGovernanceData() {
     setLoading(true)
     try {
-      setProposals([
-        { id: '1', title: 'Expand Community Garden to Eastside', category: 'community', description: 'Proposal to allocate 500 $MLY for establishing a new community garden on the vacant lot at Eastside Park.', deadline: '2024-02-01', votesFor: 142, votesAgainst: 23, votesAbstain: 15, discussionCount: 47, status: 'active', author: 'Maria Santos', budgetImpact: '500 $MLY' },
-        { id: '2', title: 'New Street Lighting on MLK Blvd', category: 'infrastructure', description: 'Install solar-powered street lights along MLK Boulevard to improve pedestrian safety during nighttime hours.', deadline: '2024-01-28', votesFor: 198, votesAgainst: 12, votesAbstain: 8, discussionCount: 31, status: 'active', author: 'Council Rep. Davis', budgetImpact: '2,400 $MLY' },
-        { id: '3', title: 'Youth Mentorship Program Funding', category: 'budget', description: 'Allocate monthly budget of 300 $MLY for youth mentorship pairing and activity funding.', deadline: '2024-02-15', votesFor: 89, votesAgainst: 34, votesAbstain: 22, discussionCount: 63, status: 'active', author: 'DeShawn Moore', budgetImpact: '300 $MLY/month' },
-        { id: '4', title: 'Noise Ordinance Update for Events', category: 'policy', description: 'Update community noise guidelines: events must end by 10 PM on weekdays, 11 PM on weekends.', deadline: '2024-01-20', votesFor: 67, votesAgainst: 88, votesAbstain: 45, discussionCount: 112, status: 'active', author: 'Noise Committee' },
+      const supabase = createClient()
+
+      const [proposalRes, delegateRes, voteRes] = await Promise.all([
+        supabase.from('gov_proposals').select('*').order('created_at', { ascending: false }),
+        supabase.from('gov_delegates').select('*').order('trust_score', { ascending: false }),
+        supabase.from('gov_votes').select('*, gov_proposals(title, status)').eq('user_id', user?.id || '').order('created_at', { ascending: false }),
       ])
-      setDelegates([
-        { id: '1', name: 'Councilwoman Maria Santos', trustScore: 94, delegatedVotes: 56, categories: ['community', 'budget'], votingRecord: 98 },
-        { id: '2', name: 'DeShawn Moore', trustScore: 89, delegatedVotes: 34, categories: ['policy', 'community'], votingRecord: 92 },
-        { id: '3', name: 'Dr. Patricia Chen', trustScore: 91, delegatedVotes: 28, categories: ['infrastructure', 'budget'], votingRecord: 95 },
-      ])
-      setHistory([
-        { id: '1', proposalTitle: 'Free WiFi in Public Parks', result: 'passed', participationRate: 72, yourVote: 'for', date: '2024-01-10' },
-        { id: '2', proposalTitle: 'Reduce Speed Limit on School St', result: 'passed', participationRate: 68, yourVote: 'for', date: '2024-01-05' },
-        { id: '3', proposalTitle: 'Remove Bench from Elm Square', result: 'rejected', participationRate: 81, yourVote: 'against', date: '2023-12-28' },
-      ])
+
+      setProposals(proposalRes.data || [])
+      setDelegates(delegateRes.data || [])
+
+      const voteHistory = (voteRes.data || []).map((v: any) => ({
+        ...v,
+        proposal_title: v.gov_proposals?.title || 'Unknown Proposal',
+        proposal_status: v.gov_proposals?.status || 'unknown',
+      }))
+      setHistory(voteHistory)
+    } catch (err) {
+      toast.error('Failed to load governance data')
     } finally {
       setLoading(false)
     }
   }
 
-  function handleVote(proposalId: string, vote: 'for' | 'against' | 'abstain') {
+  async function handleVote(proposalId: string, vote: 'for' | 'against' | 'abstain') {
+    const supabase = createClient()
+    const { error } = await supabase.from('gov_votes').insert({
+      proposal_id: proposalId,
+      user_id: user?.id,
+      vote,
+    })
+
+    if (error) {
+      toast.error('Failed to record vote')
+      return
+    }
+
     setProposals(prev => prev.map(p => {
       if (p.id === proposalId) {
-        return { ...p, votesFor: p.votesFor + (vote === 'for' ? 1 : 0), votesAgainst: p.votesAgainst + (vote === 'against' ? 1 : 0), votesAbstain: p.votesAbstain + (vote === 'abstain' ? 1 : 0) }
+        return {
+          ...p,
+          votes_for: p.votes_for + (vote === 'for' ? 1 : 0),
+          votes_against: p.votes_against + (vote === 'against' ? 1 : 0),
+          votes_abstain: p.votes_abstain + (vote === 'abstain' ? 1 : 0),
+        }
       }
       return p
     }))
     toast.success(`Vote recorded: ${vote}`)
   }
 
-  function handleCreateProposal() {
+  async function handleCreateProposal() {
     if (!createForm.title || !createForm.description) {
       toast.error('Please fill in title and description')
       return
     }
+    const supabase = createClient()
+    const { error } = await supabase.from('gov_proposals').insert({
+      author_id: user?.id,
+      author_name: user?.display_name || 'Anonymous',
+      title: createForm.title,
+      category: createForm.category,
+      description: createForm.description,
+      budget_impact: createForm.budgetImpact || null,
+      timeline: createForm.timeline || null,
+      status: 'active',
+      votes_for: 0,
+      votes_against: 0,
+      votes_abstain: 0,
+      discussion_count: 0,
+    })
+
+    if (error) {
+      toast.error('Failed to submit proposal')
+      return
+    }
     toast.success('Proposal submitted for community review!')
     setCreateForm({ title: '', category: 'community', description: '', budgetImpact: '', timeline: '' })
+    loadGovernanceData()
   }
 
   const categoryColor = (cat: string) => {
@@ -149,7 +194,11 @@ export default function GovernPage() {
 
       {activeTab === 'proposals' && (
         <div className="space-y-4">
-          {proposals.map(proposal => (
+          {proposals.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No proposals yet. Create one to get started!</p>
+            </div>
+          ) : proposals.map(proposal => (
             <div key={proposal.id} className="card p-5 rounded-xl cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setSelectedProposal(proposal); setActiveTab('vote') }}>
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-semibold text-harbor-800">{proposal.title}</h3>
@@ -157,12 +206,12 @@ export default function GovernPage() {
               </div>
               <p className="text-sm text-harbor-500 mb-3 line-clamp-2">{proposal.description}</p>
               <div className="flex items-center gap-4 text-xs text-harbor-500">
-                <span>Deadline: {proposal.deadline}</span>
-                <span>{proposal.discussionCount} discussions</span>
-                <span className="text-teal-600 font-medium">{proposal.votesFor} for</span>
-                <span className="text-red-500">{proposal.votesAgainst} against</span>
+                <span>Deadline: {proposal.deadline ? new Date(proposal.deadline).toLocaleDateString() : 'N/A'}</span>
+                <span>{proposal.discussion_count} discussions</span>
+                <span className="text-teal-600 font-medium">{proposal.votes_for} for</span>
+                <span className="text-red-500">{proposal.votes_against} against</span>
               </div>
-              {proposal.budgetImpact && <p className="text-xs text-mly-600 mt-2 font-medium">Budget Impact: {proposal.budgetImpact}</p>}
+              {proposal.budget_impact && <p className="text-xs text-mly-600 mt-2 font-medium">Budget Impact: {proposal.budget_impact}</p>}
             </div>
           ))}
         </div>
@@ -174,19 +223,23 @@ export default function GovernPage() {
             <div className="card p-6 rounded-xl">
               <div className="flex items-center gap-2 mb-2">
                 <span className={cn('px-2 py-0.5 rounded text-xs font-medium', categoryColor(selectedProposal.category))}>{selectedProposal.category}</span>
-                <span className="text-xs text-harbor-400">by {selectedProposal.author}</span>
+                <span className="text-xs text-harbor-400">by {selectedProposal.author_name}</span>
               </div>
               <h2 className="text-xl font-bold text-harbor-900 mb-3">{selectedProposal.title}</h2>
               <p className="text-harbor-600 mb-4">{selectedProposal.description}</p>
               <div className="bg-harbor-50 p-4 rounded-lg mb-4">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-teal-600 font-medium">For: {selectedProposal.votesFor}</span>
-                  <span className="text-red-500 font-medium">Against: {selectedProposal.votesAgainst}</span>
-                  <span className="text-harbor-500">Abstain: {selectedProposal.votesAbstain}</span>
+                  <span className="text-teal-600 font-medium">For: {selectedProposal.votes_for}</span>
+                  <span className="text-red-500 font-medium">Against: {selectedProposal.votes_against}</span>
+                  <span className="text-harbor-500">Abstain: {selectedProposal.votes_abstain}</span>
                 </div>
                 <div className="w-full h-3 bg-harbor-200 rounded-full overflow-hidden flex">
-                  <div className="bg-teal-500 h-full" style={{ width: `${(selectedProposal.votesFor / (selectedProposal.votesFor + selectedProposal.votesAgainst + selectedProposal.votesAbstain)) * 100}%` }} />
-                  <div className="bg-red-400 h-full" style={{ width: `${(selectedProposal.votesAgainst / (selectedProposal.votesFor + selectedProposal.votesAgainst + selectedProposal.votesAbstain)) * 100}%` }} />
+                  {(selectedProposal.votes_for + selectedProposal.votes_against + selectedProposal.votes_abstain) > 0 && (
+                    <>
+                      <div className="bg-teal-500 h-full" style={{ width: `${(selectedProposal.votes_for / (selectedProposal.votes_for + selectedProposal.votes_against + selectedProposal.votes_abstain)) * 100}%` }} />
+                      <div className="bg-red-400 h-full" style={{ width: `${(selectedProposal.votes_against / (selectedProposal.votes_for + selectedProposal.votes_against + selectedProposal.votes_abstain)) * 100}%` }} />
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3">
@@ -209,22 +262,26 @@ export default function GovernPage() {
             <h3 className="font-semibold text-teal-800 mb-1">Delegation Dashboard</h3>
             <p className="text-sm text-teal-600">Delegate your vote to trusted community members when you can&apos;t participate directly.</p>
           </div>
-          {delegates.map(delegate => (
+          {delegates.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No delegates registered yet.</p>
+            </div>
+          ) : delegates.map(delegate => (
             <div key={delegate.id} className="card p-5 rounded-xl">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold">{delegate.name[0]}</div>
+                  <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold">{delegate.display_name[0]}</div>
                   <div>
-                    <p className="font-semibold text-harbor-800">{delegate.name}</p>
-                    <p className="text-xs text-harbor-500">Trust Score: {delegate.trustScore}% | Voting Record: {delegate.votingRecord}%</p>
+                    <p className="font-semibold text-harbor-800">{delegate.display_name}</p>
+                    <p className="text-xs text-harbor-500">Trust Score: {delegate.trust_score}% | Voting Record: {delegate.voting_record}%</p>
                   </div>
                 </div>
                 <button className="btn-teal px-3 py-1.5 rounded-lg text-xs">Delegate</button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-harbor-500">{delegate.delegatedVotes} votes delegated</span>
+                <span className="text-xs text-harbor-500">{delegate.delegated_votes} votes delegated</span>
                 <span className="text-harbor-300">|</span>
-                {delegate.categories.map(cat => (
+                {(delegate.categories || []).map(cat => (
                   <span key={cat} className={cn('px-2 py-0.5 rounded text-xs', categoryColor(cat))}>{cat}</span>
                 ))}
               </div>
@@ -236,15 +293,19 @@ export default function GovernPage() {
       {activeTab === 'history' && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-harbor-800">Voting History</h2>
-          {history.map(record => (
+          {history.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No voting history yet. Cast your first vote!</p>
+            </div>
+          ) : history.map(record => (
             <div key={record.id} className="card p-4 rounded-xl flex items-center justify-between">
               <div>
-                <p className="font-medium text-harbor-800">{record.proposalTitle}</p>
-                <p className="text-sm text-harbor-500">{record.date} | Participation: {record.participationRate}%</p>
+                <p className="font-medium text-harbor-800">{record.proposal_title}</p>
+                <p className="text-sm text-harbor-500">{new Date(record.created_at).toLocaleDateString()}</p>
               </div>
               <div className="flex items-center gap-2">
-                {record.yourVote && <span className={cn('px-2 py-0.5 rounded text-xs font-medium', record.yourVote === 'for' ? 'bg-teal-100 text-teal-700' : record.yourVote === 'against' ? 'bg-red-100 text-red-700' : 'bg-harbor-100 text-harbor-600')}>You: {record.yourVote}</span>}
-                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', record.result === 'passed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>{record.result}</span>
+                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', record.vote === 'for' ? 'bg-teal-100 text-teal-700' : record.vote === 'against' ? 'bg-red-100 text-red-700' : 'bg-harbor-100 text-harbor-600')}>You: {record.vote}</span>
+                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', record.proposal_status === 'passed' ? 'bg-green-100 text-green-700' : record.proposal_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-harbor-100 text-harbor-600')}>{record.proposal_status}</span>
               </div>
             </div>
           ))}

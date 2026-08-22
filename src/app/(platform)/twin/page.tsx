@@ -11,25 +11,29 @@ type Tab = 'home' | 'personality' | 'predictions' | 'settings'
 
 interface PersonalityTrait {
   id: string
+  user_id: string
   name: string
-  category: 'spending' | 'social' | 'health'
+  category: string
   value: number
   accuracy: number
   description: string
+  updated_at: string
 }
 
 interface Prediction {
   id: string
-  type: 'expense' | 'recommendation' | 'schedule'
+  user_id: string
+  type: string
   title: string
   description: string
   confidence: number
   actionable: boolean
-  timestamp: string
+  created_at: string
 }
 
 interface PrivacyControl {
   id: string
+  user_id: string
   name: string
   description: string
   enabled: boolean
@@ -42,8 +46,6 @@ export default function TwinPage() {
   const [traits, setTraits] = useState<PersonalityTrait[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [privacyControls, setPrivacyControls] = useState<PrivacyControl[]>([])
-  const [twinStatus, setTwinStatus] = useState({ lastSync: '5 minutes ago', dataPoints: 1247, accuracy: 87, status: 'active' })
-  const supabase = createClient()
   const { user } = useAppStore()
 
   const tabs: { key: Tab; label: string }[] = [
@@ -60,33 +62,39 @@ export default function TwinPage() {
   async function loadTwinData() {
     setLoading(true)
     try {
-      setTraits([
-        { id: '1', name: 'Budget-Conscious Spender', category: 'spending', value: 82, accuracy: 91, description: 'You tend to research prices before purchasing and prefer deals over impulse buys.' },
-        { id: '2', name: 'Community Connector', category: 'social', value: 74, accuracy: 85, description: 'You frequently engage in community events and maintain diverse social connections.' },
-        { id: '3', name: 'Health-Aware', category: 'health', value: 68, accuracy: 79, description: 'You track health metrics regularly but could benefit from more consistent exercise.' },
-        { id: '4', name: 'Evening Active', category: 'social', value: 88, accuracy: 93, description: 'Most of your social and productive activity happens in the evening hours.' },
-        { id: '5', name: 'Savings-Focused', category: 'spending', value: 71, accuracy: 87, description: 'You consistently set aside a portion of income and avoid unnecessary subscriptions.' },
-        { id: '6', name: 'Routine-Driven', category: 'health', value: 65, accuracy: 76, description: 'You follow predictable daily patterns with some variation on weekends.' },
+      const supabase = createClient()
+      const userId = user?.id || ''
+
+      const [traitsRes, predictionsRes, privacyRes] = await Promise.all([
+        supabase.from('twin_traits').select('*').eq('user_id', userId).order('updated_at', { ascending: false }),
+        supabase.from('twin_predictions').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+        supabase.from('twin_privacy_controls').select('*').eq('user_id', userId),
       ])
-      setPredictions([
-        { id: '1', type: 'expense', title: 'Grocery Bill Higher Than Usual', description: 'Based on your shopping patterns, your grocery spending this week may exceed budget by ~$45. Consider using community market for produce.', confidence: 78, actionable: true, timestamp: '2024-01-15' },
-        { id: '2', type: 'recommendation', title: 'Join Thursday Community Walk', description: 'Your activity levels are below your weekly average. The Thursday community walk matches your schedule and social preferences.', confidence: 85, actionable: true, timestamp: '2024-01-15' },
-        { id: '3', type: 'schedule', title: 'Reschedule Wednesday Appointment', description: 'Traffic patterns suggest your Wednesday 3 PM appointment will have a 25-min commute vs usual 12 min. Consider leaving early or rescheduling.', confidence: 72, actionable: true, timestamp: '2024-01-15' },
-        { id: '4', type: 'expense', title: 'Subscription Renewal Coming', description: 'Your streaming service renews in 3 days ($15.99). Usage has been low this month — consider pausing to save.', confidence: 95, actionable: true, timestamp: '2024-01-14' },
-      ])
-      setPrivacyControls([
-        { id: '1', name: 'Spending Data', description: 'Allow twin to analyze your transaction patterns', enabled: true, category: 'financial' },
-        { id: '2', name: 'Location History', description: 'Use location data for commute and schedule insights', enabled: true, category: 'location' },
-        { id: '3', name: 'Social Activity', description: 'Analyze community engagement patterns', enabled: true, category: 'social' },
-        { id: '4', name: 'Health Metrics', description: 'Access health and activity data for wellness predictions', enabled: false, category: 'health' },
-        { id: '5', name: 'Communication Patterns', description: 'Analyze messaging frequency and timing', enabled: false, category: 'communication' },
-      ])
+
+      setTraits(traitsRes.data || [])
+      setPredictions(predictionsRes.data || [])
+      setPrivacyControls(privacyRes.data || [])
+    } catch (err) {
+      toast.error('Failed to load twin data')
     } finally {
       setLoading(false)
     }
   }
 
-  function togglePrivacy(id: string) {
+  async function togglePrivacy(id: string) {
+    const control = privacyControls.find(c => c.id === id)
+    if (!control) return
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('twin_privacy_controls')
+      .update({ enabled: !control.enabled })
+      .eq('id', id)
+
+    if (error) {
+      toast.error('Failed to update privacy setting')
+      return
+    }
     setPrivacyControls(prev => prev.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c))
     toast.success('Privacy setting updated')
   }
@@ -145,40 +153,44 @@ export default function TwinPage() {
               <span className="text-4xl">🤖</span>
             </div>
             <h2 className="text-xl font-bold text-harbor-900">Your Digital Twin</h2>
-            <p className="text-sm text-harbor-500 mt-1">DiceBear Avatar Placeholder</p>
+            <p className="text-sm text-harbor-500 mt-1">AI-powered personal insights</p>
             <div className="flex items-center justify-center gap-2 mt-3">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm text-green-600 font-medium">Active & Syncing</span>
+              <span className={cn('w-2 h-2 rounded-full', traits.length > 0 ? 'bg-green-500 animate-pulse' : 'bg-harbor-300')} />
+              <span className={cn('text-sm font-medium', traits.length > 0 ? 'text-green-600' : 'text-harbor-500')}>{traits.length > 0 ? 'Active & Syncing' : 'Awaiting Data'}</span>
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="card p-4 rounded-xl text-center">
-              <p className="text-xs text-harbor-500">Last Sync</p>
-              <p className="text-lg font-bold text-teal-600 mt-1">{twinStatus.lastSync}</p>
+              <p className="text-xs text-harbor-500">Traits</p>
+              <p className="text-lg font-bold text-teal-600 mt-1">{traits.length}</p>
             </div>
             <div className="card p-4 rounded-xl text-center">
-              <p className="text-xs text-harbor-500">Data Points</p>
-              <p className="text-lg font-bold text-mly-500 mt-1">{twinStatus.dataPoints.toLocaleString()}</p>
+              <p className="text-xs text-harbor-500">Predictions</p>
+              <p className="text-lg font-bold text-mly-500 mt-1">{predictions.length}</p>
             </div>
             <div className="card p-4 rounded-xl text-center">
-              <p className="text-xs text-harbor-500">Accuracy</p>
-              <p className="text-lg font-bold text-harbor-700 mt-1">{twinStatus.accuracy}%</p>
+              <p className="text-xs text-harbor-500">Avg Accuracy</p>
+              <p className="text-lg font-bold text-harbor-700 mt-1">{traits.length > 0 ? Math.round(traits.reduce((sum, t) => sum + t.accuracy, 0) / traits.length) : 0}%</p>
             </div>
             <div className="card p-4 rounded-xl text-center">
-              <p className="text-xs text-harbor-500">Status</p>
-              <p className="text-lg font-bold text-green-600 mt-1 capitalize">{twinStatus.status}</p>
+              <p className="text-xs text-harbor-500">Privacy Controls</p>
+              <p className="text-lg font-bold text-green-600 mt-1">{privacyControls.filter(c => c.enabled).length} active</p>
             </div>
           </div>
           <div className="card p-5 rounded-xl">
             <h3 className="font-semibold text-harbor-800 mb-3">Quick Insights</h3>
-            <div className="space-y-2">
-              {predictions.slice(0, 2).map(pred => (
-                <div key={pred.id} className="p-3 bg-harbor-50 rounded-lg">
-                  <p className="text-sm font-medium text-harbor-800">{pred.title}</p>
-                  <p className="text-xs text-harbor-500 mt-1">{pred.description}</p>
-                </div>
-              ))}
-            </div>
+            {predictions.length === 0 ? (
+              <p className="text-sm text-harbor-500">No predictions yet. Your twin will learn your patterns over time.</p>
+            ) : (
+              <div className="space-y-2">
+                {predictions.slice(0, 2).map(pred => (
+                  <div key={pred.id} className="p-3 bg-harbor-50 rounded-lg">
+                    <p className="text-sm font-medium text-harbor-800">{pred.title}</p>
+                    <p className="text-xs text-harbor-500 mt-1">{pred.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -189,7 +201,11 @@ export default function TwinPage() {
             <h3 className="font-semibold text-teal-800 text-sm">Personality Profile</h3>
             <p className="text-xs text-teal-600">Traits learned from your behavior patterns. Higher accuracy means more confident predictions.</p>
           </div>
-          {traits.map(trait => (
+          {traits.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No personality traits analyzed yet. Your twin will learn as you use the platform.</p>
+            </div>
+          ) : traits.map(trait => (
             <div key={trait.id} className="card p-5 rounded-xl">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -215,7 +231,11 @@ export default function TwinPage() {
       {activeTab === 'predictions' && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-harbor-800">AI Predictions & Suggestions</h2>
-          {predictions.map(pred => (
+          {predictions.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No predictions yet. Your twin needs more data to generate insights.</p>
+            </div>
+          ) : predictions.map(pred => (
             <div key={pred.id} className="card p-5 rounded-xl">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -226,7 +246,7 @@ export default function TwinPage() {
               </div>
               <p className="text-sm text-harbor-500 mb-3">{pred.description}</p>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-harbor-400">{pred.timestamp}</span>
+                <span className="text-xs text-harbor-400">{new Date(pred.created_at).toLocaleDateString()}</span>
                 {pred.actionable && <button className="btn-teal px-3 py-1 rounded text-xs">Take Action</button>}
               </div>
             </div>
@@ -239,19 +259,23 @@ export default function TwinPage() {
           <div className="card p-5 rounded-xl">
             <h3 className="font-semibold text-harbor-800 mb-4">Privacy Controls</h3>
             <p className="text-sm text-harbor-500 mb-4">Control what data your digital twin can access and analyze.</p>
-            <div className="space-y-3">
-              {privacyControls.map(control => (
-                <div key={control.id} className="flex items-center justify-between p-3 bg-harbor-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-harbor-800 text-sm">{control.name}</p>
-                    <p className="text-xs text-harbor-500">{control.description}</p>
+            {privacyControls.length === 0 ? (
+              <p className="text-sm text-harbor-500">No privacy controls configured yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {privacyControls.map(control => (
+                  <div key={control.id} className="flex items-center justify-between p-3 bg-harbor-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-harbor-800 text-sm">{control.name}</p>
+                      <p className="text-xs text-harbor-500">{control.description}</p>
+                    </div>
+                    <button onClick={() => togglePrivacy(control.id)} className={cn('w-11 h-6 rounded-full transition-colors relative', control.enabled ? 'bg-teal-500' : 'bg-harbor-300')}>
+                      <span className={cn('absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform', control.enabled ? 'left-5' : 'left-0.5')} />
+                    </button>
                   </div>
-                  <button onClick={() => togglePrivacy(control.id)} className={cn('w-11 h-6 rounded-full transition-colors relative', control.enabled ? 'bg-teal-500' : 'bg-harbor-300')}>
-                    <span className={cn('absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform', control.enabled ? 'left-5' : 'left-0.5')} />
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card p-5 rounded-xl">

@@ -10,10 +10,12 @@ import { toast } from 'sonner'
 type Tab = 'overview' | 'budget' | 'operations' | 'audit'
 
 interface PlatformStat {
-  label: string
-  value: string
-  change: string
-  trend: 'up' | 'down' | 'stable'
+  id: string
+  stat_key: string
+  stat_value: string
+  change_pct: string
+  trend: string
+  updated_at: string
 }
 
 interface BudgetCategory {
@@ -25,20 +27,13 @@ interface BudgetCategory {
   color: string
 }
 
-interface ModerationAction {
-  id: string
-  type: string
-  count: number
-  period: string
-}
-
 interface AuditEntry {
   id: string
   action: string
   actor: string
   target: string
-  timestamp: string
-  category: 'moderation' | 'system' | 'financial' | 'governance'
+  category: string
+  created_at: string
 }
 
 export default function TransparencyPage() {
@@ -46,11 +41,9 @@ export default function TransparencyPage() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<PlatformStat[]>([])
   const [budget, setBudget] = useState<BudgetCategory[]>([])
-  const [moderationActions, setModerationActions] = useState<ModerationAction[]>([])
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [timeRange, setTimeRange] = useState('30d')
   const [auditFilter, setAuditFilter] = useState('all')
-  const supabase = createClient()
   const { user } = useAppStore()
 
   const tabs: { key: Tab; label: string }[] = [
@@ -67,39 +60,19 @@ export default function TransparencyPage() {
   async function loadTransparencyData() {
     setLoading(true)
     try {
-      setStats([
-        { label: 'Active Users', value: '4,827', change: '+12%', trend: 'up' },
-        { label: 'Transactions Today', value: '1,243', change: '+8%', trend: 'up' },
-        { label: '$MLY in Circulation', value: '142,500', change: '+3.2%', trend: 'up' },
-        { label: 'Platform Uptime', value: '99.97%', change: '0%', trend: 'stable' },
-        { label: 'Avg Response Time', value: '145ms', change: '-12%', trend: 'down' },
-        { label: 'Active Proposals', value: '8', change: '+2', trend: 'up' },
+      const supabase = createClient()
+
+      const [statsRes, budgetRes, auditRes] = await Promise.all([
+        supabase.from('platform_stats').select('*').order('updated_at', { ascending: false }),
+        supabase.from('platform_budget').select('*').order('created_at', { ascending: true }),
+        supabase.from('platform_audit_log').select('*').order('created_at', { ascending: false }).limit(50),
       ])
-      setBudget([
-        { id: '1', name: 'Community Programs', allocated: 35000, spent: 28450, percentage: 35, color: 'bg-teal-500' },
-        { id: '2', name: 'Infrastructure & Maintenance', allocated: 25000, spent: 21200, percentage: 25, color: 'bg-harbor-500' },
-        { id: '3', name: 'Safety & Guild Operations', allocated: 15000, spent: 12800, percentage: 15, color: 'bg-mly-500' },
-        { id: '4', name: 'Education & Skills', allocated: 12000, spent: 9600, percentage: 12, color: 'bg-purple-500' },
-        { id: '5', name: 'Health & Wellness', allocated: 8000, spent: 6200, percentage: 8, color: 'bg-blue-500' },
-        { id: '6', name: 'Reserve Fund', allocated: 5000, spent: 0, percentage: 5, color: 'bg-green-500' },
-      ])
-      setModerationActions([
-        { id: '1', type: 'Content Removed', count: 23, period: 'Last 30 days' },
-        { id: '2', type: 'Warnings Issued', count: 15, period: 'Last 30 days' },
-        { id: '3', type: 'Accounts Suspended', count: 2, period: 'Last 30 days' },
-        { id: '4', type: 'Appeals Processed', count: 8, period: 'Last 30 days' },
-        { id: '5', type: 'Reports Resolved', count: 45, period: 'Last 30 days' },
-        { id: '6', type: 'Avg Resolution Time', count: 4, period: 'Hours' },
-      ])
-      setAuditLog([
-        { id: '1', action: 'Proposal #47 approved by vote', actor: 'Governance System', target: 'Community Garden Expansion', timestamp: '2024-01-15 4:00 PM', category: 'governance' },
-        { id: '2', action: 'Budget allocation released', actor: 'Treasury Module', target: '2,400 $MLY to Safety Guild', timestamp: '2024-01-15 2:30 PM', category: 'financial' },
-        { id: '3', action: 'Content removed (spam)', actor: 'Mod Team', target: 'Forum post #2847', timestamp: '2024-01-15 1:15 PM', category: 'moderation' },
-        { id: '4', action: 'System maintenance completed', actor: 'DevOps', target: 'Database optimization', timestamp: '2024-01-15 3:00 AM', category: 'system' },
-        { id: '5', action: 'New delegate registered', actor: 'Governance System', target: 'User: PatriciaChen', timestamp: '2024-01-14 6:00 PM', category: 'governance' },
-        { id: '6', action: 'Reward distribution batch', actor: 'Recording Module', target: '150 $MLY to 12 contributors', timestamp: '2024-01-14 5:00 PM', category: 'financial' },
-        { id: '7', action: 'Account suspended for ToS violation', actor: 'Mod Team', target: 'User: spammer42', timestamp: '2024-01-14 11:30 AM', category: 'moderation' },
-      ])
+
+      setStats(statsRes.data || [])
+      setBudget(budgetRes.data || [])
+      setAuditLog(auditRes.data || [])
+    } catch (err) {
+      toast.error('Failed to load transparency data')
     } finally {
       setLoading(false)
     }
@@ -157,51 +130,67 @@ export default function TransparencyPage() {
               <option value="90d">Last 90 Days</option>
             </select>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {stats.map(stat => (
-              <div key={stat.label} className="card p-4 rounded-xl">
-                <p className="text-xs text-harbor-500">{stat.label}</p>
-                <p className="text-2xl font-bold text-harbor-800 mt-1">{stat.value}</p>
-                <span className={cn('text-xs font-medium', stat.trend === 'up' ? 'text-green-600' : stat.trend === 'down' ? 'text-teal-600' : 'text-harbor-500')}>{stat.change} {stat.trend === 'up' ? '↑' : stat.trend === 'down' ? '↓' : '→'}</span>
-              </div>
-            ))}
-          </div>
+          {stats.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No platform stats available yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {stats.map(stat => (
+                <div key={stat.id} className="card p-4 rounded-xl">
+                  <p className="text-xs text-harbor-500">{stat.stat_key}</p>
+                  <p className="text-2xl font-bold text-harbor-800 mt-1">{stat.stat_value}</p>
+                  <span className={cn('text-xs font-medium', stat.trend === 'up' ? 'text-green-600' : stat.trend === 'down' ? 'text-teal-600' : 'text-harbor-500')}>
+                    {stat.change_pct} {stat.trend === 'up' ? '↑' : stat.trend === 'down' ? '↓' : '→'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === 'budget' && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-harbor-800">$MLY Budget Allocation</h2>
-          <div className="card p-5 rounded-xl">
-            <div className="flex h-6 rounded-full overflow-hidden mb-4">
-              {budget.map(cat => (
-                <div key={cat.id} className={cn('h-full', cat.color)} style={{ width: `${cat.percentage}%` }} title={cat.name} />
-              ))}
+          {budget.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No budget data available yet.</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          ) : (
+            <>
+              <div className="card p-5 rounded-xl">
+                <div className="flex h-6 rounded-full overflow-hidden mb-4">
+                  {budget.map(cat => (
+                    <div key={cat.id} className={cn('h-full', cat.color || 'bg-teal-500')} style={{ width: `${cat.percentage}%` }} title={cat.name} />
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {budget.map(cat => (
+                    <div key={cat.id} className="flex items-center gap-2">
+                      <span className={cn('w-3 h-3 rounded-full', cat.color || 'bg-teal-500')} />
+                      <div>
+                        <p className="text-xs text-harbor-600 font-medium">{cat.name}</p>
+                        <p className="text-xs text-harbor-400">{cat.percentage}%</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <h3 className="font-semibold text-harbor-800">Spending Detail</h3>
               {budget.map(cat => (
-                <div key={cat.id} className="flex items-center gap-2">
-                  <span className={cn('w-3 h-3 rounded-full', cat.color)} />
-                  <div>
-                    <p className="text-xs text-harbor-600 font-medium">{cat.name}</p>
-                    <p className="text-xs text-harbor-400">{cat.percentage}%</p>
+                <div key={cat.id} className="card p-4 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-medium text-harbor-800 text-sm">{cat.name}</p>
+                    <p className="text-sm text-harbor-600">{cat.spent.toLocaleString()} / {cat.allocated.toLocaleString()} $MLY</p>
+                  </div>
+                  <div className="w-full h-2 bg-harbor-100 rounded-full overflow-hidden">
+                    <div className={cn('h-full rounded-full', cat.color || 'bg-teal-500')} style={{ width: `${cat.allocated > 0 ? (cat.spent / cat.allocated) * 100 : 0}%` }} />
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-          <h3 className="font-semibold text-harbor-800">Spending Detail</h3>
-          {budget.map(cat => (
-            <div key={cat.id} className="card p-4 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-medium text-harbor-800 text-sm">{cat.name}</p>
-                <p className="text-sm text-harbor-600">{cat.spent.toLocaleString()} / {cat.allocated.toLocaleString()} $MLY</p>
-              </div>
-              <div className="w-full h-2 bg-harbor-100 rounded-full overflow-hidden">
-                <div className={cn('h-full rounded-full', cat.color)} style={{ width: `${(cat.spent / cat.allocated) * 100}%` }} />
-              </div>
-            </div>
-          ))}
+            </>
+          )}
         </div>
       )}
 
@@ -221,16 +210,24 @@ export default function TransparencyPage() {
             </div>
           </div>
           <div className="card p-5 rounded-xl">
-            <h3 className="font-semibold text-harbor-800 mb-3">Moderation Summary</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {moderationActions.map(action => (
-                <div key={action.id} className="p-3 bg-harbor-50 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-harbor-700">{action.count}</p>
-                  <p className="text-xs text-harbor-500 mt-1">{action.type}</p>
-                  <p className="text-xs text-harbor-400">{action.period}</p>
-                </div>
-              ))}
-            </div>
+            <h3 className="font-semibold text-harbor-800 mb-3">Recent Activity</h3>
+            {auditLog.length === 0 ? (
+              <p className="text-sm text-harbor-500">No operational activity recorded yet.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { type: 'Moderation', count: auditLog.filter(a => a.category === 'moderation').length },
+                  { type: 'Financial', count: auditLog.filter(a => a.category === 'financial').length },
+                  { type: 'Governance', count: auditLog.filter(a => a.category === 'governance').length },
+                  { type: 'System', count: auditLog.filter(a => a.category === 'system').length },
+                ].map(action => (
+                  <div key={action.type} className="p-3 bg-harbor-50 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-harbor-700">{action.count}</p>
+                    <p className="text-xs text-harbor-500 mt-1">{action.type} Actions</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -245,14 +242,18 @@ export default function TransparencyPage() {
               ))}
             </div>
           </div>
-          {filteredAudit.map(entry => (
+          {filteredAudit.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No audit entries found{auditFilter !== 'all' ? ` for "${auditFilter}"` : ''}.</p>
+            </div>
+          ) : filteredAudit.map(entry => (
             <div key={entry.id} className="card p-4 rounded-xl">
               <div className="flex items-center justify-between mb-1">
                 <p className="font-medium text-harbor-800 text-sm">{entry.action}</p>
                 <span className={cn('px-2 py-0.5 rounded text-xs font-medium', auditCatColor(entry.category))}>{entry.category}</span>
               </div>
               <p className="text-xs text-harbor-500">Target: {entry.target} | Actor: {entry.actor}</p>
-              <p className="text-xs text-harbor-400 mt-1">{entry.timestamp}</p>
+              <p className="text-xs text-harbor-400 mt-1">{new Date(entry.created_at).toLocaleString()}</p>
             </div>
           ))}
         </div>
