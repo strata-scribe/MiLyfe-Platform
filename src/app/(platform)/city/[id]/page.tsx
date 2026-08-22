@@ -229,12 +229,11 @@ export default function IssueDetailPage() {
             rel="noopener noreferrer"
             className="block rounded-lg overflow-hidden border border-gray-200 dark:border-harbor-700"
           >
-            <img
-              src={`https://maps.googleapis.com/maps/api/staticmap?center=${issue.location_lat},${issue.location_lng}&zoom=15&size=400x200&markers=${issue.location_lat},${issue.location_lng}&key=placeholder`}
-              alt="Location map"
-              className="w-full h-32 object-cover bg-harbor-100 dark:bg-harbor-800"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
+            <div
+              className="w-full h-32 bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center rounded-lg"
+            >
+              <span className="text-2xl">📍</span>
+            </div>
             <div className="p-2 bg-gray-50 dark:bg-harbor-800 text-xs text-teal-500 text-center">
               📍 Open in Google Maps →
             </div>
