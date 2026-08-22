@@ -1,4 +1,115 @@
 -- ============================================================================
+-- MiLyfe Platform — COMPLETE MIGRATION (Safe to re-run)
+-- Drops non-core tables, then recreates everything cleanly.
+-- Core tables (profiles, transactions, issues, checkins, messages) are preserved.
+-- ============================================================================
+
+-- === DROP NON-CORE TABLES (preserves user data) ===
+DROP TABLE IF EXISTS public.notifications CASCADE;
+DROP TABLE IF EXISTS public.notification_preferences CASCADE;
+DROP TABLE IF EXISTS public.push_subscriptions CASCADE;
+DROP TABLE IF EXISTS public.housing_listings CASCADE;
+DROP TABLE IF EXISTS public.housing_reviews CASCADE;
+DROP TABLE IF EXISTS public.rideshare_rides CASCADE;
+DROP TABLE IF EXISTS public.jobs CASCADE;
+DROP TABLE IF EXISTS public.job_applications CASCADE;
+DROP TABLE IF EXISTS public.resumes CASCADE;
+DROP TABLE IF EXISTS public.courses CASCADE;
+DROP TABLE IF EXISTS public.course_modules CASCADE;
+DROP TABLE IF EXISTS public.course_progress CASCADE;
+DROP TABLE IF EXISTS public.course_discussions CASCADE;
+DROP TABLE IF EXISTS public.families CASCADE;
+DROP TABLE IF EXISTS public.family_members CASCADE;
+DROP TABLE IF EXISTS public.family_events CASCADE;
+DROP TABLE IF EXISTS public.businesses CASCADE;
+DROP TABLE IF EXISTS public.business_reviews CASCADE;
+DROP TABLE IF EXISTS public.guild_members CASCADE;
+DROP TABLE IF EXISTS public.guild_tasks CASCADE;
+DROP TABLE IF EXISTS public.guild_conflicts CASCADE;
+DROP TABLE IF EXISTS public.guild_checkins CASCADE;
+DROP TABLE IF EXISTS public.media_content CASCADE;
+DROP TABLE IF EXISTS public.media_likes CASCADE;
+DROP TABLE IF EXISTS public.radio_stations CASCADE;
+DROP TABLE IF EXISTS public.proposals CASCADE;
+DROP TABLE IF EXISTS public.proposal_votes CASCADE;
+DROP TABLE IF EXISTS public.feed_posts CASCADE;
+DROP TABLE IF EXISTS public.feed_likes CASCADE;
+DROP TABLE IF EXISTS public.feed_comments CASCADE;
+DROP TABLE IF EXISTS public.safety_walks CASCADE;
+DROP TABLE IF EXISTS public.police_interactions CASCADE;
+DROP TABLE IF EXISTS public.support_tickets CASCADE;
+DROP TABLE IF EXISTS public.support_messages CASCADE;
+DROP TABLE IF EXISTS public.resources CASCADE;
+DROP TABLE IF EXISTS public.broadcasts CASCADE;
+DROP TABLE IF EXISTS public.broadcast_acks CASCADE;
+DROP TABLE IF EXISTS public.content_flags CASCADE;
+DROP TABLE IF EXISTS public.violations CASCADE;
+DROP TABLE IF EXISTS public.user_restrictions CASCADE;
+DROP TABLE IF EXISTS public.community_juries CASCADE;
+DROP TABLE IF EXISTS public.appeals CASCADE;
+DROP TABLE IF EXISTS public.community_recordings CASCADE;
+DROP TABLE IF EXISTS public.wiki_pages CASCADE;
+DROP TABLE IF EXISTS public.wiki_revisions CASCADE;
+DROP TABLE IF EXISTS public.constitution_articles CASCADE;
+DROP TABLE IF EXISTS public.constitution_amendments CASCADE;
+DROP TABLE IF EXISTS public.constitution_annotations CASCADE;
+DROP TABLE IF EXISTS public.badges CASCADE;
+DROP TABLE IF EXISTS public.user_badges CASCADE;
+DROP TABLE IF EXISTS public.challenges CASCADE;
+DROP TABLE IF EXISTS public.challenge_progress CASCADE;
+DROP TABLE IF EXISTS public.mly_treasury CASCADE;
+DROP TABLE IF EXISTS public.mly_daily_stats CASCADE;
+DROP TABLE IF EXISTS public.forum_spaces CASCADE;
+DROP TABLE IF EXISTS public.forum_posts CASCADE;
+DROP TABLE IF EXISTS public.forum_comments CASCADE;
+DROP TABLE IF EXISTS public.forum_memberships CASCADE;
+DROP TABLE IF EXISTS public.forum_votes CASCADE;
+DROP TABLE IF EXISTS public.social_profiles CASCADE;
+DROP TABLE IF EXISTS public.follows CASCADE;
+DROP TABLE IF EXISTS public.stories CASCADE;
+DROP TABLE IF EXISTS public.reels CASCADE;
+DROP TABLE IF EXISTS public.social_reactions CASCADE;
+DROP TABLE IF EXISTS public.news_sources CASCADE;
+DROP TABLE IF EXISTS public.news_articles CASCADE;
+DROP TABLE IF EXISTS public.news_comments CASCADE;
+DROP TABLE IF EXISTS public.call_sessions CASCADE;
+DROP TABLE IF EXISTS public.research_projects CASCADE;
+DROP TABLE IF EXISTS public.research_members CASCADE;
+DROP TABLE IF EXISTS public.study_groups CASCADE;
+DROP TABLE IF EXISTS public.academic_papers CASCADE;
+DROP TABLE IF EXISTS public.research_grants CASCADE;
+DROP TABLE IF EXISTS public.marketplace_listings CASCADE;
+DROP TABLE IF EXISTS public.service_requests CASCADE;
+DROP TABLE IF EXISTS public.escrow_holds CASCADE;
+DROP TABLE IF EXISTS public.civic_projects CASCADE;
+DROP TABLE IF EXISTS public.civic_milestones CASCADE;
+DROP TABLE IF EXISTS public.civic_repair_claims CASCADE;
+DROP TABLE IF EXISTS public.repair_certifications CASCADE;
+DROP TABLE IF EXISTS public.map_reports CASCADE;
+DROP TABLE IF EXISTS public.map_routes CASCADE;
+DROP TABLE IF EXISTS public.transit_stops CASCADE;
+DROP TABLE IF EXISTS public.vehicles CASCADE;
+DROP TABLE IF EXISTS public.maintenance_records CASCADE;
+DROP TABLE IF EXISTS public.car_shares CASCADE;
+DROP TABLE IF EXISTS public.parking_spots CASCADE;
+DROP TABLE IF EXISTS public.ai_conversations CASCADE;
+DROP TABLE IF EXISTS public.ai_function_calls CASCADE;
+DROP TABLE IF EXISTS public.developer_apps CASCADE;
+DROP TABLE IF EXISTS public.app_reviews CASCADE;
+DROP TABLE IF EXISTS public.bounties CASCADE;
+DROP TABLE IF EXISTS public.developer_contributions CASCADE;
+DROP TABLE IF EXISTS public.digital_twins CASCADE;
+DROP TABLE IF EXISTS public.twin_actions CASCADE;
+DROP TABLE IF EXISTS public.twin_insights CASCADE;
+DROP TABLE IF EXISTS public.consent_records CASCADE;
+DROP TABLE IF EXISTS public.data_export_requests CASCADE;
+DROP TABLE IF EXISTS public.deletion_requests CASCADE;
+DROP TABLE IF EXISTS public.ap_actors CASCADE;
+DROP TABLE IF EXISTS public.ap_followers CASCADE;
+DROP TABLE IF EXISTS public.feature_flags CASCADE;
+
+-- === RECREATE ALL TABLES ===
+-- ============================================================================
 -- MiLyfe Platform — Full Table Expansion Migration
 -- Creates all missing tables for existing routes + Phase 0/1 features
 -- Run AFTER 001_initial_schema.sql
@@ -18,7 +129,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_notifications_user ON public.notifications(user_id, read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id, read, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.notification_preferences (
   user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -59,7 +170,7 @@ CREATE TABLE IF NOT EXISTS public.housing_listings (
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','filled','removed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_housing_status ON public.housing_listings(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_housing_status ON public.housing_listings(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.housing_reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,7 +204,7 @@ CREATE TABLE IF NOT EXISTS public.rideshare_rides (
   rating INTEGER CHECK (rating BETWEEN 1 AND 5),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_rideshare_status ON public.rideshare_rides(status, departure_at);
+CREATE INDEX IF NOT EXISTS idx_rideshare_status ON public.rideshare_rides(status, departure_at);
 
 -- ============================================
 -- JOBS & CAREER
@@ -113,7 +224,7 @@ CREATE TABLE IF NOT EXISTS public.jobs (
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','filled','closed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_jobs_status ON public.jobs(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON public.jobs(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.job_applications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -153,7 +264,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
   module_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_courses_category ON public.courses(category, published);
+CREATE INDEX IF NOT EXISTS idx_courses_category ON public.courses(category, published);
 
 CREATE TABLE IF NOT EXISTS public.course_modules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -165,7 +276,7 @@ CREATE TABLE IF NOT EXISTS public.course_modules (
   quiz JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_modules_course ON public.course_modules(course_id, position);
+CREATE INDEX IF NOT EXISTS idx_modules_course ON public.course_modules(course_id, position);
 
 CREATE TABLE IF NOT EXISTS public.course_progress (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -240,7 +351,7 @@ CREATE TABLE IF NOT EXISTS public.businesses (
   review_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_businesses_category ON public.businesses(category);
+CREATE INDEX IF NOT EXISTS idx_businesses_category ON public.businesses(category);
 
 CREATE TABLE IF NOT EXISTS public.business_reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -279,7 +390,7 @@ CREATE TABLE IF NOT EXISTS public.guild_tasks (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at TIMESTAMPTZ
 );
-CREATE INDEX idx_guild_tasks_status ON public.guild_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_guild_tasks_status ON public.guild_tasks(status);
 
 CREATE TABLE IF NOT EXISTS public.guild_conflicts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -303,7 +414,7 @@ CREATE TABLE IF NOT EXISTS public.guild_checkins (
   earned_mly NUMERIC(10,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_guild_checkins_user ON public.guild_checkins(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guild_checkins_user ON public.guild_checkins(user_id, created_at DESC);
 
 -- ============================================
 -- MEDIA CONTENT
@@ -323,8 +434,8 @@ CREATE TABLE IF NOT EXISTS public.media_content (
   likes INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_media_content_type ON public.media_content(type, status, created_at DESC);
-CREATE INDEX idx_media_content_creator ON public.media_content(creator_id);
+CREATE INDEX IF NOT EXISTS idx_media_content_type ON public.media_content(type, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_media_content_creator ON public.media_content(creator_id);
 
 CREATE TABLE IF NOT EXISTS public.media_likes (
   media_id UUID NOT NULL REFERENCES public.media_content(id) ON DELETE CASCADE,
@@ -361,7 +472,7 @@ CREATE TABLE IF NOT EXISTS public.proposals (
   ends_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_proposals_status ON public.proposals(status, ends_at);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON public.proposals(status, ends_at);
 
 CREATE TABLE IF NOT EXISTS public.proposal_votes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -386,8 +497,8 @@ CREATE TABLE IF NOT EXISTS public.feed_posts (
   comments_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_feed_posts_user ON public.feed_posts(user_id, created_at DESC);
-CREATE INDEX idx_feed_posts_recent ON public.feed_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feed_posts_user ON public.feed_posts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feed_posts_recent ON public.feed_posts(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.feed_likes (
   post_id UUID NOT NULL REFERENCES public.feed_posts(id) ON DELETE CASCADE,
@@ -435,7 +546,7 @@ CREATE TABLE IF NOT EXISTS public.police_interactions (
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_police_interactions_user ON public.police_interactions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_police_interactions_user ON public.police_interactions(user_id, created_at DESC);
 
 -- ============================================
 -- SUPPORT TICKETS
@@ -480,7 +591,7 @@ CREATE TABLE IF NOT EXISTS public.resources (
   submitted_by UUID REFERENCES public.profiles(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_resources_category ON public.resources(category);
+CREATE INDEX IF NOT EXISTS idx_resources_category ON public.resources(category);
 
 -- ============================================
 -- EMERGENCY BROADCASTS
@@ -521,7 +632,7 @@ CREATE TABLE IF NOT EXISTS public.content_flags (
   action_taken TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_content_flags_status ON public.content_flags(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_content_flags_status ON public.content_flags(status, created_at);
 
 -- ============================================
 -- CONSEQUENCE / ACCOUNTABILITY
@@ -552,7 +663,7 @@ CREATE TABLE IF NOT EXISTS public.user_restrictions (
   ends_at TIMESTAMPTZ,
   active BOOLEAN NOT NULL DEFAULT TRUE
 );
-CREATE INDEX idx_restrictions_user ON public.user_restrictions(user_id, active);
+CREATE INDEX IF NOT EXISTS idx_restrictions_user ON public.user_restrictions(user_id, active);
 
 CREATE TABLE IF NOT EXISTS public.community_juries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -595,7 +706,7 @@ CREATE TABLE IF NOT EXISTS public.community_recordings (
   lng DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_recordings_status ON public.community_recordings(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recordings_status ON public.community_recordings(status, created_at DESC);
 
 -- ============================================
 -- WIKI / KNOWLEDGE BASE
@@ -614,8 +725,8 @@ CREATE TABLE IF NOT EXISTS public.wiki_pages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_wiki_pages_slug ON public.wiki_pages(slug);
-CREATE INDEX idx_wiki_pages_category ON public.wiki_pages(category);
+CREATE INDEX IF NOT EXISTS idx_wiki_pages_slug ON public.wiki_pages(slug);
+CREATE INDEX IF NOT EXISTS idx_wiki_pages_category ON public.wiki_pages(category);
 
 CREATE TABLE IF NOT EXISTS public.wiki_revisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -626,7 +737,7 @@ CREATE TABLE IF NOT EXISTS public.wiki_revisions (
   version INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_wiki_revisions_page ON public.wiki_revisions(page_id, version DESC);
+CREATE INDEX IF NOT EXISTS idx_wiki_revisions_page ON public.wiki_revisions(page_id, version DESC);
 
 -- ============================================
 -- CONSTITUTION (Interactive)
@@ -687,7 +798,7 @@ CREATE TABLE IF NOT EXISTS public.user_badges (
   earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(user_id, badge_id)
 );
-CREATE INDEX idx_user_badges_user ON public.user_badges(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_badges_user ON public.user_badges(user_id);
 
 CREATE TABLE IF NOT EXISTS public.challenges (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -743,7 +854,7 @@ CREATE TABLE IF NOT EXISTS public.mly_daily_stats (
   new_users INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_mly_daily_stats_date ON public.mly_daily_stats(date DESC);
+CREATE INDEX IF NOT EXISTS idx_mly_daily_stats_date ON public.mly_daily_stats(date DESC);
 
 -- ============================================
 -- ADDITIONAL STORAGE BUCKETS
@@ -753,13 +864,19 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('recordings', 'recordings
 INSERT INTO storage.buckets (id, name, public) VALUES ('wiki', 'wiki', true) ON CONFLICT DO NOTHING;
 
 -- Storage policies for new buckets
+DROP POLICY IF EXISTS "Media files are public" ON storage.objects;
 CREATE POLICY "Media files are public" ON storage.objects FOR SELECT USING (bucket_id = 'media');
+DROP POLICY IF EXISTS "Users can upload media" ON storage.objects;
 CREATE POLICY "Users can upload media" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'media' AND auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Recordings private to owner" ON storage.objects;
 CREATE POLICY "Recordings private to owner" ON storage.objects FOR SELECT USING (bucket_id = 'recordings' AND auth.uid()::text = (storage.foldername(name))[1]);
+DROP POLICY IF EXISTS "Users can upload recordings" ON storage.objects;
 CREATE POLICY "Users can upload recordings" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'recordings' AND auth.uid()::text = (storage.foldername(name))[1]);
 
+DROP POLICY IF EXISTS "Wiki images are public" ON storage.objects;
 CREATE POLICY "Wiki images are public" ON storage.objects FOR SELECT USING (bucket_id = 'wiki');
+DROP POLICY IF EXISTS "Authenticated can upload wiki images" ON storage.objects;
 CREATE POLICY "Authenticated can upload wiki images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'wiki' AND auth.role() = 'authenticated');
 
 -- ============================================
@@ -821,139 +938,256 @@ ALTER TABLE public.mly_treasury ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mly_daily_stats ENABLE ROW LEVEL SECURITY;
 
 -- === POLICIES: PUBLIC READ ===
+DROP POLICY IF EXISTS "Public read" ON public.housing_listings;
 CREATE POLICY "Public read" ON public.housing_listings FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.housing_reviews;
 CREATE POLICY "Public read" ON public.housing_reviews FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.rideshare_rides;
 CREATE POLICY "Public read" ON public.rideshare_rides FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.jobs;
 CREATE POLICY "Public read" ON public.jobs FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.courses;
 CREATE POLICY "Public read" ON public.courses FOR SELECT USING (published = true);
+DROP POLICY IF EXISTS "Public read" ON public.course_modules;
 CREATE POLICY "Public read" ON public.course_modules FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.course_discussions;
 CREATE POLICY "Public read" ON public.course_discussions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.businesses;
 CREATE POLICY "Public read" ON public.businesses FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.business_reviews;
 CREATE POLICY "Public read" ON public.business_reviews FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.guild_members;
 CREATE POLICY "Public read" ON public.guild_members FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.guild_tasks;
 CREATE POLICY "Public read" ON public.guild_tasks FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.guild_conflicts;
 CREATE POLICY "Public read" ON public.guild_conflicts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.media_content;
 CREATE POLICY "Public read" ON public.media_content FOR SELECT USING (status = 'published');
+DROP POLICY IF EXISTS "Public read" ON public.media_likes;
 CREATE POLICY "Public read" ON public.media_likes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.radio_stations;
 CREATE POLICY "Public read" ON public.radio_stations FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.proposals;
 CREATE POLICY "Public read" ON public.proposals FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.proposal_votes;
 CREATE POLICY "Public read" ON public.proposal_votes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.feed_posts;
 CREATE POLICY "Public read" ON public.feed_posts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.feed_likes;
 CREATE POLICY "Public read" ON public.feed_likes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.feed_comments;
 CREATE POLICY "Public read" ON public.feed_comments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.resources;
 CREATE POLICY "Public read" ON public.resources FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.broadcasts;
 CREATE POLICY "Public read" ON public.broadcasts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.broadcast_acks;
 CREATE POLICY "Public read" ON public.broadcast_acks FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.wiki_pages;
 CREATE POLICY "Public read" ON public.wiki_pages FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.wiki_revisions;
 CREATE POLICY "Public read" ON public.wiki_revisions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.constitution_articles;
 CREATE POLICY "Public read" ON public.constitution_articles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.constitution_amendments;
 CREATE POLICY "Public read" ON public.constitution_amendments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.constitution_annotations;
 CREATE POLICY "Public read" ON public.constitution_annotations FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.badges;
 CREATE POLICY "Public read" ON public.badges FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.user_badges;
 CREATE POLICY "Public read" ON public.user_badges FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.challenges;
 CREATE POLICY "Public read" ON public.challenges FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.challenge_progress;
 CREATE POLICY "Public read" ON public.challenge_progress FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.mly_treasury;
 CREATE POLICY "Public read" ON public.mly_treasury FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.mly_daily_stats;
 CREATE POLICY "Public read" ON public.mly_daily_stats FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.community_recordings;
 CREATE POLICY "Public read" ON public.community_recordings FOR SELECT USING (privacy_level = 'public');
 
 -- === POLICIES: USER-SPECIFIC READ ===
+DROP POLICY IF EXISTS "Own notifications" ON public.notifications;
 CREATE POLICY "Own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own preferences" ON public.notification_preferences;
 CREATE POLICY "Own preferences" ON public.notification_preferences FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own push subs" ON public.push_subscriptions;
 CREATE POLICY "Own push subs" ON public.push_subscriptions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own applications" ON public.job_applications;
 CREATE POLICY "Own applications" ON public.job_applications FOR SELECT USING (auth.uid() = applicant_id);
+DROP POLICY IF EXISTS "Job poster sees apps" ON public.job_applications;
 CREATE POLICY "Job poster sees apps" ON public.job_applications FOR SELECT USING (EXISTS(SELECT 1 FROM jobs WHERE id = job_applications.job_id AND poster_id = auth.uid()));
+DROP POLICY IF EXISTS "Own resume" ON public.resumes;
 CREATE POLICY "Own resume" ON public.resumes FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own progress" ON public.course_progress;
 CREATE POLICY "Own progress" ON public.course_progress FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Family members see family" ON public.families;
 CREATE POLICY "Family members see family" ON public.families FOR SELECT USING (EXISTS(SELECT 1 FROM family_members WHERE family_id = families.id AND user_id = auth.uid()));
+DROP POLICY IF EXISTS "Family members see members" ON public.family_members;
 CREATE POLICY "Family members see members" ON public.family_members FOR SELECT USING (EXISTS(SELECT 1 FROM family_members fm WHERE fm.family_id = family_members.family_id AND fm.user_id = auth.uid()));
+DROP POLICY IF EXISTS "Family members see events" ON public.family_events;
 CREATE POLICY "Family members see events" ON public.family_events FOR SELECT USING (EXISTS(SELECT 1 FROM family_members WHERE family_id = family_events.family_id AND user_id = auth.uid()));
+DROP POLICY IF EXISTS "Own checkins" ON public.guild_checkins;
 CREATE POLICY "Own checkins" ON public.guild_checkins FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own walks" ON public.safety_walks;
 CREATE POLICY "Own walks" ON public.safety_walks FOR SELECT USING (auth.uid() = user_id OR auth.uid() = ANY(guardian_ids));
+DROP POLICY IF EXISTS "Own interactions" ON public.police_interactions;
 CREATE POLICY "Own interactions" ON public.police_interactions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own tickets" ON public.support_tickets;
 CREATE POLICY "Own tickets" ON public.support_tickets FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own ticket messages" ON public.support_messages;
 CREATE POLICY "Own ticket messages" ON public.support_messages FOR SELECT USING (EXISTS(SELECT 1 FROM support_tickets WHERE id = support_messages.ticket_id AND user_id = auth.uid()));
+DROP POLICY IF EXISTS "Own flags" ON public.content_flags;
 CREATE POLICY "Own flags" ON public.content_flags FOR SELECT USING (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Own violations" ON public.violations;
 CREATE POLICY "Own violations" ON public.violations FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own restrictions" ON public.user_restrictions;
 CREATE POLICY "Own restrictions" ON public.user_restrictions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own recordings" ON public.community_recordings;
 CREATE POLICY "Own recordings" ON public.community_recordings FOR SELECT USING (auth.uid() = recorder_id);
+DROP POLICY IF EXISTS "Own appeals" ON public.appeals;
 CREATE POLICY "Own appeals" ON public.appeals FOR SELECT USING (auth.uid() = user_id);
 
 -- === POLICIES: AUTHENTICATED INSERT ===
+DROP POLICY IF EXISTS "Create notifications" ON public.notifications;
 CREATE POLICY "Create notifications" ON public.notifications FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Manage own preferences" ON public.notification_preferences;
 CREATE POLICY "Manage own preferences" ON public.notification_preferences FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Manage own preferences update" ON public.notification_preferences;
 CREATE POLICY "Manage own preferences update" ON public.notification_preferences FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Register push" ON public.push_subscriptions;
 CREATE POLICY "Register push" ON public.push_subscriptions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create housing" ON public.housing_listings;
 CREATE POLICY "Create housing" ON public.housing_listings FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update own housing" ON public.housing_listings;
 CREATE POLICY "Update own housing" ON public.housing_listings FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create review" ON public.housing_reviews;
 CREATE POLICY "Create review" ON public.housing_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create ride" ON public.rideshare_rides;
 CREATE POLICY "Create ride" ON public.rideshare_rides FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update own ride" ON public.rideshare_rides;
 CREATE POLICY "Update own ride" ON public.rideshare_rides FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create job" ON public.jobs;
 CREATE POLICY "Create job" ON public.jobs FOR INSERT WITH CHECK (auth.uid() = poster_id);
+DROP POLICY IF EXISTS "Update own job" ON public.jobs;
 CREATE POLICY "Update own job" ON public.jobs FOR UPDATE USING (auth.uid() = poster_id);
+DROP POLICY IF EXISTS "Apply to job" ON public.job_applications;
 CREATE POLICY "Apply to job" ON public.job_applications FOR INSERT WITH CHECK (auth.uid() = applicant_id);
+DROP POLICY IF EXISTS "Create resume" ON public.resumes;
 CREATE POLICY "Create resume" ON public.resumes FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update own resume" ON public.resumes;
 CREATE POLICY "Update own resume" ON public.resumes FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Enroll course" ON public.course_progress;
 CREATE POLICY "Enroll course" ON public.course_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update progress" ON public.course_progress;
 CREATE POLICY "Update progress" ON public.course_progress FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Post discussion" ON public.course_discussions;
 CREATE POLICY "Post discussion" ON public.course_discussions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create course" ON public.courses;
 CREATE POLICY "Create course" ON public.courses FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Create family" ON public.families;
 CREATE POLICY "Create family" ON public.families FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Add family member" ON public.family_members;
 CREATE POLICY "Add family member" ON public.family_members FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Create family event" ON public.family_events;
 CREATE POLICY "Create family event" ON public.family_events FOR INSERT WITH CHECK (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Register business" ON public.businesses;
 CREATE POLICY "Register business" ON public.businesses FOR INSERT WITH CHECK (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Update own business" ON public.businesses;
 CREATE POLICY "Update own business" ON public.businesses FOR UPDATE USING (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Review business" ON public.business_reviews;
 CREATE POLICY "Review business" ON public.business_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Join guild" ON public.guild_members;
 CREATE POLICY "Join guild" ON public.guild_members FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Claim task" ON public.guild_tasks;
 CREATE POLICY "Claim task" ON public.guild_tasks FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Create task" ON public.guild_tasks;
 CREATE POLICY "Create task" ON public.guild_tasks FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Report conflict" ON public.guild_conflicts;
 CREATE POLICY "Report conflict" ON public.guild_conflicts FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Update conflict" ON public.guild_conflicts;
 CREATE POLICY "Update conflict" ON public.guild_conflicts FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Guild checkin" ON public.guild_checkins;
 CREATE POLICY "Guild checkin" ON public.guild_checkins FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Upload media" ON public.media_content;
 CREATE POLICY "Upload media" ON public.media_content FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Update own media" ON public.media_content;
 CREATE POLICY "Update own media" ON public.media_content FOR UPDATE USING (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Like media" ON public.media_likes;
 CREATE POLICY "Like media" ON public.media_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Unlike media" ON public.media_likes;
 CREATE POLICY "Unlike media" ON public.media_likes FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create station" ON public.radio_stations;
 CREATE POLICY "Create station" ON public.radio_stations FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Create proposal" ON public.proposals;
 CREATE POLICY "Create proposal" ON public.proposals FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Vote on proposal" ON public.proposal_votes;
 CREATE POLICY "Vote on proposal" ON public.proposal_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create post" ON public.feed_posts;
 CREATE POLICY "Create post" ON public.feed_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Like post" ON public.feed_likes;
 CREATE POLICY "Like post" ON public.feed_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Unlike post" ON public.feed_likes;
 CREATE POLICY "Unlike post" ON public.feed_likes FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Comment on post" ON public.feed_comments;
 CREATE POLICY "Comment on post" ON public.feed_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Start walk" ON public.safety_walks;
 CREATE POLICY "Start walk" ON public.safety_walks FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update own walk" ON public.safety_walks;
 CREATE POLICY "Update own walk" ON public.safety_walks FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Log interaction" ON public.police_interactions;
 CREATE POLICY "Log interaction" ON public.police_interactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create ticket" ON public.support_tickets;
 CREATE POLICY "Create ticket" ON public.support_tickets FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Send ticket message" ON public.support_messages;
 CREATE POLICY "Send ticket message" ON public.support_messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
+DROP POLICY IF EXISTS "Submit resource" ON public.resources;
 CREATE POLICY "Submit resource" ON public.resources FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Send broadcast" ON public.broadcasts;
 CREATE POLICY "Send broadcast" ON public.broadcasts FOR INSERT WITH CHECK (auth.uid() = sender_id);
+DROP POLICY IF EXISTS "Acknowledge broadcast" ON public.broadcast_acks;
 CREATE POLICY "Acknowledge broadcast" ON public.broadcast_acks FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Flag content" ON public.content_flags;
 CREATE POLICY "Flag content" ON public.content_flags FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Upload recording" ON public.community_recordings;
 CREATE POLICY "Upload recording" ON public.community_recordings FOR INSERT WITH CHECK (auth.uid() = recorder_id);
+DROP POLICY IF EXISTS "Create wiki page" ON public.wiki_pages;
 CREATE POLICY "Create wiki page" ON public.wiki_pages FOR INSERT WITH CHECK (auth.uid() = created_by);
+DROP POLICY IF EXISTS "Update wiki page" ON public.wiki_pages;
 CREATE POLICY "Update wiki page" ON public.wiki_pages FOR UPDATE USING (locked = false);
+DROP POLICY IF EXISTS "Create wiki revision" ON public.wiki_revisions;
 CREATE POLICY "Create wiki revision" ON public.wiki_revisions FOR INSERT WITH CHECK (auth.uid() = editor_id);
+DROP POLICY IF EXISTS "Propose amendment" ON public.constitution_amendments;
 CREATE POLICY "Propose amendment" ON public.constitution_amendments FOR INSERT WITH CHECK (auth.uid() = proposed_by);
+DROP POLICY IF EXISTS "Annotate constitution" ON public.constitution_annotations;
 CREATE POLICY "Annotate constitution" ON public.constitution_annotations FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Award badge" ON public.user_badges;
 CREATE POLICY "Award badge" ON public.user_badges FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Join challenge" ON public.challenge_progress;
 CREATE POLICY "Join challenge" ON public.challenge_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update challenge progress" ON public.challenge_progress;
 CREATE POLICY "Update challenge progress" ON public.challenge_progress FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "File appeal" ON public.appeals;
 CREATE POLICY "File appeal" ON public.appeals FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Mark notifications read
+DROP POLICY IF EXISTS "Mark own read" ON public.notifications;
 CREATE POLICY "Mark own read" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
 
 -- Delete own push subscription
+DROP POLICY IF EXISTS "Delete own push" ON public.push_subscriptions;
 CREATE POLICY "Delete own push" ON public.push_subscriptions FOR DELETE USING (auth.uid() = user_id);
 
 -- ============================================
 -- REALTIME ADDITIONS
 -- ============================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.feed_posts;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcasts;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.safety_walks;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.feed_posts;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcasts;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.safety_walks;
 
 -- ============================================
 -- HELPER FUNCTIONS
@@ -983,6 +1217,7 @@ BEGIN
   RETURN pts;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ============================================================================
 -- MiLyfe Platform — Phase 2+3 Tables
 -- Forum, Social, News, Calls, Academia, Market, Civic Ops, Nav, Auto
@@ -1005,7 +1240,7 @@ CREATE TABLE IF NOT EXISTS public.forum_spaces (
   post_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_forum_spaces_slug ON public.forum_spaces(slug);
+CREATE INDEX IF NOT EXISTS idx_forum_spaces_slug ON public.forum_spaces(slug);
 
 CREATE TABLE IF NOT EXISTS public.forum_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1022,8 +1257,8 @@ CREATE TABLE IF NOT EXISTS public.forum_posts (
   pinned BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_forum_posts_space ON public.forum_posts(space_id, created_at DESC);
-CREATE INDEX idx_forum_posts_hot ON public.forum_posts(space_id, upvotes DESC);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_space ON public.forum_posts(space_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_hot ON public.forum_posts(space_id, upvotes DESC);
 
 CREATE TABLE IF NOT EXISTS public.forum_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1036,7 +1271,7 @@ CREATE TABLE IF NOT EXISTS public.forum_comments (
   depth INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_forum_comments_post ON public.forum_comments(post_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_forum_comments_post ON public.forum_comments(post_id, created_at);
 
 CREATE TABLE IF NOT EXISTS public.forum_memberships (
   space_id UUID NOT NULL REFERENCES public.forum_spaces(id) ON DELETE CASCADE,
@@ -1079,8 +1314,8 @@ CREATE TABLE IF NOT EXISTS public.follows (
   UNIQUE(follower_id, following_id),
   CONSTRAINT no_self_follow CHECK (follower_id != following_id)
 );
-CREATE INDEX idx_follows_follower ON public.follows(follower_id);
-CREATE INDEX idx_follows_following ON public.follows(following_id);
+CREATE INDEX IF NOT EXISTS idx_follows_follower ON public.follows(follower_id);
+CREATE INDEX IF NOT EXISTS idx_follows_following ON public.follows(following_id);
 
 CREATE TABLE IF NOT EXISTS public.stories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1092,7 +1327,7 @@ CREATE TABLE IF NOT EXISTS public.stories (
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_stories_user ON public.stories(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stories_user ON public.stories(user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.reels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1107,7 +1342,7 @@ CREATE TABLE IF NOT EXISTS public.reels (
   duration INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_reels_recent ON public.reels(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reels_recent ON public.reels(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.social_reactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1151,7 +1386,7 @@ CREATE TABLE IF NOT EXISTS public.news_articles (
   submitted_by UUID REFERENCES public.profiles(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_news_articles_category ON public.news_articles(category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_articles_category ON public.news_articles(category, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.news_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1177,7 +1412,7 @@ CREATE TABLE IF NOT EXISTS public.call_sessions (
   duration_seconds INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_calls_participants ON public.call_sessions(caller_id, callee_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_calls_participants ON public.call_sessions(caller_id, callee_id, created_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════════
 -- MIACADEMIA — R&D + Education
@@ -1259,8 +1494,8 @@ CREATE TABLE IF NOT EXISTS public.marketplace_listings (
   views INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_marketplace_type ON public.marketplace_listings(type, status, created_at DESC);
-CREATE INDEX idx_marketplace_category ON public.marketplace_listings(category, status);
+CREATE INDEX IF NOT EXISTS idx_marketplace_type ON public.marketplace_listings(type, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_marketplace_category ON public.marketplace_listings(category, status);
 
 CREATE TABLE IF NOT EXISTS public.service_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1276,7 +1511,7 @@ CREATE TABLE IF NOT EXISTS public.service_requests (
   lng DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_service_requests_status ON public.service_requests(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_service_requests_status ON public.service_requests(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.escrow_holds (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1360,8 +1595,8 @@ CREATE TABLE IF NOT EXISTS public.map_reports (
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_map_reports_geo ON public.map_reports(lat, lng);
-CREATE INDEX idx_map_reports_active ON public.map_reports(expires_at) WHERE expires_at > NOW();
+CREATE INDEX IF NOT EXISTS idx_map_reports_geo ON public.map_reports(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_map_reports_active ON public.map_reports(expires_at);
 
 CREATE TABLE IF NOT EXISTS public.map_routes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1407,7 +1642,7 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
   image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_vehicles_owner ON public.vehicles(owner_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON public.vehicles(owner_id);
 
 CREATE TABLE IF NOT EXISTS public.maintenance_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1448,7 +1683,7 @@ CREATE TABLE IF NOT EXISTS public.parking_spots (
   reported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ
 );
-CREATE INDEX idx_parking_geo ON public.parking_spots(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_parking_geo ON public.parking_spots(lat, lng);
 
 -- ═══════════════════════════════════════════════════════════════════
 -- RLS POLICIES
@@ -1490,98 +1725,176 @@ ALTER TABLE public.car_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.parking_spots ENABLE ROW LEVEL SECURITY;
 
 -- PUBLIC READ policies (content that's publicly viewable)
+DROP POLICY IF EXISTS "Public read" ON public.forum_spaces;
 CREATE POLICY "Public read" ON public.forum_spaces FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.forum_posts;
 CREATE POLICY "Public read" ON public.forum_posts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.forum_comments;
 CREATE POLICY "Public read" ON public.forum_comments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.forum_memberships;
 CREATE POLICY "Public read" ON public.forum_memberships FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.forum_votes;
 CREATE POLICY "Public read" ON public.forum_votes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.social_profiles;
 CREATE POLICY "Public read" ON public.social_profiles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.follows;
 CREATE POLICY "Public read" ON public.follows FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.stories;
 CREATE POLICY "Public read" ON public.stories FOR SELECT USING (expires_at > NOW());
+DROP POLICY IF EXISTS "Public read" ON public.reels;
 CREATE POLICY "Public read" ON public.reels FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.social_reactions;
 CREATE POLICY "Public read" ON public.social_reactions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.news_sources;
 CREATE POLICY "Public read" ON public.news_sources FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.news_articles;
 CREATE POLICY "Public read" ON public.news_articles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.news_comments;
 CREATE POLICY "Public read" ON public.news_comments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.research_projects;
 CREATE POLICY "Public read" ON public.research_projects FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.research_members;
 CREATE POLICY "Public read" ON public.research_members FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.study_groups;
 CREATE POLICY "Public read" ON public.study_groups FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.academic_papers;
 CREATE POLICY "Public read" ON public.academic_papers FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.research_grants;
 CREATE POLICY "Public read" ON public.research_grants FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.marketplace_listings;
 CREATE POLICY "Public read" ON public.marketplace_listings FOR SELECT USING (status = 'active');
+DROP POLICY IF EXISTS "Public read" ON public.civic_projects;
 CREATE POLICY "Public read" ON public.civic_projects FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.civic_milestones;
 CREATE POLICY "Public read" ON public.civic_milestones FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.civic_repair_claims;
 CREATE POLICY "Public read" ON public.civic_repair_claims FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.repair_certifications;
 CREATE POLICY "Public read" ON public.repair_certifications FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.map_reports;
 CREATE POLICY "Public read" ON public.map_reports FOR SELECT USING (expires_at > NOW());
+DROP POLICY IF EXISTS "Public read" ON public.transit_stops;
 CREATE POLICY "Public read" ON public.transit_stops FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.car_shares;
 CREATE POLICY "Public read" ON public.car_shares FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read" ON public.parking_spots;
 CREATE POLICY "Public read" ON public.parking_spots FOR SELECT USING (true);
 
 -- USER-SPECIFIC READ
+DROP POLICY IF EXISTS "Own calls" ON public.call_sessions;
 CREATE POLICY "Own calls" ON public.call_sessions FOR SELECT USING (auth.uid() = caller_id OR auth.uid() = callee_id);
+DROP POLICY IF EXISTS "Own service requests" ON public.service_requests;
 CREATE POLICY "Own service requests" ON public.service_requests FOR SELECT USING (auth.uid() = requester_id OR auth.uid() = matched_provider_id);
+DROP POLICY IF EXISTS "Own escrow" ON public.escrow_holds;
 CREATE POLICY "Own escrow" ON public.escrow_holds FOR SELECT USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+DROP POLICY IF EXISTS "Own routes" ON public.map_routes;
 CREATE POLICY "Own routes" ON public.map_routes FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own vehicles" ON public.vehicles;
 CREATE POLICY "Own vehicles" ON public.vehicles FOR SELECT USING (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Own maintenance" ON public.maintenance_records;
 CREATE POLICY "Own maintenance" ON public.maintenance_records FOR SELECT USING (EXISTS(SELECT 1 FROM vehicles WHERE id = maintenance_records.vehicle_id AND owner_id = auth.uid()));
 
 -- AUTHENTICATED INSERT policies
+DROP POLICY IF EXISTS "Create space" ON public.forum_spaces;
 CREATE POLICY "Create space" ON public.forum_spaces FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Create post" ON public.forum_posts;
 CREATE POLICY "Create post" ON public.forum_posts FOR INSERT WITH CHECK (auth.uid() = author_id);
+DROP POLICY IF EXISTS "Create comment" ON public.forum_comments;
 CREATE POLICY "Create comment" ON public.forum_comments FOR INSERT WITH CHECK (auth.uid() = author_id);
+DROP POLICY IF EXISTS "Join space" ON public.forum_memberships;
 CREATE POLICY "Join space" ON public.forum_memberships FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Vote" ON public.forum_votes;
 CREATE POLICY "Vote" ON public.forum_votes FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create profile" ON public.social_profiles;
 CREATE POLICY "Create profile" ON public.social_profiles FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update profile" ON public.social_profiles;
 CREATE POLICY "Update profile" ON public.social_profiles FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Follow" ON public.follows;
 CREATE POLICY "Follow" ON public.follows FOR INSERT WITH CHECK (auth.uid() = follower_id);
+DROP POLICY IF EXISTS "Unfollow" ON public.follows;
 CREATE POLICY "Unfollow" ON public.follows FOR DELETE USING (auth.uid() = follower_id);
+DROP POLICY IF EXISTS "Post story" ON public.stories;
 CREATE POLICY "Post story" ON public.stories FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Post reel" ON public.reels;
 CREATE POLICY "Post reel" ON public.reels FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "React" ON public.social_reactions;
 CREATE POLICY "React" ON public.social_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Unreact" ON public.social_reactions;
 CREATE POLICY "Unreact" ON public.social_reactions FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Submit article" ON public.news_articles;
 CREATE POLICY "Submit article" ON public.news_articles FOR INSERT WITH CHECK (auth.uid() = submitted_by);
+DROP POLICY IF EXISTS "Comment news" ON public.news_comments;
 CREATE POLICY "Comment news" ON public.news_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Start call" ON public.call_sessions;
 CREATE POLICY "Start call" ON public.call_sessions FOR INSERT WITH CHECK (auth.uid() = caller_id);
+DROP POLICY IF EXISTS "Update call" ON public.call_sessions;
 CREATE POLICY "Update call" ON public.call_sessions FOR UPDATE USING (auth.uid() = caller_id OR auth.uid() = callee_id);
+DROP POLICY IF EXISTS "Create project" ON public.research_projects;
 CREATE POLICY "Create project" ON public.research_projects FOR INSERT WITH CHECK (auth.uid() = lead_id);
+DROP POLICY IF EXISTS "Join research" ON public.research_members;
 CREATE POLICY "Join research" ON public.research_members FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create study group" ON public.study_groups;
 CREATE POLICY "Create study group" ON public.study_groups FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Submit paper" ON public.academic_papers;
 CREATE POLICY "Submit paper" ON public.academic_papers FOR INSERT WITH CHECK (auth.uid() = submitted_by);
+DROP POLICY IF EXISTS "Fund research" ON public.research_grants;
 CREATE POLICY "Fund research" ON public.research_grants FOR INSERT WITH CHECK (auth.uid() = funder_id);
+DROP POLICY IF EXISTS "Create listing" ON public.marketplace_listings;
 CREATE POLICY "Create listing" ON public.marketplace_listings FOR INSERT WITH CHECK (auth.uid() = seller_id);
+DROP POLICY IF EXISTS "Update listing" ON public.marketplace_listings;
 CREATE POLICY "Update listing" ON public.marketplace_listings FOR UPDATE USING (auth.uid() = seller_id);
+DROP POLICY IF EXISTS "Request service" ON public.service_requests;
 CREATE POLICY "Request service" ON public.service_requests FOR INSERT WITH CHECK (auth.uid() = requester_id);
+DROP POLICY IF EXISTS "Update service" ON public.service_requests;
 CREATE POLICY "Update service" ON public.service_requests FOR UPDATE USING (auth.uid() = requester_id OR auth.uid() = matched_provider_id);
+DROP POLICY IF EXISTS "Create escrow" ON public.escrow_holds;
 CREATE POLICY "Create escrow" ON public.escrow_holds FOR INSERT WITH CHECK (auth.uid() = buyer_id);
+DROP POLICY IF EXISTS "Create civic project" ON public.civic_projects;
 CREATE POLICY "Create civic project" ON public.civic_projects FOR INSERT WITH CHECK (auth.uid() = creator_id);
+DROP POLICY IF EXISTS "Create milestone" ON public.civic_milestones;
 CREATE POLICY "Create milestone" ON public.civic_milestones FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Claim repair" ON public.civic_repair_claims;
 CREATE POLICY "Claim repair" ON public.civic_repair_claims FOR INSERT WITH CHECK (auth.uid() = claimer_id);
+DROP POLICY IF EXISTS "Update repair" ON public.civic_repair_claims;
 CREATE POLICY "Update repair" ON public.civic_repair_claims FOR UPDATE USING (auth.uid() = claimer_id);
+DROP POLICY IF EXISTS "Report map" ON public.map_reports;
 CREATE POLICY "Report map" ON public.map_reports FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Save route" ON public.map_routes;
 CREATE POLICY "Save route" ON public.map_routes FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Add vehicle" ON public.vehicles;
 CREATE POLICY "Add vehicle" ON public.vehicles FOR INSERT WITH CHECK (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Update vehicle" ON public.vehicles;
 CREATE POLICY "Update vehicle" ON public.vehicles FOR UPDATE USING (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Log maintenance" ON public.maintenance_records;
 CREATE POLICY "Log maintenance" ON public.maintenance_records FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Share car" ON public.car_shares;
 CREATE POLICY "Share car" ON public.car_shares FOR INSERT WITH CHECK (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Update share" ON public.car_shares;
 CREATE POLICY "Update share" ON public.car_shares FOR UPDATE USING (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Report parking" ON public.parking_spots;
 CREATE POLICY "Report parking" ON public.parking_spots FOR INSERT WITH CHECK (auth.uid() = reporter_id);
 
 -- REALTIME
-ALTER PUBLICATION supabase_realtime ADD TABLE public.call_sessions;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.forum_posts;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.map_reports;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.call_sessions;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.forum_posts;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.map_reports;
 
 -- STORAGE
 INSERT INTO storage.buckets (id, name, public) VALUES ('social', 'social', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('forum', 'forum', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('vehicles', 'vehicles', true) ON CONFLICT DO NOTHING;
 
+DROP POLICY IF EXISTS "Social media public" ON storage.objects;
 CREATE POLICY "Social media public" ON storage.objects FOR SELECT USING (bucket_id = 'social');
+DROP POLICY IF EXISTS "Upload social" ON storage.objects;
 CREATE POLICY "Upload social" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'social' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Forum media public" ON storage.objects;
 CREATE POLICY "Forum media public" ON storage.objects FOR SELECT USING (bucket_id = 'forum');
+DROP POLICY IF EXISTS "Upload forum" ON storage.objects;
 CREATE POLICY "Upload forum" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'forum' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Vehicle media public" ON storage.objects;
 CREATE POLICY "Vehicle media public" ON storage.objects FOR SELECT USING (bucket_id = 'vehicles');
+DROP POLICY IF EXISTS "Upload vehicle" ON storage.objects;
 CREATE POLICY "Upload vehicle" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vehicles' AND auth.role() = 'authenticated');
 
 -- TRIGGERS: Auto-update follower/following counts
@@ -1600,6 +1913,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS on_follow_change ON public.follows;
 CREATE TRIGGER on_follow_change
 AFTER INSERT OR DELETE ON public.follows
 FOR EACH ROW EXECUTE FUNCTION update_follow_counts();
@@ -1618,9 +1932,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS on_membership_change ON public.forum_memberships;
 CREATE TRIGGER on_membership_change
 AFTER INSERT OR DELETE ON public.forum_memberships
 FOR EACH ROW EXECUTE FUNCTION update_space_member_count();
+
 -- ============================================================================
 -- MiLyfe Platform — Phase 4+5 Tables
 -- AI, Developer Portal, Digital Twin, Privacy, Federation
@@ -1639,7 +1955,7 @@ CREATE TABLE IF NOT EXISTS public.ai_conversations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_ai_conversations_user ON public.ai_conversations(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations(user_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.ai_function_calls (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1695,7 +2011,7 @@ CREATE TABLE IF NOT EXISTS public.bounties (
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_bounties_status ON public.bounties(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bounties_status ON public.bounties(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.developer_contributions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1740,7 +2056,7 @@ CREATE TABLE IF NOT EXISTS public.twin_insights (
   data JSONB NOT NULL DEFAULT '{}',
   generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_twin_insights_user ON public.twin_insights(user_id, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_twin_insights_user ON public.twin_insights(user_id, generated_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PRIVACY & CONSENT
@@ -1753,7 +2069,7 @@ CREATE TABLE IF NOT EXISTS public.consent_records (
   granted BOOLEAN NOT NULL DEFAULT FALSE,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX idx_consent_user_category ON public.consent_records(user_id, category);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_consent_user_category ON public.consent_records(user_id, category);
 
 CREATE TABLE IF NOT EXISTS public.data_export_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1844,127 +2160,71 @@ ALTER TABLE public.ap_followers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feature_flags ENABLE ROW LEVEL SECURITY;
 
 -- User-specific
+DROP POLICY IF EXISTS "Own AI conversations" ON public.ai_conversations;
 CREATE POLICY "Own AI conversations" ON public.ai_conversations FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create AI conversation" ON public.ai_conversations;
 CREATE POLICY "Create AI conversation" ON public.ai_conversations FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update AI conversation" ON public.ai_conversations;
 CREATE POLICY "Update AI conversation" ON public.ai_conversations FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own function calls" ON public.ai_function_calls;
 CREATE POLICY "Own function calls" ON public.ai_function_calls FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own twin" ON public.digital_twins;
 CREATE POLICY "Own twin" ON public.digital_twins FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create twin" ON public.digital_twins;
 CREATE POLICY "Create twin" ON public.digital_twins FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update twin" ON public.digital_twins;
 CREATE POLICY "Update twin" ON public.digital_twins FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own twin actions" ON public.twin_actions;
 CREATE POLICY "Own twin actions" ON public.twin_actions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own insights" ON public.twin_insights;
 CREATE POLICY "Own insights" ON public.twin_insights FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own consent" ON public.consent_records;
 CREATE POLICY "Own consent" ON public.consent_records FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Manage consent" ON public.consent_records;
 CREATE POLICY "Manage consent" ON public.consent_records FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Update consent" ON public.consent_records;
 CREATE POLICY "Update consent" ON public.consent_records FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own export requests" ON public.data_export_requests;
 CREATE POLICY "Own export requests" ON public.data_export_requests FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Request export" ON public.data_export_requests;
 CREATE POLICY "Request export" ON public.data_export_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Own deletion" ON public.deletion_requests;
 CREATE POLICY "Own deletion" ON public.deletion_requests FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Request deletion" ON public.deletion_requests;
 CREATE POLICY "Request deletion" ON public.deletion_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Cancel deletion" ON public.deletion_requests;
 CREATE POLICY "Cancel deletion" ON public.deletion_requests FOR UPDATE USING (auth.uid() = user_id);
 
 -- Public read
+DROP POLICY IF EXISTS "Public apps" ON public.developer_apps;
 CREATE POLICY "Public apps" ON public.developer_apps FOR SELECT USING (status = 'active');
+DROP POLICY IF EXISTS "Public reviews" ON public.app_reviews;
 CREATE POLICY "Public reviews" ON public.app_reviews FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public bounties" ON public.bounties;
 CREATE POLICY "Public bounties" ON public.bounties FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public contributions" ON public.developer_contributions;
 CREATE POLICY "Public contributions" ON public.developer_contributions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public feature flags" ON public.feature_flags;
 CREATE POLICY "Public feature flags" ON public.feature_flags FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public AP actors" ON public.ap_actors;
 CREATE POLICY "Public AP actors" ON public.ap_actors FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public AP followers" ON public.ap_followers;
 CREATE POLICY "Public AP followers" ON public.ap_followers FOR SELECT USING (true);
 
 -- Authenticated write
+DROP POLICY IF EXISTS "Create app" ON public.developer_apps;
 CREATE POLICY "Create app" ON public.developer_apps FOR INSERT WITH CHECK (auth.uid() = developer_id);
+DROP POLICY IF EXISTS "Update own app" ON public.developer_apps;
 CREATE POLICY "Update own app" ON public.developer_apps FOR UPDATE USING (auth.uid() = developer_id);
+DROP POLICY IF EXISTS "Review app" ON public.app_reviews;
 CREATE POLICY "Review app" ON public.app_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Post bounty" ON public.bounties;
 CREATE POLICY "Post bounty" ON public.bounties FOR INSERT WITH CHECK (auth.uid() = posted_by);
+DROP POLICY IF EXISTS "Claim bounty" ON public.bounties;
 CREATE POLICY "Claim bounty" ON public.bounties FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Log contribution" ON public.developer_contributions;
 CREATE POLICY "Log contribution" ON public.developer_contributions FOR INSERT WITH CHECK (auth.uid() = developer_id);
+DROP POLICY IF EXISTS "Create AI func call" ON public.ai_function_calls;
 CREATE POLICY "Create AI func call" ON public.ai_function_calls FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Create twin action" ON public.twin_actions;
 CREATE POLICY "Create twin action" ON public.twin_actions FOR INSERT WITH CHECK (auth.uid() = user_id);
--- ============================================================================
--- MiLearn — 25 Real Courses with Module Content
--- Run after 002_full_platform_tables.sql
--- ============================================================================
-
--- ─── LEGAL & RIGHTS (5 courses) ──────────────────────────────────────────
-
-INSERT INTO courses (id, title, description, category, difficulty, mly_reward, module_count) VALUES
-('c001', 'Know Your Rights: Complete Guide', 'A comprehensive guide to your constitutional rights, how to exercise them, and what to do when they''re violated.', 'legal', 'beginner', 15, 10),
-('c002', 'Tenant Rights in Florida', 'Everything renters need to know about Florida landlord-tenant law, eviction protections, and how to fight back.', 'legal', 'beginner', 12, 8),
-('c003', 'Police Encounters: What to Do', 'Step-by-step guide for traffic stops, pedestrian stops, home visits, and arrest scenarios. Know what to say and when to stay silent.', 'legal', 'beginner', 10, 6),
-('c004', 'Small Claims Court: Step by Step', 'How to file, prepare, and win in small claims court without a lawyer. Covers disputes up to $8,000 in Florida.', 'legal', 'intermediate', 12, 7),
-('c005', 'Immigration Rights Basics', 'Your rights regardless of immigration status. ICE encounters, workplace rights, family separation resources.', 'legal', 'beginner', 12, 8);
-
--- Modules for Course 1: Know Your Rights
-INSERT INTO course_modules (course_id, position, title, content_md, quiz) VALUES
-('c001', 1, 'The Bill of Rights Overview', '# The Bill of Rights\n\nThe first 10 amendments to the Constitution protect your fundamental freedoms.\n\n## Key Takeaway\nThese rights **cannot** be taken away by any government — federal, state, or local. They apply to everyone on US soil, regardless of citizenship status.\n\n## The Big 5 You Need Daily:\n1. **1st Amendment** — Speech, religion, assembly, press\n2. **4th Amendment** — No unreasonable searches\n3. **5th Amendment** — Right to remain silent\n4. **6th Amendment** — Right to a lawyer\n5. **14th Amendment** — Equal protection\n\n## Why This Matters\nPolice, employers, and governments routinely violate these rights because people don''t know they have them. Knowledge is your first defense.', '[{"question":"Can the government restrict your right to protest?","options":["Yes, always","No, never","Only with a permit for public safety","Only during emergencies"],"correct":2},{"question":"Do constitutional rights apply to non-citizens?","options":["No","Yes, most of them","Only the 2nd Amendment","Only to legal residents"],"correct":1}]'),
-('c001', 2, 'The 4th Amendment: Searches', '# Your Right Against Unreasonable Search\n\n## The Rule\nPolice CANNOT search you, your home, your car, or your phone without:\n- A warrant signed by a judge, OR\n- Your voluntary consent, OR\n- A recognized exception (plain view, exigent circumstances)\n\n## The Magic Words\n> "I do not consent to a search."\n\nSay it clearly. Say it calmly. Say it on camera if possible.\n\n## What Happens If They Search Anyway?\nDo NOT physically resist. State your objection verbally, then comply physically. The evidence may be thrown out in court later (exclusionary rule).\n\n## Phone Searches\nSince Riley v. California (2014), police need a warrant to search your phone — even during an arrest. Lock your phone with a passcode (not biometrics, which can be compelled).', '[{"question":"What should you say if police ask to search your car?","options":["Sure, I have nothing to hide","I do not consent to a search","You need my lawyer''s permission","I''ll think about it"],"correct":1},{"question":"Can police search your phone during arrest without a warrant?","options":["Yes","No","Only if it''s unlocked","Only for 5 minutes"],"correct":1}]'),
-('c001', 3, 'The 5th Amendment: Silence', '# Your Right to Remain Silent\n\n## The Rule\nYou cannot be forced to testify against yourself. This applies:\n- During police questioning\n- During interrogation\n- In court\n- At any government hearing\n\n## How to Invoke It\n> "I am invoking my Fifth Amendment right to remain silent. I want a lawyer."\n\nThen **STOP TALKING**. Completely. Do not:\n- Explain yourself\n- Apologize\n- Make small talk\n- Answer "just one more question"\n\n## Why People Talk\nPolice are trained interrogators. They use:\n- Fake sympathy: "I understand, just explain your side"\n- Lies: "Your friend already told us everything" (legal to lie)\n- Minimization: "It''s not a big deal, just clear it up"\n\nAll designed to make you incriminate yourself.\n\n## The Only Correct Response\nLawyer. Silence. Nothing else.', '[{"question":"After invoking your right to silence, what should you do?","options":["Explain your side briefly","Answer easy questions only","Stop talking completely","Ask what evidence they have"],"correct":2},{"question":"Can police legally lie to you during interrogation?","options":["No, that''s illegal","Yes, it''s allowed","Only federal agents","Only with a warrant"],"correct":1}]'),
-('c001', 4, 'The 6th Amendment: Right to Counsel', '# Your Right to a Lawyer\n\n## The Rule\nIf you are arrested or charged with a crime, you have the right to:\n- A lawyer (even if you can''t afford one)\n- Have that lawyer present during questioning\n- A speedy public trial\n- Confront witnesses against you\n\n## How to Get a Public Defender\n1. At your first court appearance (arraignment), tell the judge you cannot afford a lawyer\n2. Fill out the financial affidavit\n3. A public defender will be assigned\n\n## Important: Invoke EARLY\nDon''t wait until court. The moment police contact becomes adversarial:\n> "I want a lawyer."\n\nOnce you say this, they MUST stop questioning you.\n\n## Jacksonville Resources\n- Public Defender: 904-255-4700\n- Jacksonville Area Legal Aid: 904-356-8371\n- Three Rivers Legal Services: 386-752-1011', '[{"question":"When should you ask for a lawyer?","options":["At trial","At arraignment","The moment police questioning becomes adversarial","Only if charged with a felony"],"correct":2}]'),
-('c001', 5, 'The 14th Amendment: Equal Protection', '# Equal Protection Under Law\n\n## The Rule\nNo state shall deny any person equal protection of the laws. This means:\n- Police must treat you the same regardless of race\n- City services must be equally distributed across neighborhoods\n- Laws cannot discriminate based on protected characteristics\n\n## Why This Matters for Jacksonville\nIf your neighborhood gets:\n- Slower police response times\n- Worse road maintenance\n- Fewer parks and resources\n- Heavier policing for minor offenses\n\n...compared to wealthier/whiter neighborhoods, that may violate the 14th Amendment.\n\n## How MiLyfe Helps\nMiCity tracks issue resolution times by neighborhood. This data can be used to prove unequal treatment — the first step to legal challenge.\n\n## Filing a Complaint\n- DOJ Civil Rights Division: 1-800-253-3931\n- ACLU of Florida: aclufl.org\n- NAACP Jacksonville Branch: 904-354-1217', '[{"question":"What does the 14th Amendment guarantee?","options":["Right to bear arms","Freedom of speech","Equal protection under law","Right to vote"],"correct":2}]');
-
--- ─── FINANCIAL (5 courses) ──────────────────────────────────────────
-
-INSERT INTO courses (id, title, description, category, difficulty, mly_reward, module_count) VALUES
-('c006', '$MLY Economics: How Community Currency Works', 'Understand the MiLyfe economy — how $MLY is earned, spent, decayed, and why it''s designed to circulate.', 'financial', 'beginner', 8, 5),
-('c007', 'Building Credit from Zero', 'A step-by-step guide to establishing credit history, improving your score, and avoiding predatory products.', 'financial', 'beginner', 12, 8),
-('c008', 'Starting a Business with $0', 'How to validate, launch, and grow a business with no capital. Leverage community, skills, and platforms.', 'financial', 'intermediate', 15, 10),
-('c009', 'Crypto & Digital Assets for Beginners', 'Understand blockchain, Bitcoin, stablecoins, and digital ownership without the hype. Practical knowledge for the real world.', 'financial', 'beginner', 10, 7),
-('c010', 'Tax Basics for Gig Workers', 'Self-employment tax, quarterly payments, deductions, and how to not get surprised at tax time.', 'financial', 'intermediate', 10, 6);
-
-INSERT INTO course_modules (course_id, position, title, content_md) VALUES
-('c006', 1, 'What is $MLY?', '# Understanding $MLY\n\n$MLY is MiLyfe''s community currency. It is:\n- **Not crypto** — no blockchain, no speculation\n- **Pegged 1:1 to USD** — 1 MLY = $1\n- **Earned, not bought** — you get it by participating\n- **Designed to circulate** — hoarding is taxed\n\n## How You Earn\n- Daily UBI: $10/day for active members\n- Health check-ins: $5/day\n- Reporting issues: $3-10\n- Voting on proposals: $3\n- Publishing content: $5\n- Completing courses: $8-15\n- Guild patrols: $10-30/day\n\n## How You Spend\n- Buy from MiShop\n- Pay local businesses\n- Send to friends/family\n- Tip creators\n- Fund proposals'),
-('c006', 2, 'The Decay System', '# Why Your Balance Decreases\n\n## Inactive Decay\nIf you don''t participate for 14+ days, your balance decays at 2% per day.\n\n**Why?** To prevent abandonment. $MLY that sits in dead accounts hurts the community.\n\n## Hoarding Tax\nBalances over $1,000 MLY decay at 1% per day on the excess.\n\n**Why?** To encourage circulation. $MLY is meant to flow through the community, not be hoarded.\n\n## How to Avoid Decay\n- Check in daily (any action counts)\n- Spend at local businesses\n- Send to friends\n- Participate in governance\n\n## Where Decayed MLY Goes\nIt''s burned — permanently removed from supply. This keeps the overall value stable.'),
-('c006', 3, 'Spending Smart', '# Where to Spend $MLY\n\n## Local Businesses\nCheck the Business Hub for shops accepting $MLY. Every dollar spent locally is a dollar that stays in our community.\n\n## MiShop\nBuy goods and services from neighbors. From baked goods to tutoring to lawn care.\n\n## Tips & Transfers\nTip content creators. Send $MLY to family. Split costs with roommates.\n\n## Why Spending > Hoarding\nEvery $MLY spent:\n1. Supports a neighbor''s income\n2. Keeps the local economy healthy\n3. Avoids your hoarding tax\n4. Earns you standing points\n\nThe system rewards circulation, not accumulation.');
-
--- ─── DIGITAL (4 courses) ──────────────────────────────────────────
-
-INSERT INTO courses (id, title, description, category, difficulty, mly_reward, module_count) VALUES
-('c011', 'Digital Literacy: Protect Yourself Online', 'Passwords, phishing, privacy settings, and data protection. Essential knowledge for the modern world.', 'digital', 'beginner', 10, 8),
-('c012', 'Building Your First Website', 'From zero to published website. No coding experience needed. HTML, hosting, and domains explained simply.', 'digital', 'beginner', 12, 10),
-('c013', 'Data Privacy: What They Know About You', 'How companies track you, what data they sell, and practical steps to protect your digital footprint.', 'digital', 'intermediate', 10, 6),
-('c014', 'AI Literacy: Understanding Machine Learning', 'What AI actually is, how it works, its limitations, and how it''s being used in your daily life.', 'digital', 'intermediate', 12, 7);
-
-INSERT INTO course_modules (course_id, position, title, content_md) VALUES
-('c011', 1, 'Password Security', '# Passwords: Your First Defense\n\n## The Problem\nMost people use:\n- The same password everywhere\n- Short, guessable passwords\n- Personal info (birthdays, pet names)\n\n## The Fix\n1. **Use a password manager** (Bitwarden is free)\n2. **Make passwords 16+ characters**\n3. **Never reuse across sites**\n4. **Enable 2FA everywhere**\n\n## How to Make a Strong Password\nUse a passphrase: 4+ random words strung together\n- Bad: `fluffy123`\n- Good: `correct-horse-battery-staple`\n- Better: `MiLyfe$Platform$Jacksonville$2026`\n\n## If You Get Hacked\n1. Change the compromised password immediately\n2. Change it everywhere else you used it\n3. Enable 2FA\n4. Check haveibeenpwned.com'),
-('c011', 2, 'Phishing & Scams', '# Recognizing Phishing\n\n## What is Phishing?\nFake emails, texts, or websites designed to steal your login credentials or personal info.\n\n## Red Flags\n- Urgent language: "Your account will be closed!"\n- Unknown sender with familiar branding\n- Links that don''t match the company''s real domain\n- Requests for passwords or SSN via email\n- Grammar errors in "official" communications\n\n## What to Do\n1. **Don''t click links** in suspicious emails\n2. **Go directly** to the website by typing it yourself\n3. **Check the sender** email address carefully\n4. **When in doubt**, call the company using their official number\n\n## Common Jacksonville Scams\n- Fake JEA shutoff notices\n- "Jury duty" phone calls demanding payment\n- Fake city parking tickets with QR codes\n- Social media "free MLY" schemes');
-
--- ─── CIVIC (4 courses) ──────────────────────────────────────────
-
-INSERT INTO courses (id, title, description, category, difficulty, mly_reward, module_count) VALUES
-('c015', 'How Local Government Actually Works', 'City council, mayor, budget process, and how decisions affecting your neighborhood get made.', 'civic', 'beginner', 12, 8),
-('c016', 'Community Organizing 101', 'How to identify issues, build coalitions, run meetings, pressure officials, and create lasting change.', 'civic', 'intermediate', 15, 10),
-('c017', 'Running for Local Office', 'Filing requirements, campaign basics, fundraising, and what the job actually entails. You don''t need to be rich.', 'civic', 'advanced', 15, 7),
-('c018', 'Grant Writing for Community Projects', 'Find funding sources, write compelling proposals, manage budgets, and report outcomes.', 'civic', 'advanced', 15, 8);
-
-INSERT INTO course_modules (course_id, position, title, content_md) VALUES
-('c015', 1, 'Jacksonville City Government Structure', '# How Jax is Governed\n\n## Consolidated Government\nJacksonville is unique — the city and county merged in 1968. One government covers everything.\n\n## Key Players\n- **Mayor** — Executive (elected, 4-year term)\n- **City Council** — 19 members (14 district + 5 at-large)\n- **Constitutional Officers** — Sheriff, Property Appraiser, Clerk, Tax Collector, Supervisor of Elections\n\n## How Decisions Get Made\n1. Issue identified\n2. Council member introduces legislation\n3. Committee review\n4. Full council vote (10 votes to pass)\n5. Mayor signs or vetoes (13 votes to override)\n\n## Your Entry Points\n- City Council meetings: 1st & 3rd Tuesday, 5pm\n- Public comment: 3 minutes to speak on any topic\n- Committee meetings: Where real work happens\n- Your district council member: The person who represents YOUR area'),
-('c015', 2, 'The City Budget', '# Following the Money\n\n## Jacksonville Budget (~$1.6 Billion/year)\n- Public Safety (Sheriff + Fire): ~45%\n- Infrastructure (Roads, Water, Parks): ~20%\n- General Government: ~15%\n- Debt Service: ~10%\n- Everything else: ~10%\n\n## Why This Matters\nWhen your street has potholes but the sheriff gets a new helicopter, that''s a budget priority decision. You can influence these.\n\n## Budget Calendar\n- March: Mayor''s budget office starts planning\n- July: Mayor submits proposed budget\n- August-September: Council hearings (PUBLIC)\n- October 1: New fiscal year begins\n\n## How to Participate\n1. Attend budget hearings in August\n2. Submit written comments to your council member\n3. Use MiCity data to show neighborhood investment gaps\n4. Organize neighbors to show up together (numbers matter)');
-
--- ─── HEALTH (3 courses) ──────────────────────────────────────────
-
-INSERT INTO courses (id, title, description, category, difficulty, mly_reward, module_count) VALUES
-('c019', 'Mental Health First Aid', 'Recognize signs of crisis, support someone in distress, and know when/how to get professional help.', 'health', 'beginner', 12, 8),
-('c020', 'Nutrition on a Budget', 'Eat well without spending a fortune. Meal planning, food assistance programs, and community resources.', 'health', 'beginner', 8, 6),
-('c021', 'CPR & First Aid Basics', 'Learn the basics of emergency response. Hands-only CPR, choking, bleeding, and when to call 911.', 'health', 'beginner', 10, 5);
-
-INSERT INTO course_modules (course_id, position, title, content_md) VALUES
-('c019', 1, 'Recognizing a Mental Health Crisis', '# When Someone Needs Help\n\n## Warning Signs\n- Talking about wanting to die or being a burden\n- Withdrawing from activities and people\n- Extreme mood swings\n- Giving away possessions\n- Increased substance use\n- Sleeping too much or too little\n- Expressing hopelessness\n\n## What to Do\n1. **Ask directly**: "Are you thinking about hurting yourself?" (This does NOT plant the idea)\n2. **Listen without judgment**\n3. **Don''t leave them alone** if in immediate danger\n4. **Call 988** (Suicide & Crisis Lifeline) together\n5. **Call 911** if there''s immediate danger\n\n## Jacksonville Resources\n- 988 Suicide & Crisis Lifeline (call or text)\n- Crisis Center: 904-632-0600\n- Mobile Crisis Team: 904-695-9145\n- NAMI Jacksonville: 904-724-7782\n\n## Remember\nYou don''t need to be a therapist. Just being present and connecting them to help can save a life.');
-
--- ─── CAREER (3 courses) ──────────────────────────────────────────
-
-INSERT INTO courses (id, title, description, category, difficulty, mly_reward, module_count) VALUES
-('c022', 'Interview Skills That Actually Work', 'STAR method, common questions, salary negotiation, and how to follow up. Practical tips from hiring managers.', 'career', 'beginner', 10, 6),
-('c023', 'Remote Work: Getting Started', 'Find remote jobs, set up your workspace, manage your time, and avoid common pitfalls.', 'career', 'beginner', 10, 7),
-('c024', 'Freelancing & Self-Employment', 'Find clients, set rates, manage contracts, handle taxes, and build a sustainable independent career.', 'career', 'intermediate', 12, 9);
-
-INSERT INTO course_modules (course_id, position, title, content_md) VALUES
-('c022', 1, 'The STAR Method', '# STAR: How to Answer Any Interview Question\n\n## What is STAR?\nA structured way to answer behavioral interview questions:\n\n- **S**ituation — Set the scene (where, when, what was happening)\n- **T**ask — What was your responsibility?\n- **A**ction — What specifically did YOU do?\n- **R**esult — What happened? (Use numbers if possible)\n\n## Example\n**Q: "Tell me about a time you solved a difficult problem"**\n\n**S:** "At my previous job, our main delivery vendor suddenly went out of business, leaving us with 200 pending orders."\n\n**T:** "As operations lead, I needed to find an alternative within 48 hours or we''d lose those customers."\n\n**A:** "I called 12 local delivery services, negotiated a temporary contract with the best option, personally re-routed the most urgent orders, and set up a tracking system so customers could see status."\n\n**R:** "We fulfilled 195 of 200 orders on time, retained 97% of those customers, and the temp vendor became our permanent partner at 15% lower cost."\n\n## Practice Questions\n1. Tell me about a time you failed\n2. Describe a conflict with a coworker\n3. When did you go above and beyond?\n4. How do you handle tight deadlines?');
-
--- ─── LIFE SKILLS (2 courses) ──────────────────────────────────────────
-
-INSERT INTO courses (id, title, description, category, difficulty, mly_reward, module_count) VALUES
-('c025', 'Conflict Resolution & De-escalation', 'Calm tense situations, mediate disputes, and find solutions without violence. Essential for Guild members.', 'life_skills', 'intermediate', 12, 7),
-('c026', 'Home Repair Basics', 'Fix common household problems yourself. Plumbing, electrical, drywall, and when to call a professional.', 'life_skills', 'beginner', 10, 10);
-
-INSERT INTO course_modules (course_id, position, title, content_md) VALUES
-('c025', 1, 'The De-escalation Mindset', '# Before Techniques: Your State of Mind\n\n## The Goal\nDe-escalation is NOT about winning. It''s about reducing emotional temperature so rational conversation becomes possible.\n\n## Your Checklist Before Engaging\n1. **Am I calm?** If not, you''ll escalate it further\n2. **Am I safe?** If physical danger exists, create distance first\n3. **What does this person need?** Usually to be heard\n4. **What''s my exit?** Always know how to disengage\n\n## Core Principles\n- **Lower your voice** — people match your energy\n- **Slow down** — speed = anxiety = escalation\n- **Open posture** — uncrossed arms, visible hands\n- **Acknowledge** — "I hear you" is powerful even when you disagree\n- **Name the emotion** — "You seem frustrated" validates without agreeing\n\n## What NOT to Do\n- Don''t say "calm down" (never works)\n- Don''t point or use aggressive body language\n- Don''t interrupt or talk over them\n- Don''t make threats or ultimatums\n- Don''t take insults personally\n\n## The 5-Second Rule\nWhen you feel triggered, count to 5 before responding. Most regrettable things are said in the first 3 seconds.');
