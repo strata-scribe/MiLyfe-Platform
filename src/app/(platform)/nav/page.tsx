@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
 import { fetchJTARoutes, fetchJTAStops, type TransitRoute, type TransitStop } from '@/lib/transit/jta';
+import { MapView } from '@/components/ui/map-view';
 
 interface MapReport { id: string; user_id: string; type: string; lat: number; lng: number; description: string | null; upvotes: number; expires_at: string; created_at: string; }
 
@@ -87,20 +88,17 @@ export default function NavPage() {
       {/* Map placeholder */}
       {tab === 'map' && (
         <div className="space-y-3">
-          <div className="card aspect-[4/3] bg-gradient-to-br from-green-100 to-blue-100 dark:from-harbor-800 dark:to-harbor-900 flex items-center justify-center rounded-xl overflow-hidden relative">
-            <div className="text-center z-10">
-              <p className="text-4xl mb-2">🗺️</p>
-              <p className="text-sm font-medium text-harbor-800 dark:text-white">Interactive Map</p>
-              <p className="text-xs text-gray-500 mt-1">MapLibre GL integration — coming in Phase 4</p>
-              <p className="text-xs text-gray-400 mt-0.5">{reports.length} active reports in your area</p>
-            </div>
-            {/* Report pins overlay */}
-            {reports.slice(0, 5).map((r, i) => (
-              <div key={r.id} className={cn('absolute w-6 h-6 rounded-full flex items-center justify-center text-xs', REPORT_TYPES.find(t => t.value === r.type)?.color || 'bg-gray-500')} style={{ top: `${20 + i * 15}%`, left: `${15 + i * 18}%` }}>
-                {REPORT_TYPES.find(t => t.value === r.type)?.label.split(' ')[0]}
-              </div>
-            ))}
-          </div>
+          <MapView
+            pins={reports.map(r => ({
+              id: r.id,
+              lat: r.lat,
+              lng: r.lng,
+              type: r.type,
+              label: r.description || r.type,
+              color: REPORT_TYPES.find(t => t.value === r.type)?.color.replace('bg-', '#').replace('-500', '') || '#ef4444',
+            }))}
+            showUserLocation
+          />
 
           {/* Quick stats */}
           <div className="grid grid-cols-3 gap-2">

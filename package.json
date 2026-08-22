@@ -29,6 +29,7 @@
     "i18next": "^26.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "0.441.0",
+    "maplibre-gl": "^4.7.1",
     "next": "14.2.15",
     "posthog-js": "^1.194.4",
     "qrcode.react": "^4.2.0",

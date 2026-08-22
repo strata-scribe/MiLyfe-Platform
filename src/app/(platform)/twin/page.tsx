@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
+import { AvatarDisplay } from '@/components/ui/avatar-display';
 import { cn } from '@/lib/utils/cn';
 
 interface TwinConfig { avatar_config: any; personality: string; automation: any; active: boolean; }
@@ -11,7 +12,7 @@ interface TwinAction { id: string; action_type: string; payload: any; status: st
 
 type TwinTab = 'avatar' | 'automation' | 'insights' | 'actions';
 
-const AVATAR_STYLES = ['default', 'professional', 'casual', 'creative', 'minimal'];
+const AVATAR_STYLES = ['adventurer', 'avataaars', 'big-ears', 'bottts', 'fun-emoji', 'lorelei', 'micah', 'pixel-art', 'personas'];
 const SKIN_TONES = ['light', 'medium-light', 'medium', 'medium-dark', 'dark'];
 const HAIR_STYLES = ['short', 'medium', 'long', 'buzz', 'braids', 'locs', 'afro', 'bald'];
 const OUTFITS = ['casual', 'professional', 'streetwear', 'athletic', 'creative'];
@@ -86,7 +87,7 @@ export default function TwinPage() {
         <div className="space-y-4">
           {/* Avatar preview */}
           <div className="card flex flex-col items-center py-8">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-teal-400 via-harbor-600 to-purple-500 flex items-center justify-center text-4xl text-white shadow-xl">{user?.display_name?.charAt(0) || '?'}</div>
+            <AvatarDisplay seed={user?.display_name || user?.id || 'default'} style={style as any} size={96} />
             <p className="text-sm font-bold text-harbor-800 dark:text-white mt-3">{user?.display_name}&apos;s Twin</p>
             <p className="text-xs text-gray-500 capitalize">{personality} · {style}</p>
           </div>

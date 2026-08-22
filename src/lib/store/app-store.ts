@@ -10,6 +10,8 @@ interface UserProfile {
   mly_balance: number;
   city: string;
   joined_at: string;
+  role?: string;
+  neighborhood?: string;
 }
 
 interface AppState {
