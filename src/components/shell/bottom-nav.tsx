@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils/cn';
 const navItems = [
   { href: '/home', icon: '🏠', label: 'Home' },
   { href: '/city', icon: '🏛️', label: 'City' },
-  { href: '/life', icon: '📚', label: 'Life' },
+  { href: '/social', icon: '💬', label: 'Social' },
   { href: '/pocket', icon: '💰', label: 'Pocket' },
   { href: '/you', icon: '👤', label: 'You' },
 ];
@@ -17,10 +17,10 @@ export function BottomNav() {
 
   const isActive = (href: string) => {
     if (href === '/home') return pathname === '/home';
-    if (href === '/city') return pathname.startsWith('/city') || pathname.startsWith('/govern') || pathname.startsWith('/map');
-    if (href === '/life') return pathname.startsWith('/life') || pathname.startsWith('/health') || pathname.startsWith('/learn') || pathname.startsWith('/career') || pathname.startsWith('/family') || pathname.startsWith('/dev');
-    if (href === '/pocket') return pathname.startsWith('/pocket') || pathname.startsWith('/shop') || pathname.startsWith('/jobs') || pathname.startsWith('/wallet');
-    if (href === '/you') return pathname.startsWith('/you') || pathname.startsWith('/profile') || pathname.startsWith('/vault') || pathname.startsWith('/connect') || pathname.startsWith('/safety') || pathname.startsWith('/media');
+    if (href === '/city') return pathname.startsWith('/city') || pathname.startsWith('/govern') || pathname.startsWith('/nav') || pathname.startsWith('/broadcast');
+    if (href === '/social') return pathname.startsWith('/social') || pathname.startsWith('/forum') || pathname.startsWith('/connect') || pathname.startsWith('/feed') || pathname.startsWith('/news') || pathname.startsWith('/media');
+    if (href === '/pocket') return pathname.startsWith('/pocket') || pathname.startsWith('/shop') || pathname.startsWith('/market') || pathname.startsWith('/jobs') || pathname.startsWith('/wallet') || pathname.startsWith('/auto');
+    if (href === '/you') return pathname.startsWith('/you') || pathname.startsWith('/profile') || pathname.startsWith('/vault') || pathname.startsWith('/health') || pathname.startsWith('/twin') || pathname.startsWith('/privacy') || pathname.startsWith('/settings') || pathname.startsWith('/achievements');
     return pathname.startsWith(href);
   };
 

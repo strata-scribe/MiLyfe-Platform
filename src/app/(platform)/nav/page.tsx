@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { fetchJTARoutes, fetchJTAStops, type TransitRoute, type TransitStop } from '@/lib/transit/jta';
 
 interface MapReport { id: string; user_id: string; type: string; lat: number; lng: number; description: string | null; upvotes: number; expires_at: string; created_at: string; }
 
@@ -136,12 +137,7 @@ export default function NavPage() {
 
       {/* Transit */}
       {tab === 'transit' && (
-        <div className="card text-center py-8">
-          <p className="text-3xl mb-2">🚌</p>
-          <p className="text-sm font-medium text-harbor-800 dark:text-white">JTA Transit Integration</p>
-          <p className="text-xs text-gray-500 mt-1">Real-time bus arrivals from GTFS feed — coming soon.</p>
-          <p className="text-xs text-gray-400 mt-3">JTA Routes: 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 51, 52...</p>
-        </div>
+        <TransitPanel />
       )}
 
       {/* Report */}
@@ -162,6 +158,108 @@ export default function NavPage() {
           <button onClick={submitReport} disabled={!reportLat || submitting} className="btn-teal w-full disabled:opacity-50">{submitting ? 'Reporting...' : 'Submit Report'}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// Transit panel using JTA GTFS data
+function TransitPanel() {
+  const [routes, setRoutes] = useState<TransitRoute[]>([]);
+  const [nearbyStops, setNearbyStops] = useState<TransitStop[]>([]);
+  const [loadingRoutes, setLoadingRoutes] = useState(true);
+  const [loadingStops, setLoadingStops] = useState(false);
+  const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchJTARoutes().then(r => { setRoutes(r); setLoadingRoutes(false); });
+  }, []);
+
+  function findNearbyStops() {
+    setLoadingStops(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const stops = await fetchJTAStops(pos.coords.latitude, pos.coords.longitude);
+        setNearbyStops(stops);
+        setLoadingStops(false);
+      },
+      () => { setLoadingStops(false); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Nearby stops */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">🚏 Nearby Stops</h3>
+          <button onClick={findNearbyStops} disabled={loadingStops} className="text-xs text-teal-600 font-medium">
+            {loadingStops ? '📡 Finding...' : '📍 Find Near Me'}
+          </button>
+        </div>
+        {nearbyStops.length === 0 ? (
+          <p className="text-xs text-gray-500 text-center py-4">
+            Tap &quot;Find Near Me&quot; to see JTA stops within 1km.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {nearbyStops.map(stop => (
+              <div key={stop.id} className="flex items-center gap-3 py-2 border-b border-gray-50 dark:border-harbor-800 last:border-0">
+                <span className="text-lg">🚏</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-harbor-800 dark:text-white truncate">{stop.stop_name}</p>
+                  <div className="flex gap-1 mt-0.5">
+                    {stop.routes.map(r => (
+                      <span key={r} className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
+                        #{r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {stop.wheelchair_boarding === 1 && <span className="text-xs">♿</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* All routes */}
+      <div className="card">
+        <h3 className="text-sm font-bold text-harbor-800 dark:text-white mb-3">🚌 JTA Routes</h3>
+        {loadingRoutes ? (
+          <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-8 rounded" />)}</div>
+        ) : (
+          <div className="space-y-1.5">
+            {routes.map(route => (
+              <button
+                key={route.id}
+                onClick={() => setSelectedRoute(selectedRoute === route.id ? null : route.id)}
+                className="w-full flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-harbor-800/50 transition-colors text-left"
+              >
+                <span
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+                  style={{ backgroundColor: `#${route.route_color}`, color: `#${route.route_text_color}` }}
+                >
+                  {route.route_short_name}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-harbor-800 dark:text-white truncate">{route.route_long_name}</p>
+                </div>
+                <span className="text-xs text-gray-400">{route.route_type === 3 ? '🚌' : '🚈'}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="card bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+        <p className="text-xs text-blue-700 dark:text-blue-300">
+          <strong>Data source:</strong> JTA GTFS via Transitland API. Schedule data updates daily. 
+          Real-time vehicle positions require JTA partnership (in progress).
+        </p>
+      </div>
     </div>
   );
 }
