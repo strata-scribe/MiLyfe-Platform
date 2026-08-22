@@ -64,6 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/transparency', icon: '📊', label: 'Stats' },
       { href: '/tokenomics', icon: '📈', label: 'Economy' },
       { href: '/constitution/interactive', icon: '📜', label: 'Constitution' },
+      { href: '/finance', icon: '🏦', label: 'Finance' },
     ],
   },
 ];
