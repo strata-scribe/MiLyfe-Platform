@@ -1,4 +1,4 @@
-const CACHE_NAME = 'milyfe-v2';
+const CACHE_NAME = 'milyfe-v3';
 const OFFLINE_URL = '/offline';
 
 const PRECACHE_ASSETS = [
@@ -33,6 +33,10 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+  // Force all clients to reload with new SW
+  self.clients.matchAll().then((clients) => {
+    clients.forEach((client) => client.postMessage({ type: 'SW_UPDATED' }));
+  });
 });
 
 // Fetch: network-first with cache fallback

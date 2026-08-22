@@ -11,7 +11,6 @@ export default function SignupPage() {
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -20,43 +19,29 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
 
-    const { error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: displayName,
-        },
-      },
-    });
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, display_name: displayName }),
+      });
 
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-    } else {
-      setSuccess(true);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Signup failed');
+        setLoading(false);
+      } else {
+        // Sign in with the client to set cookies
+        await supabase.auth.signInWithPassword({ email, password });
+        router.push('/onboarding');
+        router.refresh();
+      }
+    } catch {
+      setError('Network error. Try again.');
       setLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <main className="min-h-screen flex items-center justify-center px-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 rounded-full bg-teal-500 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">✓</span>
-          </div>
-          <h1 className="text-2xl font-bold text-harbor-800 dark:text-white mb-2">Check your email</h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            We sent a confirmation link to <strong>{email}</strong>. Click it to activate your MiLyfe account.
-          </p>
-          <Link href="/login" className="btn-primary inline-block mt-6">
-            Back to Sign In
-          </Link>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
