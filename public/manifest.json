@@ -1,12 +1,16 @@
 {
-  "name": "MiLyfe",
+  "name": "MiLyfe — Your City. Your Life. Your Platform.",
   "short_name": "MiLyfe",
-  "description": "Your City. Your Life. Your Platform. — $1 MLY community currency powered civic engagement.",
+  "description": "Civic engagement powered by $MLY community currency. Report issues, earn rewards, govern together.",
   "start_url": "/home",
   "display": "standalone",
   "background_color": "#0F1419",
   "theme_color": "#1e3a6e",
   "orientation": "portrait-primary",
+  "categories": ["social", "finance", "government"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
@@ -20,5 +24,33 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Health Check-in",
+      "short_name": "Check-in",
+      "url": "/health",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Report Issue",
+      "short_name": "Report",
+      "url": "/city",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Send $MLY",
+      "short_name": "Wallet",
+      "url": "/wallet",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Messages",
+      "short_name": "Chat",
+      "url": "/connect",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [],
+  "related_applications": []
 }
