@@ -9,42 +9,40 @@ import { toast } from 'sonner'
 
 type Tab = 'browse' | 'recent' | 'create' | 'my-edits'
 
-interface WikiPage {
+interface WikiPageRow {
   id: string
+  slug: string
   title: string
-  category: 'Jacksonville' | 'How-To' | 'History' | 'Resources' | 'Culture'
-  excerpt: string
-  lastEdited: string
-  editedBy: string
+  content_md: string | null
+  category: string
+  created_by: string | null
+  last_edited_by: string | null
+  version: number
+  locked: boolean
   views: number
+  created_at: string
+  updated_at: string
 }
 
-interface RecentEdit {
+interface WikiEdit {
   id: string
-  pageTitle: string
-  editSummary: string
-  contributor: string
-  timestamp: string
-  type: 'created' | 'updated' | 'minor-edit'
-}
-
-interface MyEdit {
-  id: string
-  pageTitle: string
-  editCount: number
-  lastEdited: string
-  status: 'published' | 'pending-review'
+  page_id: string
+  editor_id: string | null
+  editor_name: string | null
+  summary: string | null
+  type: string | null
+  created_at: string
 }
 
 export default function WikiPage() {
   const [activeTab, setActiveTab] = useState<Tab>('browse')
   const [loading, setLoading] = useState(true)
-  const [pages, setPages] = useState<WikiPage[]>([])
-  const [recentEdits, setRecentEdits] = useState<RecentEdit[]>([])
-  const [myEdits, setMyEdits] = useState<MyEdit[]>([])
+  const [pages, setPages] = useState<WikiPageRow[]>([])
+  const [recentEdits, setRecentEdits] = useState<WikiEdit[]>([])
+  const [myEdits, setMyEdits] = useState<WikiEdit[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [createForm, setCreateForm] = useState({ title: '', category: 'Jacksonville', tags: '', content: '' })
+  const [createForm, setCreateForm] = useState({ title: '', category: 'general', content_md: '' })
   const supabase = createClient()
   const { user } = useAppStore()
 
@@ -55,61 +53,95 @@ export default function WikiPage() {
     { key: 'my-edits', label: 'My Edits' },
   ]
 
-  const categories = ['Jacksonville', 'How-To', 'History', 'Resources', 'Culture']
+  const categories = ['how-to', 'resources', 'history', 'policies', 'faq', 'neighborhoods', 'general']
 
   useEffect(() => {
     loadWikiData()
   }, [])
 
+  useEffect(() => {
+    searchPages()
+  }, [searchQuery, selectedCategory])
+
   async function loadWikiData() {
     setLoading(true)
     try {
-      setPages([
-        { id: '1', title: 'History of Riverside', category: 'History', excerpt: 'Riverside is one of Jacksonville\'s oldest neighborhoods, dating back to the 1860s when it was a separate town.', lastEdited: '2024-01-14', editedBy: 'HistoryBuff42', views: 342 },
-        { id: '2', title: 'How to Apply for JEA Assistance', category: 'How-To', excerpt: 'Step-by-step guide to applying for JEA utility payment assistance programs available to qualifying residents.', lastEdited: '2024-01-15', editedBy: 'CommunityHelper', views: 1205 },
-        { id: '3', title: 'Jacksonville Food Deserts Map', category: 'Resources', excerpt: 'Interactive guide to food access challenges in Jacksonville with community solutions and resources.', lastEdited: '2024-01-13', editedBy: 'FoodJustice', views: 567 },
-        { id: '4', title: 'Gullah Geechee Culture in Jax', category: 'Culture', excerpt: 'The rich heritage of Gullah Geechee communities in Northeast Florida and their lasting cultural impact.', lastEdited: '2024-01-12', editedBy: 'CulturalArts', views: 890 },
-        { id: '5', title: 'Public Transit Tips & Tricks', category: 'Jacksonville', excerpt: 'Insider knowledge for navigating the JTA bus system efficiently, including hidden connections and time savers.', lastEdited: '2024-01-15', editedBy: 'TransitRider', views: 423 },
-        { id: '6', title: 'Community Garden Starting Guide', category: 'How-To', excerpt: 'Everything you need to know to start or join a community garden in your Jacksonville neighborhood.', lastEdited: '2024-01-11', editedBy: 'GreenThumb', views: 678 },
-      ])
-      setRecentEdits([
-        { id: '1', pageTitle: 'How to Apply for JEA Assistance', editSummary: 'Updated income eligibility thresholds for 2024', contributor: 'CommunityHelper', timestamp: '2024-01-15 3:42 PM', type: 'updated' },
-        { id: '2', pageTitle: 'Public Transit Tips & Tricks', editSummary: 'Added new Skyway extension information', contributor: 'TransitRider', timestamp: '2024-01-15 1:15 PM', type: 'minor-edit' },
-        { id: '3', pageTitle: 'New: Eastside Community Resources', editSummary: 'Created comprehensive resource guide for Eastside residents', contributor: 'EastsideAdvocate', timestamp: '2024-01-15 11:00 AM', type: 'created' },
-        { id: '4', pageTitle: 'History of Riverside', editSummary: 'Added photos from 1920s riverfront', contributor: 'HistoryBuff42', timestamp: '2024-01-14 8:30 PM', type: 'updated' },
-      ])
-      setMyEdits([
-        { id: '1', pageTitle: 'Community Safety Best Practices', editCount: 12, lastEdited: '2024-01-10', status: 'published' },
-        { id: '2', pageTitle: 'Local Business Directory - Springfield', editCount: 3, lastEdited: '2024-01-08', status: 'published' },
-        { id: '3', pageTitle: 'Youth Programs in Duval County', editCount: 1, lastEdited: '2024-01-15', status: 'pending-review' },
-      ])
+      await searchPages()
+
+      const { data: editsData } = await supabase
+        .from('wiki_edits')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (editsData) setRecentEdits(editsData)
+
+      if (user?.id) {
+        const { data: myEditsData } = await supabase
+          .from('wiki_edits')
+          .select('*')
+          .eq('editor_id', user.id)
+          .order('created_at', { ascending: false })
+        if (myEditsData) setMyEdits(myEditsData)
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  function handleCreatePage() {
-    if (!createForm.title || !createForm.content) {
+  async function searchPages() {
+    let query = supabase.from('wiki_pages').select('*').order('views', { ascending: false }).limit(30)
+    if (selectedCategory !== 'all') query = query.eq('category', selectedCategory)
+    if (searchQuery) query = query.ilike('title', `%${searchQuery}%`)
+    const { data } = await query
+    if (data) setPages(data)
+  }
+
+  function generateSlug(title: string): string {
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  }
+
+  async function handleCreatePage() {
+    if (!createForm.title || !createForm.content_md) {
       toast.error('Please fill in title and content')
       return
     }
-    toast.success('Wiki page submitted for review!')
-    setCreateForm({ title: '', category: 'Jacksonville', tags: '', content: '' })
+    const slug = generateSlug(createForm.title)
+    const { error } = await supabase.from('wiki_pages').insert({
+      title: createForm.title,
+      slug,
+      content_md: createForm.content_md,
+      category: createForm.category,
+      created_by: user?.id || null,
+      last_edited_by: user?.id || null,
+      version: 1,
+      locked: false,
+      views: 0,
+    })
+    if (error) {
+      toast.error('Failed to create page. Slug may already exist.')
+      return
+    }
+    toast.success('Wiki page created!')
+    setCreateForm({ title: '', category: 'general', content_md: '' })
+    loadWikiData()
   }
-
-  const filteredPages = pages.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
 
   const categoryColor = (cat: string) => {
     switch (cat) {
-      case 'Jacksonville': return 'bg-teal-100 text-teal-700'
-      case 'How-To': return 'bg-mly-100 text-mly-700'
-      case 'History': return 'bg-purple-100 text-purple-700'
-      case 'Resources': return 'bg-blue-100 text-blue-700'
-      case 'Culture': return 'bg-orange-100 text-orange-700'
+      case 'how-to': return 'bg-mly-100 text-mly-700'
+      case 'resources': return 'bg-blue-100 text-blue-700'
+      case 'history': return 'bg-purple-100 text-purple-700'
+      case 'policies': return 'bg-red-100 text-red-700'
+      case 'faq': return 'bg-yellow-100 text-yellow-700'
+      case 'neighborhoods': return 'bg-teal-100 text-teal-700'
+      default: return 'bg-harbor-100 text-harbor-600'
+    }
+  }
+
+  const editTypeColor = (type: string | null) => {
+    switch (type) {
+      case 'created': return 'bg-green-100 text-green-700'
+      case 'updated': return 'bg-blue-100 text-blue-700'
       default: return 'bg-harbor-100 text-harbor-600'
     }
   }
@@ -150,37 +182,47 @@ export default function WikiPage() {
             <div className="flex gap-1 overflow-x-auto">
               <button onClick={() => setSelectedCategory('all')} className={cn('px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap', selectedCategory === 'all' ? 'bg-teal-600 text-white' : 'bg-harbor-100 text-harbor-600')}>All</button>
               {categories.map(cat => (
-                <button key={cat} onClick={() => setSelectedCategory(cat)} className={cn('px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap', selectedCategory === cat ? 'bg-teal-600 text-white' : 'bg-harbor-100 text-harbor-600')}>{cat}</button>
+                <button key={cat} onClick={() => setSelectedCategory(cat)} className={cn('px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap capitalize', selectedCategory === cat ? 'bg-teal-600 text-white' : 'bg-harbor-100 text-harbor-600')}>{cat}</button>
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredPages.map(page => (
-              <div key={page.id} className="card p-5 rounded-xl hover:shadow-md transition-shadow cursor-pointer">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={cn('px-2 py-0.5 rounded text-xs font-medium', categoryColor(page.category))}>{page.category}</span>
-                  <span className="text-xs text-harbor-400">{page.views} views</span>
+          {pages.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No wiki pages found. Create the first one!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {pages.map(page => (
+                <div key={page.id} className="card p-5 rounded-xl hover:shadow-md transition-shadow cursor-pointer">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={cn('px-2 py-0.5 rounded text-xs font-medium capitalize', categoryColor(page.category))}>{page.category}</span>
+                    <span className="text-xs text-harbor-400">{page.views} views</span>
+                    {page.locked && <span className="text-xs text-harbor-400">🔒</span>}
+                  </div>
+                  <h3 className="font-semibold text-harbor-800 mb-1">{page.title}</h3>
+                  <p className="text-sm text-harbor-500 line-clamp-2 mb-3">{page.content_md?.substring(0, 150) || 'No content'}</p>
+                  <p className="text-xs text-harbor-400">Updated {new Date(page.updated_at).toLocaleDateString()} | v{page.version}</p>
                 </div>
-                <h3 className="font-semibold text-harbor-800 mb-1">{page.title}</h3>
-                <p className="text-sm text-harbor-500 line-clamp-2 mb-3">{page.excerpt}</p>
-                <p className="text-xs text-harbor-400">Edited {page.lastEdited} by {page.editedBy}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === 'recent' && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-harbor-800">Recent Edits</h2>
-          {recentEdits.map(edit => (
+          {recentEdits.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No recent edits.</p>
+            </div>
+          ) : recentEdits.map(edit => (
             <div key={edit.id} className="card p-4 rounded-xl flex items-center justify-between">
               <div>
-                <p className="font-medium text-harbor-800">{edit.pageTitle}</p>
-                <p className="text-sm text-harbor-500">{edit.editSummary}</p>
-                <p className="text-xs text-harbor-400 mt-1">by {edit.contributor} | {edit.timestamp}</p>
+                <p className="font-medium text-harbor-800">{edit.summary || 'No summary'}</p>
+                <p className="text-xs text-harbor-400 mt-1">by {edit.editor_name || 'Anonymous'} | {new Date(edit.created_at).toLocaleString()}</p>
               </div>
-              <span className={cn('px-2 py-0.5 rounded text-xs font-medium', edit.type === 'created' ? 'bg-green-100 text-green-700' : edit.type === 'updated' ? 'bg-blue-100 text-blue-700' : 'bg-harbor-100 text-harbor-600')}>{edit.type}</span>
+              <span className={cn('px-2 py-0.5 rounded text-xs font-medium', editTypeColor(edit.type))}>{edit.type || 'edit'}</span>
             </div>
           ))}
         </div>
@@ -190,46 +232,41 @@ export default function WikiPage() {
         <div className="card p-6 rounded-xl space-y-4">
           <h2 className="text-lg font-semibold text-harbor-800">Create Wiki Page</h2>
           <input className="input-field w-full px-4 py-2.5 rounded-lg" placeholder="Page title..." value={createForm.title} onChange={e => setCreateForm(p => ({ ...p, title: e.target.value }))} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <select className="input-field px-4 py-2.5 rounded-lg" value={createForm.category} onChange={e => setCreateForm(p => ({ ...p, category: e.target.value }))}>
-              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            <input className="input-field px-4 py-2.5 rounded-lg" placeholder="Tags (comma separated)..." value={createForm.tags} onChange={e => setCreateForm(p => ({ ...p, tags: e.target.value }))} />
-          </div>
-          <div className="border border-harbor-200 rounded-lg p-4 min-h-[200px] bg-white">
-            <p className="text-harbor-400 text-sm mb-2">Novel Rich Text Editor Placeholder</p>
-            <textarea className="input-field w-full min-h-[150px] px-3 py-2 rounded-lg resize-none" placeholder="Write your wiki page content here..." value={createForm.content} onChange={e => setCreateForm(p => ({ ...p, content: e.target.value }))} />
-          </div>
+          {createForm.title && (
+            <p className="text-xs text-harbor-400">Slug: {generateSlug(createForm.title)}</p>
+          )}
+          <select className="input-field w-full px-4 py-2.5 rounded-lg" value={createForm.category} onChange={e => setCreateForm(p => ({ ...p, category: e.target.value }))}>
+            {categories.map(cat => <option key={cat} value={cat} className="capitalize">{cat}</option>)}
+          </select>
+          <textarea className="input-field w-full px-4 py-2.5 rounded-lg min-h-[200px] resize-none" placeholder="Write your wiki page content in markdown..." value={createForm.content_md} onChange={e => setCreateForm(p => ({ ...p, content_md: e.target.value }))} />
           <button onClick={handleCreatePage} className="btn-teal w-full py-3 rounded-lg font-medium">Publish Page</button>
         </div>
       )}
 
       {activeTab === 'my-edits' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="card p-4 rounded-xl text-center">
-              <p className="text-xs text-harbor-500">Pages Contributed</p>
-              <p className="text-2xl font-bold text-teal-600 mt-1">{myEdits.length}</p>
-            </div>
-            <div className="card p-4 rounded-xl text-center">
-              <p className="text-xs text-harbor-500">Total Edits</p>
-              <p className="text-2xl font-bold text-mly-500 mt-1">{myEdits.reduce((acc, e) => acc + e.editCount, 0)}</p>
-            </div>
-            <div className="card p-4 rounded-xl text-center">
-              <p className="text-xs text-harbor-500">Status</p>
-              <p className="text-2xl font-bold text-harbor-700 mt-1">Active</p>
-            </div>
-          </div>
           <h2 className="text-lg font-semibold text-harbor-800">My Contributions</h2>
-          {myEdits.map(edit => (
-            <div key={edit.id} className="card p-4 rounded-xl flex items-center justify-between">
-              <div>
-                <p className="font-medium text-harbor-800">{edit.pageTitle}</p>
-                <p className="text-xs text-harbor-500">{edit.editCount} edits | Last: {edit.lastEdited}</p>
-              </div>
-              <span className={cn('px-2 py-0.5 rounded text-xs font-medium', edit.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700')}>{edit.status}</span>
+          {myEdits.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">You haven&apos;t made any edits yet. Start contributing!</p>
             </div>
-          ))}
+          ) : (
+            <>
+              <div className="card p-4 rounded-xl text-center">
+                <p className="text-xs text-harbor-500">Total Edits</p>
+                <p className="text-2xl font-bold text-teal-600 mt-1">{myEdits.length}</p>
+              </div>
+              {myEdits.map(edit => (
+                <div key={edit.id} className="card p-4 rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-harbor-800">{edit.summary || 'No summary'}</p>
+                    <p className="text-xs text-harbor-500">{new Date(edit.created_at).toLocaleString()}</p>
+                  </div>
+                  <span className={cn('px-2 py-0.5 rounded text-xs font-medium', editTypeColor(edit.type))}>{edit.type || 'edit'}</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

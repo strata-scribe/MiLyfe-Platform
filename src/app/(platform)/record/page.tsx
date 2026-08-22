@@ -11,42 +11,43 @@ type Tab = 'record' | 'my-recordings' | 'reports' | 'rewards'
 
 interface Recording {
   id: string
-  title: string
-  type: string
-  duration: string
-  status: 'processing' | 'verified' | 'rewarded' | 'rejected'
-  createdAt: string
-  location: string
-  hasTranscript: boolean
-  thumbnailColor: string
+  recorder_id: string
+  video_url: string | null
+  thumbnail_url: string | null
+  category: string | null
+  ai_category_suggestion: string | null
+  description: string | null
+  status: string
+  routed_to: string | null
+  reward_mly: number | null
+  privacy_level: string | null
+  faces_blurred: boolean
+  lat: number | null
+  lng: number | null
+  created_at: string
 }
 
-interface Report {
+interface RecordingReport {
   id: string
-  recordingId: string
-  submittedTo: 'city' | 'police' | 'community'
+  recording_id: string
+  user_id: string
+  submitted_to: string | null
   title: string
-  status: 'pending' | 'received' | 'under-review' | 'resolved'
-  submittedAt: string
-}
-
-interface RewardEntry {
-  id: string
-  amount: number
-  reason: string
-  date: string
-  recordingTitle: string
+  status: string
+  created_at: string
 }
 
 export default function RecordPage() {
   const [activeTab, setActiveTab] = useState<Tab>('record')
   const [loading, setLoading] = useState(true)
   const [recordings, setRecordings] = useState<Recording[]>([])
-  const [reports, setReports] = useState<Report[]>([])
-  const [rewards, setRewards] = useState<RewardEntry[]>([])
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingType, setRecordingType] = useState('general')
+  const [reports, setReports] = useState<RecordingReport[]>([])
+  const [rewardedRecordings, setRewardedRecordings] = useState<Recording[]>([])
   const [totalEarned, setTotalEarned] = useState(0)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingCategory, setRecordingCategory] = useState('general')
+  const [recordingDescription, setRecordingDescription] = useState('')
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const supabase = createClient()
   const { user } = useAppStore()
 
@@ -57,7 +58,7 @@ export default function RecordPage() {
     { key: 'rewards', label: 'Rewards' },
   ]
 
-  const incidentTypes = ['General', 'Traffic Violation', 'Property Damage', 'Safety Hazard', 'Noise Complaint', 'Suspicious Activity', 'Environmental Issue', 'Community Event']
+  const categories = ['general', 'traffic-violation', 'property-damage', 'safety-hazard', 'noise-complaint', 'suspicious-activity', 'environmental-issue', 'community-event']
 
   useEffect(() => {
     loadRecordData()
@@ -66,42 +67,74 @@ export default function RecordPage() {
   async function loadRecordData() {
     setLoading(true)
     try {
-      setRecordings([
-        { id: '1', title: 'Pothole on Main Street', type: 'Safety Hazard', duration: '0:32', status: 'rewarded', createdAt: '2024-01-15 3:42 PM', location: 'Main St & 3rd Ave', hasTranscript: true, thumbnailColor: 'bg-teal-200' },
-        { id: '2', title: 'Illegal Dumping - Eastside', type: 'Environmental Issue', duration: '1:15', status: 'verified', createdAt: '2024-01-14 11:20 AM', location: 'Eastside Park Entrance', hasTranscript: true, thumbnailColor: 'bg-mly-200' },
-        { id: '3', title: 'Speeding on School Zone', type: 'Traffic Violation', duration: '0:45', status: 'processing', createdAt: '2024-01-15 7:45 AM', location: 'School St & Elm Ave', hasTranscript: false, thumbnailColor: 'bg-harbor-200' },
-        { id: '4', title: 'Community Mural Completion', type: 'Community Event', duration: '2:30', status: 'verified', createdAt: '2024-01-13 4:00 PM', location: 'Springfield Art District', hasTranscript: true, thumbnailColor: 'bg-purple-200' },
-        { id: '5', title: 'Broken Streetlight Report', type: 'Safety Hazard', duration: '0:18', status: 'rewarded', createdAt: '2024-01-12 9:15 PM', location: 'MLK Blvd & Oak St', hasTranscript: false, thumbnailColor: 'bg-yellow-200' },
-      ])
-      setReports([
-        { id: '1', recordingId: '1', submittedTo: 'city', title: 'Pothole Repair Request - Main Street', status: 'received', submittedAt: '2024-01-15' },
-        { id: '2', recordingId: '2', submittedTo: 'community', title: 'Illegal Dumping Evidence', status: 'under-review', submittedAt: '2024-01-14' },
-        { id: '3', recordingId: '5', submittedTo: 'city', title: 'Streetlight Outage - MLK Blvd', status: 'resolved', submittedAt: '2024-01-12' },
-      ])
-      const rewardEntries = [
-        { id: '1', amount: 15, reason: 'Verified safety hazard report', date: '2024-01-15', recordingTitle: 'Pothole on Main Street' },
-        { id: '2', amount: 25, reason: 'Environmental issue documentation', date: '2024-01-14', recordingTitle: 'Illegal Dumping - Eastside' },
-        { id: '3', amount: 10, reason: 'Infrastructure report verified', date: '2024-01-12', recordingTitle: 'Broken Streetlight Report' },
-      ]
-      setRewards(rewardEntries)
-      setTotalEarned(rewardEntries.reduce((acc, r) => acc + r.amount, 0))
+      if (!user?.id) { setLoading(false); return }
+
+      const { data: recordingsData } = await supabase
+        .from('community_recordings')
+        .select('*')
+        .eq('recorder_id', user.id)
+        .order('created_at', { ascending: false })
+      if (recordingsData) setRecordings(recordingsData)
+
+      const { data: reportsData } = await supabase
+        .from('recording_reports')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      if (reportsData) setReports(reportsData)
+
+      const { data: rewardData } = await supabase
+        .from('community_recordings')
+        .select('*')
+        .eq('recorder_id', user.id)
+        .gt('reward_mly', 0)
+        .order('created_at', { ascending: false })
+      if (rewardData) {
+        setRewardedRecordings(rewardData)
+        setTotalEarned(rewardData.reduce((acc, r) => acc + (r.reward_mly || 0), 0))
+      }
     } finally {
       setLoading(false)
     }
   }
 
+  function handleGetLocation() {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation not supported by your browser')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        toast.success('Location captured!')
+      },
+      () => toast.error('Could not get location. Please enable permissions.')
+    )
+  }
+
   function handleStartRecording() {
+    handleGetLocation()
     setIsRecording(true)
     toast.success('Recording started. Geolocation tagged.')
   }
 
-  function handleStopRecording() {
+  async function handleStopRecording() {
     setIsRecording(false)
+    if (!user?.id) { toast.error('Please sign in'); return }
+    const { error } = await supabase.from('community_recordings').insert({
+      recorder_id: user.id,
+      category: recordingCategory,
+      description: recordingDescription || null,
+      status: 'processing',
+      lat: location?.lat || null,
+      lng: location?.lng || null,
+      faces_blurred: false,
+      privacy_level: 'standard',
+    })
+    if (error) { toast.error('Failed to save recording'); return }
     toast.success('Recording saved! Processing will begin shortly.')
-  }
-
-  function handleSubmitReport(recordingId: string) {
-    toast.success('Recording submitted as a report!')
+    setRecordingDescription('')
+    loadRecordData()
   }
 
   const statusColor = (s: string) => {
@@ -160,10 +193,12 @@ export default function RecordPage() {
               <span className="text-5xl">{isRecording ? '⏺️' : '🎙️'}</span>
             </div>
             <h2 className="text-xl font-bold text-harbor-900 mb-2">{isRecording ? 'Recording...' : 'Ready to Record'}</h2>
-            <p className="text-sm text-harbor-500 mb-4">{isRecording ? 'Tap to stop recording. Geolocation is being tagged.' : 'Select incident type and start recording.'}</p>
-            <select className="input-field px-4 py-2.5 rounded-lg mx-auto mb-4 w-64" value={recordingType} onChange={e => setRecordingType(e.target.value)}>
-              {incidentTypes.map(t => <option key={t} value={t.toLowerCase()}>{t}</option>)}
+            <p className="text-sm text-harbor-500 mb-4">{isRecording ? 'Tap to stop. Geolocation is tagged.' : 'Select category, add description, then start.'}</p>
+            <select className="input-field px-4 py-2.5 rounded-lg mx-auto mb-3 w-64" value={recordingCategory} onChange={e => setRecordingCategory(e.target.value)}>
+              {categories.map(t => <option key={t} value={t} className="capitalize">{t.replace(/-/g, ' ')}</option>)}
             </select>
+            <input className="input-field px-4 py-2.5 rounded-lg mx-auto mb-4 w-64 block" placeholder="Description (optional)..." value={recordingDescription} onChange={e => setRecordingDescription(e.target.value)} />
+            {location && <p className="text-xs text-teal-600 mb-2">Location: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</p>}
             <div>
               {isRecording ? (
                 <button onClick={handleStopRecording} className="px-8 py-3 rounded-xl text-white bg-red-500 hover:bg-red-600 transition-colors font-medium">Stop Recording</button>
@@ -172,65 +207,58 @@ export default function RecordPage() {
               )}
             </div>
           </div>
-          <div className="card p-4 rounded-xl bg-teal-50 border border-teal-100">
-            <h3 className="font-semibold text-teal-800 text-sm">Auto-Transcript</h3>
-            <p className="text-xs text-teal-600">Recordings are automatically transcribed using AI. Review and edit before submitting.</p>
-          </div>
         </div>
       )}
 
       {activeTab === 'my-recordings' && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-harbor-800">My Recordings ({recordings.length})</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recordings.map(rec => (
-              <div key={rec.id} className="card rounded-xl overflow-hidden">
-                <div className={cn('h-24 flex items-center justify-center', rec.thumbnailColor)}>
-                  <span className="text-3xl">🎬</span>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-medium text-harbor-800 text-sm truncate">{rec.title}</h4>
-                    <span className={cn('px-2 py-0.5 rounded text-xs font-medium shrink-0 ml-2', statusColor(rec.status))}>{rec.status}</span>
+          {recordings.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No recordings yet. Start documenting your community!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recordings.map(rec => (
+                <div key={rec.id} className="card rounded-xl overflow-hidden">
+                  <div className="h-24 bg-harbor-100 flex items-center justify-center">
+                    {rec.thumbnail_url ? <img src={rec.thumbnail_url} alt="" className="w-full h-full object-cover" /> : <span className="text-3xl">🎬</span>}
                   </div>
-                  <p className="text-xs text-harbor-500">{rec.type} | {rec.duration}</p>
-                  <p className="text-xs text-harbor-400 mt-1">{rec.location}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-harbor-400">{rec.createdAt}</span>
-                    {rec.hasTranscript && <span className="text-xs text-teal-600">📝 Transcript</span>}
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="font-medium text-harbor-800 text-sm truncate">{rec.description || rec.category || 'Recording'}</h4>
+                      <span className={cn('px-2 py-0.5 rounded text-xs font-medium shrink-0 ml-2', statusColor(rec.status))}>{rec.status}</span>
+                    </div>
+                    <p className="text-xs text-harbor-500 capitalize">{rec.category?.replace(/-/g, ' ') || 'General'}</p>
+                    {rec.lat && rec.lng && <p className="text-xs text-harbor-400 mt-1">📍 {rec.lat.toFixed(3)}, {rec.lng.toFixed(3)}</p>}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-harbor-400">{new Date(rec.created_at).toLocaleDateString()}</span>
+                      {rec.reward_mly && rec.reward_mly > 0 && <span className="text-xs text-mly-600 font-medium">+{rec.reward_mly} $MLY</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === 'reports' && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-harbor-800">Submitted Reports</h2>
-          {reports.map(report => (
+          {reports.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No reports submitted yet.</p>
+            </div>
+          ) : reports.map(report => (
             <div key={report.id} className="card p-4 rounded-xl flex items-center justify-between">
               <div>
                 <p className="font-medium text-harbor-800">{report.title}</p>
-                <p className="text-sm text-harbor-500">Submitted to: <span className="capitalize font-medium">{report.submittedTo}</span> | {report.submittedAt}</p>
+                <p className="text-sm text-harbor-500">Submitted to: <span className="capitalize font-medium">{report.submitted_to || 'N/A'}</span> | {new Date(report.created_at).toLocaleDateString()}</p>
               </div>
               <span className={cn('px-2 py-0.5 rounded text-xs font-medium', reportStatusColor(report.status))}>{report.status}</span>
             </div>
           ))}
-          <div className="card p-5 rounded-xl">
-            <h3 className="font-semibold text-harbor-800 mb-2">Submit a Recording as Report</h3>
-            <p className="text-sm text-harbor-500 mb-3">Select a verified recording to submit to city officials, police, or community board.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <select className="input-field px-3 py-2 rounded-lg">
-                <option value="">Select recording...</option>
-                {recordings.filter(r => r.status === 'verified' || r.status === 'rewarded').map(r => (
-                  <option key={r.id} value={r.id}>{r.title}</option>
-                ))}
-              </select>
-              <button onClick={() => handleSubmitReport('')} className="btn-teal px-4 py-2 rounded-lg text-sm">Submit Report</button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -243,30 +271,23 @@ export default function RecordPage() {
                 <p className="text-3xl font-bold text-mly-600 mt-1">{totalEarned} $MLY</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-harbor-500">Verified Recordings</p>
-                <p className="text-lg font-bold text-teal-600">{recordings.filter(r => r.status === 'rewarded').length}</p>
+                <p className="text-xs text-harbor-500">Rewarded Recordings</p>
+                <p className="text-lg font-bold text-teal-600">{rewardedRecordings.length}</p>
               </div>
-            </div>
-          </div>
-          <div className="card p-5 rounded-xl">
-            <h3 className="font-semibold text-harbor-800 mb-3">Reward Tiers</h3>
-            <div className="space-y-2">
-              {[{ tier: 'Safety Hazard', reward: '10-20 $MLY' }, { tier: 'Environmental Issue', reward: '15-30 $MLY' }, { tier: 'Infrastructure Report', reward: '10-15 $MLY' }, { tier: 'Community Event', reward: '5-10 $MLY' }].map(t => (
-                <div key={t.tier} className="flex items-center justify-between p-2 bg-harbor-50 rounded">
-                  <span className="text-sm text-harbor-700">{t.tier}</span>
-                  <span className="text-sm font-medium text-mly-600">{t.reward}</span>
-                </div>
-              ))}
             </div>
           </div>
           <h2 className="text-lg font-semibold text-harbor-800">Reward History</h2>
-          {rewards.map(reward => (
-            <div key={reward.id} className="card p-4 rounded-xl flex items-center justify-between">
+          {rewardedRecordings.length === 0 ? (
+            <div className="card p-8 rounded-xl text-center">
+              <p className="text-harbor-500">No rewards earned yet. Record community observations to earn $MLY!</p>
+            </div>
+          ) : rewardedRecordings.map(rec => (
+            <div key={rec.id} className="card p-4 rounded-xl flex items-center justify-between">
               <div>
-                <p className="font-medium text-harbor-800">{reward.recordingTitle}</p>
-                <p className="text-xs text-harbor-500">{reward.reason} | {reward.date}</p>
+                <p className="font-medium text-harbor-800">{rec.description || rec.category || 'Recording'}</p>
+                <p className="text-xs text-harbor-500 capitalize">{rec.category?.replace(/-/g, ' ')} | {new Date(rec.created_at).toLocaleDateString()}</p>
               </div>
-              <span className="text-lg font-bold text-mly-600">+{reward.amount} $MLY</span>
+              <span className="text-lg font-bold text-mly-600">+{rec.reward_mly} $MLY</span>
             </div>
           ))}
         </div>
