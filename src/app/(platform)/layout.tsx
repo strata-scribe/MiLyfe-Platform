@@ -12,6 +12,8 @@ import { GlobalSearch } from '@/components/shell/global-search';
 import { AnalyticsProvider } from '@/components/shell/analytics-provider';
 import { A11yEnhancements } from '@/components/shell/a11y-enhancements';
 import { InstallPrompt } from '@/components/shell/install-prompt';
+import { QueryProvider } from '@/lib/providers/query-provider';
+import { Toaster } from 'sonner';
 
 /**
  * Platform Layout — Responsive Three-Zone System
@@ -27,6 +29,7 @@ export default function PlatformLayout({
 }) {
   return (
     <AuthProvider>
+      <QueryProvider>
       <AccessibilityProvider>
         <AnalyticsProvider>
           <A11yEnhancements />
@@ -64,8 +67,10 @@ export default function PlatformLayout({
           {/* Global (all breakpoints) */}
           <GlobalSearch />
           <GlobalPlayer />
+          <Toaster position="top-right" richColors closeButton theme="system" />
         </AnalyticsProvider>
       </AccessibilityProvider>
+      </QueryProvider>
     </AuthProvider>
   );
 }

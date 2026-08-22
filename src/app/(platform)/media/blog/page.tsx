@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { toast } from 'sonner';
+
+// Dynamic import Novel editor (heavy library — code split)
+const NovelEditor = dynamic(() => import('@/components/editor/novel-editor').then(m => ({ default: m.NovelEditor })), {
+  ssr: false,
+  loading: () => <div className="h-[300px] rounded-lg bg-gray-100 dark:bg-harbor-800 animate-pulse" />,
+});
 
 interface BlogPost {
   id: string;
@@ -225,7 +233,10 @@ export default function MiBlogPage() {
         <div className="space-y-3">
           <div className="card space-y-3">
             <input value={writeTitle} onChange={e => setWriteTitle(e.target.value)} placeholder="Post title" className="input-field text-lg font-bold" />
-            <textarea value={writeContent} onChange={e => setWriteContent(e.target.value)} placeholder="Write your story... (Markdown supported)" className="input-field resize-none font-mono text-sm" rows={12} />
+            <NovelEditor
+              placeholder="Start writing your story... (use / for commands)"
+              onTextChange={(text) => setWriteContent(text)}
+            />
             <input value={writeExcerpt} onChange={e => setWriteExcerpt(e.target.value)} placeholder="Short excerpt (optional — auto-generated from content)" className="input-field text-xs" />
             <input value={writeTags} onChange={e => setWriteTags(e.target.value)} placeholder="Tags (comma separated)" className="input-field text-xs" />
             <select value={writeSeries} onChange={e => setWriteSeries(e.target.value)} className="input-field text-xs">
@@ -233,7 +244,7 @@ export default function MiBlogPage() {
               {series.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
             </select>
             <div className="flex gap-2">
-              <button onClick={publishPost} disabled={!writeTitle.trim() || !writeContent.trim() || publishing} className="btn-teal flex-1 disabled:opacity-50">
+              <button onClick={() => { publishPost(); toast.success('Blog post published!'); }} disabled={!writeTitle.trim() || !writeContent.trim() || publishing} className="btn-teal flex-1 disabled:opacity-50">
                 {publishing ? 'Publishing...' : 'Publish'}
               </button>
               <button onClick={() => setShowPreview(!showPreview)} className="px-4 py-2 text-xs bg-gray-100 dark:bg-harbor-800 text-gray-600 rounded-lg">Preview</button>

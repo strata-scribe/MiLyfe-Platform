@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { KanbanBoard } from '@/components/ui/sortable-list';
+import { toast } from 'sonner';
 
 interface MaintenanceTask {
   id: string;
@@ -40,6 +42,7 @@ export default function MaintenancePage() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterPriority, setFilterPriority] = useState<FilterPriority>('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
   // Form
   const [title, setTitle] = useState('');
@@ -86,6 +89,15 @@ export default function MaintenancePage() {
     if (status === 'completed') updates.completed_at = new Date().toISOString();
     await supabase.from('mihome_maintenance').update(updates).eq('id', taskId);
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
+    toast.success(`Task moved to ${status.replace('_', ' ')}`);
+  }
+
+  async function handleKanbanMove(itemId: string, _fromColumn: string, toColumn: string) {
+    await updateStatus(itemId, toColumn as MaintenanceTask['status']);
+  }
+
+  function handleKanbanReorder(_columnId: string, _items: MaintenanceTask[]) {
+    // Reorder within column — could persist order to DB
   }
 
   const pendingCount = tasks.filter(t => t.status === 'pending').length;
@@ -144,9 +156,37 @@ export default function MaintenancePage() {
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
+        <div className="ml-auto flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-lg p-0.5">
+          <button onClick={() => setViewMode('list')} className={cn('px-2 py-1 rounded text-xs', viewMode === 'list' ? 'bg-white dark:bg-harbor-800 shadow-sm' : 'text-gray-500')}>☰</button>
+          <button onClick={() => setViewMode('kanban')} className={cn('px-2 py-1 rounded text-xs', viewMode === 'kanban' ? 'bg-white dark:bg-harbor-800 shadow-sm' : 'text-gray-500')}>⊞</button>
+        </div>
       </div>
 
+      {/* Kanban View */}
+      {viewMode === 'kanban' && (
+        <KanbanBoard
+          columns={[
+            { id: 'pending', title: 'Pending', icon: '📋', items: tasks.filter(t => t.status === 'pending') },
+            { id: 'in_progress', title: 'In Progress', icon: '🔨', items: tasks.filter(t => t.status === 'in_progress') },
+            { id: 'completed', title: 'Done', icon: '✅', items: tasks.filter(t => t.status === 'completed') },
+          ]}
+          onMove={handleKanbanMove}
+          onReorder={handleKanbanReorder}
+          renderCard={(task) => (
+            <div className="card p-3 space-y-1">
+              <div className="flex items-center gap-1">
+                <span className={cn('text-[10px] px-1.5 py-0.5 rounded capitalize', PRIORITY_COLORS[task.priority])}>{task.priority}</span>
+                <span className="text-[10px] text-gray-400">{task.category}</span>
+              </div>
+              <p className="text-xs font-medium text-harbor-800 dark:text-white">{task.title}</p>
+              {task.due_date && <p className="text-[10px] text-gray-400">Due {new Date(task.due_date).toLocaleDateString()}</p>}
+            </div>
+          )}
+        />
+      )}
+
       {/* Task List */}
+      {viewMode === 'list' && (
       <div className="space-y-2">
         {loading ? [1, 2, 3, 4].map(i => <div key={i} className="card skeleton h-20" />) :
           tasks.length === 0 ? (
@@ -187,6 +227,7 @@ export default function MaintenancePage() {
           ))
         }
       </div>
+      )}
     </div>
   );
 }
