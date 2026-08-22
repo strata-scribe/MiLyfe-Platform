@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { toast } from 'sonner';
+import { LiveKitVideoRoom } from '@/components/media/livekit-room';
+import { isLiveKitAvailable } from '@/lib/calls/livekit-config';
 
 interface RadioStation {
   id: string;
@@ -12,124 +15,176 @@ interface RadioStation {
   name: string;
   description: string;
   genre: string;
-  stream_url: string | null;
   is_live: boolean;
-  listeners: number;
-  current_track: string | null;
+  listener_count: number;
   current_dj: string | null;
-  schedule: ScheduleSlot[];
+  stream_url: string | null;
   created_at: string;
   profiles?: { display_name: string };
 }
 
 interface ScheduleSlot {
-  day: number;
-  hour: number;
-  dj_name: string;
+  id: string;
+  station_id: string;
+  day_of_week: number;
+  start_hour: number;
   show_name: string;
-  genre: string;
+  dj_name: string;
 }
 
-interface TrackRequest {
+interface RadioRequest {
   id: string;
   station_id: string;
   user_id: string;
-  track_title: string;
+  song_title: string;
   artist: string;
-  status: 'pending' | 'playing' | 'denied';
-  votes: number;
+  dedication_message: string | null;
+  status: 'pending' | 'played' | 'skipped';
   created_at: string;
-  display_name?: string;
+  profiles?: { display_name: string };
 }
 
-type RadioTab = 'stations' | 'schedule' | 'requests' | 'dj';
+type RadioTab = 'live-now' | 'schedule' | 'my-station';
 
-const GENRES = ['all', 'hip-hop', 'r&b', 'reggaeton', 'latin', 'afrobeat', 'gospel', 'jazz', 'electronic', 'spoken-word', 'community'];
+const GENRES = ['Hip-Hop', 'R&B', 'Gospel', 'Jazz', 'Reggae', 'Talk', 'News', 'Community'];
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export default function RadioPage() {
-  const [tab, setTab] = useState<RadioTab>('stations');
+export default function RadioDJPage() {
+  const [tab, setTab] = useState<RadioTab>('live-now');
   const [stations, setStations] = useState<RadioStation[]>([]);
-  const [requests, setRequests] = useState<TrackRequest[]>([]);
+  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([]);
+  const [myStation, setMyStation] = useState<RadioStation | null>(null);
+  const [requests, setRequests] = useState<RadioRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [genre, setGenre] = useState('all');
   const [listeningTo, setListeningTo] = useState<RadioStation | null>(null);
 
-  // Request form
-  const [reqTrack, setReqTrack] = useState('');
-  const [reqArtist, setReqArtist] = useState('');
-
-  // DJ form
-  const [showDJ, setShowDJ] = useState(false);
-  const [stationName, setStationName] = useState('');
-  const [stationGenre, setStationGenre] = useState('hip-hop');
-  const [stationDesc, setStationDesc] = useState('');
+  // Create station form
+  const [showCreate, setShowCreate] = useState(false);
+  const [stName, setStName] = useState('');
+  const [stGenre, setStGenre] = useState('Hip-Hop');
+  const [stDesc, setStDesc] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // Request form
+  const [reqSong, setReqSong] = useState('');
+  const [reqArtist, setReqArtist] = useState('');
+  const [reqDedication, setReqDedication] = useState('');
+
   const { user } = useAppStore();
+  const supabase = createClient();
 
-  useEffect(() => { loadData(); }, [genre]);
+  useEffect(() => {
+    loadLiveStations();
+    loadSchedule();
+  }, []);
 
-  async function loadData() {
+  useEffect(() => {
+    if (user) loadMyStation();
+  }, [user]);
+
+  async function loadLiveStations() {
     setLoading(true);
-    const supabase = createClient();
-    let query = supabase.from('media_radio_stations').select('*, profiles!media_radio_stations_owner_id_fkey(display_name)').order('listeners', { ascending: false });
-    if (genre !== 'all') query = query.eq('genre', genre);
-    const { data: s } = await query.limit(20);
-    if (s) setStations(s as any);
-
-    if (listeningTo) {
-      const { data: r } = await supabase.from('media_radio_requests').select('*').eq('station_id', listeningTo.id).eq('status', 'pending').order('votes', { ascending: false }).limit(10);
-      if (r) setRequests(r);
-    }
+    const { data } = await supabase
+      .from('radio_stations')
+      .select('*, profiles!radio_stations_owner_id_fkey(display_name)')
+      .eq('is_live', true)
+      .order('listener_count', { ascending: false });
+    if (data) setStations(data as RadioStation[]);
     setLoading(false);
   }
 
+  async function loadSchedule() {
+    const { data } = await supabase
+      .from('radio_schedule')
+      .select('*')
+      .order('day_of_week', { ascending: true })
+      .order('start_hour', { ascending: true });
+    if (data) setScheduleSlots(data as ScheduleSlot[]);
+  }
+
+  async function loadMyStation() {
+    if (!user) return;
+    const { data } = await supabase
+      .from('radio_stations')
+      .select('*, profiles!radio_stations_owner_id_fkey(display_name)')
+      .eq('owner_id', user.id)
+      .single();
+    if (data) {
+      setMyStation(data as RadioStation);
+      loadRequests(data.id);
+    }
+  }
+
+  async function loadRequests(stationId: string) {
+    const { data } = await supabase
+      .from('radio_requests')
+      .select('*, profiles!radio_requests_user_id_fkey(display_name)')
+      .eq('station_id', stationId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(10);
+    if (data) setRequests(data as RadioRequest[]);
+  }
+
   async function createStation() {
-    if (!user || !stationName.trim()) return;
+    if (!user || !stName.trim()) return;
     setCreating(true);
-    const supabase = createClient();
-    await supabase.from('media_radio_stations').insert({
-      owner_id: user.id, name: stationName.trim(), description: stationDesc.trim(),
-      genre: stationGenre, is_live: false, listeners: 0, schedule: [],
+    const { error } = await supabase.from('radio_stations').insert({
+      owner_id: user.id,
+      name: stName.trim(),
+      description: stDesc.trim(),
+      genre: stGenre,
+      is_live: false,
+      listener_count: 0,
     });
-    setStationName(''); setStationDesc(''); setShowDJ(false); setCreating(false);
-    loadData();
+    if (error) {
+      toast.error('Failed to create station');
+    } else {
+      toast.success('Station created!');
+      setStName('');
+      setStDesc('');
+      setShowCreate(false);
+      loadMyStation();
+    }
+    setCreating(false);
   }
 
-  async function tuneIn(station: RadioStation) {
-    setListeningTo(station);
-    const supabase = createClient();
-    await supabase.from('media_radio_stations').update({ listeners: station.listeners + 1 }).eq('id', station.id);
-    // Load requests for this station
-    const { data: r } = await supabase.from('media_radio_requests').select('*').eq('station_id', station.id).eq('status', 'pending').order('votes', { ascending: false }).limit(10);
-    if (r) setRequests(r);
+  async function goLive() {
+    if (!myStation) return;
+    await supabase.from('radio_stations').update({
+      is_live: true,
+      current_dj: user?.display_name || 'DJ',
+    }).eq('id', myStation.id);
+    toast.success("You're live! Broadcasting now.");
+    setMyStation({ ...myStation, is_live: true, current_dj: user?.display_name || 'DJ' });
+    loadLiveStations();
   }
 
-  async function requestTrack() {
-    if (!user || !reqTrack.trim() || !listeningTo) return;
-    const supabase = createClient();
-    await supabase.from('media_radio_requests').insert({
-      station_id: listeningTo.id, user_id: user.id, track_title: reqTrack.trim(),
-      artist: reqArtist.trim(), status: 'pending', votes: 1, display_name: user.display_name,
+  async function endBroadcast() {
+    if (!myStation) return;
+    await supabase.from('radio_stations').update({
+      is_live: false,
+      current_dj: null,
+    }).eq('id', myStation.id);
+    toast.success('Broadcast ended');
+    setMyStation({ ...myStation, is_live: false, current_dj: null });
+    loadLiveStations();
+  }
+
+  async function submitRequest() {
+    if (!user || !reqSong.trim() || !listeningTo) return;
+    await supabase.from('radio_requests').insert({
+      station_id: listeningTo.id,
+      user_id: user.id,
+      song_title: reqSong.trim(),
+      artist: reqArtist.trim(),
+      dedication_message: reqDedication.trim() || null,
+      status: 'pending',
     });
-    setReqTrack(''); setReqArtist('');
-    // Reload requests
-    const { data: r } = await supabase.from('media_radio_requests').select('*').eq('station_id', listeningTo.id).eq('status', 'pending').order('votes', { ascending: false }).limit(10);
-    if (r) setRequests(r);
-  }
-
-  async function voteRequest(reqId: string) {
-    const supabase = createClient();
-    const req = requests.find(r => r.id === reqId);
-    if (!req) return;
-    await supabase.from('media_radio_requests').update({ votes: req.votes + 1 }).eq('id', reqId);
-    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, votes: r.votes + 1 } : r));
-  }
-
-  async function goLive(stationId: string) {
-    const supabase = createClient();
-    await supabase.from('media_radio_stations').update({ is_live: true, current_dj: user?.display_name }).eq('id', stationId);
-    setStations(prev => prev.map(s => s.id === stationId ? { ...s, is_live: true, current_dj: user?.display_name || null } : s));
+    toast.success('Song request submitted!');
+    setReqSong('');
+    setReqArtist('');
+    setReqDedication('');
   }
 
   return (
@@ -138,167 +193,241 @@ export default function RadioPage() {
         <div>
           <Link href="/media" className="text-gray-400 hover:text-gray-600 text-sm">← Media</Link>
           <h1 className="text-xl font-bold text-harbor-800 dark:text-white mt-1">Radio</h1>
-          <p className="text-xs text-gray-500">Community stations & DJ sets</p>
+          <p className="text-xs text-gray-500">Community DJ stations &amp; live audio</p>
         </div>
-        {user && <button onClick={() => setShowDJ(!showDJ)} className="btn-teal text-xs">🎧 Create Station</button>}
+        {user && !myStation && (
+          <button onClick={() => setShowCreate(true)} className="btn-teal text-xs">
+            🎧 Create Station
+          </button>
+        )}
       </div>
 
       {/* Now Listening */}
       {listeningTo && (
-        <div className="card bg-gradient-to-r from-purple-500/10 to-teal-500/10 border border-purple-200 dark:border-purple-800">
+        <div className="card bg-gradient-to-r from-purple-500/10 to-teal-500/10 border border-purple-200 dark:border-purple-800 space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-purple-200 dark:bg-purple-800 rounded-xl flex items-center justify-center animate-pulse">
-              <span className="text-xl">📻</span>
+            <div className="w-10 h-10 bg-purple-200 dark:bg-purple-800 rounded-lg flex items-center justify-center animate-pulse">
+              <span className="text-lg">📻</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-harbor-800 dark:text-white">{listeningTo.name}</p>
-              <p className="text-xs text-gray-500">{listeningTo.current_track || 'Tuned in'} · {listeningTo.listeners} listening</p>
-              {listeningTo.current_dj && <p className="text-[10px] text-purple-600 dark:text-purple-400">DJ: {listeningTo.current_dj}</p>}
+              <p className="text-xs text-gray-500">DJ: {listeningTo.current_dj} · {listeningTo.listener_count} listening</p>
             </div>
             <button onClick={() => setListeningTo(null)} className="text-xs text-red-500">Stop</button>
           </div>
-          {/* Request form inline */}
-          <div className="flex gap-2 mt-3">
-            <input value={reqTrack} onChange={e => setReqTrack(e.target.value)} placeholder="Request a song..." className="input-field flex-1 text-xs" />
-            <input value={reqArtist} onChange={e => setReqArtist(e.target.value)} placeholder="Artist" className="input-field w-24 text-xs" />
-            <button onClick={requestTrack} disabled={!reqTrack.trim()} className="btn-teal text-xs disabled:opacity-50">🎵</button>
+          {/* Request + Dedication */}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input value={reqSong} onChange={e => setReqSong(e.target.value)} placeholder="Request a song..." className="input-field flex-1 text-xs" />
+              <input value={reqArtist} onChange={e => setReqArtist(e.target.value)} placeholder="Artist" className="input-field w-24 text-xs" />
+            </div>
+            <input value={reqDedication} onChange={e => setReqDedication(e.target.value)} placeholder="Dedicate this song to... (optional)" className="input-field text-xs" />
+            <button onClick={submitRequest} disabled={!reqSong.trim()} className="btn-teal w-full text-xs disabled:opacity-50">
+              🎵 Submit Request
+            </button>
           </div>
-        </div>
-      )}
-
-      {/* Create Station */}
-      {showDJ && (
-        <div className="card space-y-3 border-2 border-purple-200 dark:border-purple-800">
-          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Create Radio Station</h3>
-          <input value={stationName} onChange={e => setStationName(e.target.value)} placeholder="Station name" className="input-field" />
-          <textarea value={stationDesc} onChange={e => setStationDesc(e.target.value)} placeholder="Description" className="input-field resize-none" rows={2} />
-          <select value={stationGenre} onChange={e => setStationGenre(e.target.value)} className="input-field">
-            {GENRES.filter(g => g !== 'all').map(g => <option key={g} value={g} className="capitalize">{g}</option>)}
-          </select>
-          <button onClick={createStation} disabled={!stationName.trim() || creating} className="btn-teal w-full disabled:opacity-50">
-            {creating ? 'Creating...' : 'Launch Station'}
-          </button>
         </div>
       )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {(['stations', 'schedule', 'requests', 'dj'] as RadioTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t === 'dj' ? 'My Station' : t}</button>
+        {([
+          { key: 'live-now' as RadioTab, label: 'Live Now' },
+          { key: 'schedule' as RadioTab, label: 'Schedule' },
+          { key: 'my-station' as RadioTab, label: 'My Station' },
+        ]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              'flex-1 py-2 rounded-lg text-xs font-medium transition-all',
+              tab === t.key
+                ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm'
+                : 'text-gray-500'
+            )}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {/* Genre Filters */}
-      {tab === 'stations' && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {GENRES.map(g => (
-            <button key={g} onClick={() => setGenre(g)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap capitalize', genre === g ? 'bg-purple-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{g}</button>
-          ))}
+      {/* Create Station */}
+      {showCreate && (
+        <div className="card space-y-3 border-2 border-purple-200 dark:border-purple-800">
+          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Create Radio Station</h3>
+          <input value={stName} onChange={e => setStName(e.target.value)} placeholder="Station name" className="input-field" />
+          <textarea value={stDesc} onChange={e => setStDesc(e.target.value)} placeholder="Description" className="input-field resize-none" rows={2} />
+          <select value={stGenre} onChange={e => setStGenre(e.target.value)} className="input-field">
+            {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <button onClick={createStation} disabled={!stName.trim() || creating} className="btn-teal w-full disabled:opacity-50">
+            {creating ? 'Creating...' : 'Launch Station'}
+          </button>
         </div>
       )}
 
-      {/* Stations */}
-      {tab === 'stations' && (
+      {/* Live Now Tab */}
+      {tab === 'live-now' && (
         <div className="space-y-2">
-          {loading ? [1, 2, 3].map(i => <div key={i} className="card skeleton h-20" />) :
-            stations.length === 0 ? (
-              <div className="card text-center py-8">
-                <p className="text-2xl mb-2">📻</p>
-                <p className="text-sm text-gray-500">No radio stations yet</p>
-                <button onClick={() => setShowDJ(true)} className="text-xs text-teal-600 hover:underline mt-2">Create one →</button>
-              </div>
-            ) : stations.map(station => (
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="card h-20 animate-pulse bg-gray-100 dark:bg-harbor-800 rounded-xl" />
+            ))
+          ) : stations.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">📻</p>
+              <p className="text-sm text-gray-500">No stations live right now</p>
+              <p className="text-xs text-gray-400 mt-1">Check the schedule for upcoming shows</p>
+            </div>
+          ) : (
+            stations.map(station => (
               <div key={station.id} className="card flex items-center gap-3">
-                <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center', station.is_live ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-harbor-800')}>
-                  <span className="text-xl">{station.is_live ? '📡' : '📻'}</span>
+                <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center relative">
+                  <span className="text-xl">📡</span>
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-harbor-800 dark:text-white">{station.name}</p>
-                    {station.is_live && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+                    <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 rounded">
+                      {station.genre}
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-500 capitalize">{station.genre} · {station.listeners} listening</p>
-                  {station.current_track && <p className="text-[10px] text-teal-600 truncate">🎵 {station.current_track}</p>}
+                  <p className="text-xs text-gray-500">
+                    DJ: {station.current_dj || (station.profiles as any)?.display_name} · {station.listener_count} listeners
+                  </p>
                 </div>
-                <button onClick={() => tuneIn(station)} className={cn('text-xs px-3 py-1.5 rounded-lg font-medium', listeningTo?.id === station.id ? 'bg-red-100 text-red-700' : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400')}>
-                  {listeningTo?.id === station.id ? '⏹ Stop' : '▶ Tune In'}
+                <button
+                  onClick={() => setListeningTo(station)}
+                  className="btn-teal text-xs !py-1.5 !px-3"
+                >
+                  Listen
                 </button>
               </div>
             ))
-          }
+          )}
         </div>
       )}
 
-      {/* Schedule */}
+      {/* Schedule Tab */}
       {tab === 'schedule' && (
-        <div className="card text-center py-8">
-          <p className="text-2xl mb-2">📅</p>
-          <p className="text-sm font-medium text-harbor-800 dark:text-white">DJ Schedule</p>
-          <p className="text-xs text-gray-500 mt-1">Upcoming shows and time slots</p>
-          <div className="grid grid-cols-7 gap-1 mt-4">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-              <div key={day} className="text-[10px] text-gray-500 font-medium text-center p-1 bg-gray-50 dark:bg-harbor-900 rounded">{day}</div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Requests */}
-      {tab === 'requests' && (
-        <div className="space-y-2">
-          {!listeningTo ? (
-            <div className="card text-center py-8">
-              <p className="text-sm text-gray-500">Tune in to a station to see & make requests</p>
+        <div className="card space-y-3">
+          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Weekly Schedule</h3>
+          {scheduleSlots.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-sm text-gray-500">No scheduled shows yet</p>
             </div>
-          ) : requests.length === 0 ? (
-            <div className="card text-center py-8">
-              <p className="text-sm text-gray-500">No pending requests</p>
-            </div>
-          ) : requests.map(req => (
-            <div key={req.id} className="card flex items-center gap-3">
-              <button onClick={() => voteRequest(req.id)} className="flex flex-col items-center text-xs">
-                <span className="text-gray-400 hover:text-teal-500">▲</span>
-                <span className="font-bold text-harbor-800 dark:text-white">{req.votes}</span>
-              </button>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-harbor-800 dark:text-white">{req.track_title}</p>
-                <p className="text-xs text-gray-500">{req.artist || 'Unknown artist'} · by {req.display_name}</p>
+          ) : (
+            <div className="space-y-1">
+              <div className="grid grid-cols-8 gap-1 text-[10px] font-medium text-gray-500">
+                <span>Time</span>
+                {DAYS.map(d => <span key={d} className="text-center">{d}</span>)}
               </div>
+              {Array.from({ length: 12 }).map((_, hourIdx) => {
+                const hour = hourIdx + 8;
+                return (
+                  <div key={hour} className="grid grid-cols-8 gap-1">
+                    <span className="text-[9px] text-gray-400 py-1">{hour}:00</span>
+                    {DAYS.map((_, dayIdx) => {
+                      const slot = scheduleSlots.find(s => s.day_of_week === dayIdx && s.start_hour === hour);
+                      return (
+                        <div
+                          key={dayIdx}
+                          className={cn(
+                            'rounded text-[8px] py-1 px-0.5 text-center truncate',
+                            slot ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'bg-gray-50 dark:bg-harbor-900'
+                          )}
+                        >
+                          {slot ? slot.show_name : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       )}
 
-      {/* DJ Tab */}
-      {tab === 'dj' && (
+      {/* My Station Tab */}
+      {tab === 'my-station' && (
         <div className="space-y-3">
-          {(() => {
-            const myStations = stations.filter(s => s.owner_id === user?.id);
-            return myStations.length === 0 ? (
-              <div className="card text-center py-8">
-                <p className="text-2xl mb-2">🎧</p>
-                <p className="text-sm text-gray-500">You don&apos;t have a station yet</p>
-                <button onClick={() => setShowDJ(true)} className="btn-teal text-xs mt-4">Create Station</button>
-              </div>
-            ) : myStations.map(station => (
-              <div key={station.id} className="card space-y-3">
+          {!user ? (
+            <div className="card text-center py-8">
+              <p className="text-sm text-gray-500">Sign in to manage your station</p>
+            </div>
+          ) : !myStation ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">🎧</p>
+              <p className="text-sm text-gray-500">You don&apos;t have a station yet</p>
+              <button onClick={() => setShowCreate(true)} className="btn-teal text-xs mt-3">Create Station</button>
+            </div>
+          ) : (
+            <>
+              <div className="card space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-bold text-harbor-800 dark:text-white">{station.name}</p>
-                    <p className="text-xs text-gray-500">{station.listeners} listeners · {station.genre}</p>
+                    <p className="text-sm font-bold text-harbor-800 dark:text-white">{myStation.name}</p>
+                    <p className="text-xs text-gray-500">{myStation.genre} · {myStation.listener_count} listeners</p>
                   </div>
-                  <button onClick={() => goLive(station.id)} className={cn('px-3 py-1.5 rounded-lg text-xs font-medium', station.is_live ? 'bg-red-500 text-white' : 'bg-green-500 text-white')}>
-                    {station.is_live ? '⏹ End' : '🎙 Go Live'}
-                  </button>
+                  {myStation.is_live ? (
+                    <button onClick={endBroadcast} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white">
+                      ⏹ End Broadcast
+                    </button>
+                  ) : (
+                    <button onClick={goLive} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500 text-white">
+                      🎙 Go Live
+                    </button>
+                  )}
                 </div>
-                {station.is_live && (
-                  <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-3 text-center">
-                    <p className="text-xs text-green-700 dark:text-green-400 font-medium animate-pulse">● You&apos;re live!</p>
-                  </div>
+                {myStation.is_live && (
+                  <>
+                    {isLiveKitAvailable() ? (
+                      <LiveKitVideoRoom
+                        roomName={`radio-${myStation.id}`}
+                        participantName={user?.display_name || 'DJ'}
+                        mode="audio"
+                        onDisconnect={endBroadcast}
+                      />
+                    ) : (
+                      <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-3 text-center">
+                        <p className="text-xs text-green-700 dark:text-green-400 font-medium animate-pulse">
+                          ● Broadcasting live (LiveKit not configured — audio via browser)
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-            ));
-          })()}
+
+              {/* Request Queue */}
+              <div className="card space-y-2">
+                <h3 className="text-xs font-bold text-harbor-800 dark:text-white">
+                  🎵 Song Request Queue ({requests.length})
+                </h3>
+                {requests.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-4">No pending requests</p>
+                ) : (
+                  requests.map(req => (
+                    <div key={req.id} className="flex items-start gap-2 py-2 border-b border-gray-100 dark:border-harbor-800 last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-harbor-800 dark:text-white">
+                          {req.song_title} — {req.artist}
+                        </p>
+                        <p className="text-[10px] text-gray-500">from {(req.profiles as any)?.display_name}</p>
+                        {req.dedication_message && (
+                          <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5 italic">
+                            &quot;Dedicated to: {req.dedication_message}&quot;
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

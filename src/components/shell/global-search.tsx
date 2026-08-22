@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { searchApps, type SearchResult } from '@/lib/search/search-index';
+import { globalSearch } from '@/lib/search/meilisearch';
 import { createClient } from '@/lib/supabase/client';
 
 export function GlobalSearch() {
@@ -51,11 +52,13 @@ export function GlobalSearch() {
       return;
     }
 
-    // Static app search
-    const appResults = searchApps(q);
-    setResults(appResults);
+    // Full search: Meilisearch (dynamic content) + static app index
+    const allSearchResults = await globalSearch(q);
+    const contentResults = allSearchResults.filter(r => r.type === 'content');
+    const appFeatureResults = allSearchResults.filter(r => r.type === 'app' || r.type === 'feature');
+    setResults([...appFeatureResults, ...contentResults]);
 
-    // People search from Supabase
+    // People search from Supabase (real-time, not cached in Meilisearch)
     if (q.length >= 2) {
       try {
         const supabase = createClient();

@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useAppStore } from '@/lib/store/app-store'
 import { cn } from '@/lib/utils/cn'
 import { toast } from 'sonner'
+import { NovelEditor } from '@/components/editor/novel-editor'
+import type { JSONContent } from 'novel'
 
 type Tab = 'browse' | 'recent' | 'create' | 'my-edits'
 
@@ -238,7 +240,18 @@ export default function WikiPage() {
           <select className="input-field w-full px-4 py-2.5 rounded-lg" value={createForm.category} onChange={e => setCreateForm(p => ({ ...p, category: e.target.value }))}>
             {categories.map(cat => <option key={cat} value={cat} className="capitalize">{cat}</option>)}
           </select>
-          <textarea className="input-field w-full px-4 py-2.5 rounded-lg min-h-[200px] resize-none" placeholder="Write your wiki page content in markdown..." value={createForm.content_md} onChange={e => setCreateForm(p => ({ ...p, content_md: e.target.value }))} />
+          <NovelEditor
+            placeholder="Write your wiki page content..."
+            onChange={(json: JSONContent) => {
+              // Store both JSON and plain text for backward compatibility
+              setCreateForm(p => ({ ...p, content_md: JSON.stringify(json) }))
+            }}
+            onTextChange={(text: string) => {
+              // Keep plain text version for previews/search
+              setCreateForm(p => ({ ...p, content_md: text }))
+            }}
+            className="min-h-[200px]"
+          />
           <button onClick={handleCreatePage} className="btn-teal w-full py-3 rounded-lg font-medium">Publish Page</button>
         </div>
       )}

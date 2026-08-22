@@ -7,304 +7,329 @@ import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
 import { toast } from 'sonner';
 
-interface Housing { id: string; name: string; type: string; address: string; rent_range: string; age_range: string; accepts_vouchers: boolean; has_openings: boolean; amenities: string[]; contact: string; }
-interface Course { id: string; title: string; category: string; description: string; duration_mins: number; completed: boolean; mly_reward: number; link: string; }
-interface Mentor { id: string; display_name: string; bio: string; aged_out_year: number; specialties: string[]; available: boolean; rating: number; }
-interface Milestone { id: string; user_id: string; title: string; completed: boolean; completed_at: string | null; mly_reward: number; icon: string; }
+/* ─── Types ─── */
+interface HousingListing {
+  id: string; title: string; description: string; location: string;
+  rent_mly: number; roommate_vetted: boolean; available: boolean;
+  type: string; amenities: string[];
+}
+interface Skill {
+  id: string; title: string; category: string; description: string;
+  duration_minutes: number; completed: boolean; mly_reward: number;
+}
+interface Mentor {
+  id: string; display_name: string; avatar_url: string | null;
+  bio: string; expertise: string[]; available: boolean; age_range: string;
+}
+interface NetworkContact {
+  id: string; user_id: string; name: string; phone: string;
+  relationship: string; notify_emergency: boolean;
+}
+interface UBIStatus {
+  id: string; user_id: string; days_remaining: number; daily_amount: number;
+  total_earned: number; started_at: string;
+}
 
-type YouthTab = 'home' | 'housing' | 'life-skills' | 'mentors' | 'emergency';
+type Tab = 'start' | 'housing' | 'skills' | 'mentors' | 'network';
 
-const MILESTONE_TEMPLATES = [
-  { title: 'Got my first apartment', icon: '🏠', mly_reward: 100 },
-  { title: 'Landed first job', icon: '💼', mly_reward: 75 },
-  { title: 'Opened bank account', icon: '🏦', mly_reward: 25 },
-  { title: 'Got my driver\'s license', icon: '🚗', mly_reward: 50 },
-  { title: 'Filed taxes for first time', icon: '📋', mly_reward: 30 },
-  { title: 'Completed a course', icon: '🎓', mly_reward: 20 },
-  { title: 'Built emergency fund', icon: '💰', mly_reward: 50 },
-  { title: 'Registered to vote', icon: '🗳️', mly_reward: 15 },
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'start', label: 'Start Here' },
+  { key: 'housing', label: 'Housing' },
+  { key: 'skills', label: 'Skills' },
+  { key: 'mentors', label: 'Mentors' },
+  { key: 'network', label: 'My Network' },
 ];
 
-const LIFE_SKILL_CATEGORIES = ['Budgeting', 'Cooking', 'Laundry', 'Interviewing', 'Taxes', 'Renting', 'Health', 'Relationships'];
+const SKILL_CATEGORIES = ['Banking', 'Cooking', 'Renting', 'Budgeting', 'Taxes', 'Health', 'Career'];
 
+/* ─── Component ─── */
 export default function YouthPage() {
-  const [tab, setTab] = useState<YouthTab>('home');
-  const [housing, setHousing] = useState<Housing[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [tab, setTab] = useState<Tab>('start');
+  const [housing, setHousing] = useState<HousingListing[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [mentors, setMentors] = useState<Mentor[]>([]);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [mlyBalance, setMlyBalance] = useState(0);
+  const [network, setNetwork] = useState<NetworkContact[]>([]);
+  const [ubiStatus, setUbiStatus] = useState<UBIStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [skillFilter, setSkillFilter] = useState('All');
+  const [skillFilter, setSkillFilter] = useState('all');
 
   const { user } = useAppStore();
+  const supabase = createClient();
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     setLoading(true);
-    const supabase = createClient();
-    const { data: h } = await supabase.from('pop_youth_housing').select('*').order('has_openings', { ascending: false });
-    if (h) setHousing(h);
-    const { data: c } = await supabase.from('pop_youth_courses').select('*').order('category');
-    if (c) setCourses(c);
-    const { data: m } = await supabase.from('pop_youth_mentors').select('*').eq('available', true).order('rating', { ascending: false });
-    if (m) setMentors(m);
+    const [housingResult, skillResult, mentorResult] = await Promise.all([
+      supabase.from('youth_housing').select('*').eq('available', true),
+      supabase.from('youth_skills').select('*'),
+      supabase.from('youth_mentors').select('*').eq('available', true),
+    ]);
+    if (housingResult.data) setHousing(housingResult.data);
+    if (skillResult.data) setSkills(skillResult.data);
+    if (mentorResult.data) setMentors(mentorResult.data);
+
     if (user) {
-      const { data: ms } = await supabase.from('pop_youth_milestones').select('*').eq('user_id', user.id);
-      if (ms) setMilestones(ms);
-      const { data: bal } = await supabase.from('pop_youth_balances').select('balance').eq('user_id', user.id).single();
-      if (bal) setMlyBalance(bal.balance);
+      const [networkResult, ubiResult] = await Promise.all([
+        supabase.from('youth_network_contacts').select('*').eq('user_id', user.id),
+        supabase.from('youth_ubi_status').select('*').eq('user_id', user.id).single(),
+      ]);
+      if (networkResult.data) setNetwork(networkResult.data);
+      if (ubiResult.data) setUbiStatus(ubiResult.data);
     }
     setLoading(false);
   }
 
-  async function initMilestones() {
+  async function connectMentor(mentorId: string) {
+    if (!user) { toast.error('Sign in to connect'); return; }
+    const { error } = await supabase.from('youth_mentor_connections').insert({ user_id: user.id, mentor_id: mentorId });
+    if (error) { toast.error('Connection failed — try again'); return; }
+    toast.success('Connection request sent! Your mentor will reach out.');
+  }
+
+  async function addNetworkContact(name: string, phone: string, relationship: string) {
     if (!user) return;
-    const supabase = createClient();
-    const entries = MILESTONE_TEMPLATES.map(m => ({ user_id: user.id, title: m.title, icon: m.icon, completed: false, completed_at: null, mly_reward: m.mly_reward }));
-    await supabase.from('pop_youth_milestones').insert(entries);
-    toast.success('Milestones ready! Earn $MLY as you hit each one. 🎯');
+    const { error } = await supabase.from('youth_network_contacts').insert({
+      user_id: user.id, name, phone, relationship, notify_emergency: true,
+    });
+    if (error) { toast.error('Could not add contact'); return; }
+    toast.success('Contact added to your network!');
     loadData();
   }
 
-  async function completeMilestone(id: string) {
-    const supabase = createClient();
-    await supabase.from('pop_youth_milestones').update({ completed: true, completed_at: new Date().toISOString() }).eq('id', id);
-    const ms = milestones.find(m => m.id === id);
-    if (ms) toast.success(`${ms.icon} +${ms.mly_reward} $MLY! You did it!`);
+  async function completeSkill(skillId: string) {
+    if (!user) return;
+    await supabase.from('youth_skill_completions').insert({ user_id: user.id, skill_id: skillId });
+    const skill = skills.find(s => s.id === skillId);
+    if (skill) toast.success(`+${skill.mly_reward} $MLY earned! Skill unlocked.`);
     loadData();
   }
 
-  async function requestMentor(mentorId: string) {
-    if (!user) { toast.error('Sign in to connect with mentors'); return; }
-    const supabase = createClient();
-    await supabase.from('pop_youth_mentor_requests').insert({ user_id: user.id, mentor_id: mentorId, status: 'pending' });
-    toast.success('Mentor request sent! They\'ll reach out soon. 💪');
-  }
+  const filteredSkills = skills.filter(s => skillFilter === 'all' || s.category.toLowerCase() === skillFilter.toLowerCase());
+  const completedSkills = skills.filter(s => s.completed).length;
 
-  const completedCount = milestones.filter(m => m.completed).length;
+  const Skeleton = () => (
+    <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="card h-20 animate-pulse bg-gray-100 dark:bg-harbor-800 rounded-xl" />)}</div>
+  );
 
   return (
     <div className="space-y-4 animate-slide-up">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-harbor-800 dark:text-white">Youth Forward</h1>
-          <p className="text-xs text-gray-500">Your future is yours to build. We&apos;ve got your back.</p>
-        </div>
-        <div className="card px-3 py-1.5 bg-mly-50 dark:bg-mly-900/20 border border-mly-200 dark:border-mly-800">
-          <p className="text-[10px] text-mly-600">Balance</p>
-          <p className="text-sm font-bold text-mly-700">${mlyBalance} MLY</p>
-        </div>
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiYouth</h1>
+        <p className="text-xs text-gray-500 mt-0.5">For foster youth aging out — you are not alone in this transition.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {(['home', 'housing', 'life-skills', 'mentors', 'emergency'] as YouthTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t === 'life-skills' ? 'Skills' : t}</button>
+      <div className="flex gap-1 overflow-x-auto bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={cn('flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-medium whitespace-nowrap transition-all px-2', tab === t.key ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t.label}</button>
         ))}
       </div>
 
-      {/* Home */}
-      {tab === 'home' && (
+      {/* ─── Start Here ─── */}
+      {tab === 'start' && (
         <div className="space-y-3">
           <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800">
-            <p className="text-sm font-medium text-teal-700 dark:text-teal-400">You&apos;re not alone in this. 💪</p>
-            <p className="text-xs text-teal-600 dark:text-teal-300 mt-1 leading-relaxed">Aging out of care is hard — but thousands have walked this path before you, and they&apos;re here to help. Every skill you learn, every milestone you hit, earns real $MLY you can use.</p>
+            <p className="text-sm font-semibold text-teal-700 dark:text-teal-300">Welcome — You Belong Here</p>
+            <p className="text-xs text-teal-600 dark:text-teal-400 mt-1 leading-relaxed">
+              If you&apos;re 18+ and aging out of foster care, MiYouth is your launchpad. Here you&apos;ll find housing, life skills, real mentors (not counselors), and people who become your chosen family. Everything here is designed for YOUR situation.
+            </p>
           </div>
-
-          {/* Milestone Tracker */}
-          {milestones.length > 0 ? (
-            <div className="card">
-              <div className="flex justify-between items-center mb-2">
-                <p className="text-xs font-medium text-harbor-800 dark:text-white">🎯 My Milestones</p>
-                <span className="text-xs text-mly-600 font-bold">{completedCount}/{milestones.length}</span>
+          {/* UBI Banner */}
+          <div className="card bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
+            <p className="text-sm font-bold text-green-700 dark:text-green-300">💰 Bonus UBI: $20/day for 90 days</p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              As a foster youth member, you automatically receive $20 $MLY daily for your first 90 days. No strings attached — spend it on what you need.
+            </p>
+            {ubiStatus && (
+              <div className="mt-2 pt-2 border-t border-green-200 dark:border-green-800">
+                <div className="flex justify-between text-xs">
+                  <span className="text-green-600">{ubiStatus.days_remaining} days remaining</span>
+                  <span className="font-bold text-green-700">${ubiStatus.total_earned} earned so far</span>
+                </div>
+                <div className="h-2 bg-green-200 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-green-500 rounded-full" style={{ width: `${((90 - ubiStatus.days_remaining) / 90) * 100}%` }} />
+                </div>
               </div>
-              <div className="h-2 bg-gray-100 dark:bg-harbor-800 rounded-full overflow-hidden mb-3">
-                <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${milestones.length > 0 ? (completedCount / milestones.length) * 100 : 0}%` }} />
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {milestones.slice(0, 8).map(ms => (
-                  <div key={ms.id} className={cn('text-center p-2 rounded-lg text-lg', ms.completed ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-harbor-800 opacity-50')}>
-                    {ms.icon}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : user ? (
-            <div className="card text-center py-4">
-              <p className="text-sm text-gray-500">Set up your milestones to start earning $MLY</p>
-              <button onClick={initMilestones} className="btn-teal text-xs mt-2">Get Started</button>
-            </div>
-          ) : null}
-
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {[
               { icon: '🏠', label: 'Find Housing', action: () => setTab('housing') },
-              { icon: '📚', label: 'Learn Skills', action: () => setTab('life-skills') },
-              { icon: '🤝', label: 'Find a Mentor', action: () => setTab('mentors') },
-              { icon: '💼', label: 'Job Help', action: () => { setTab('life-skills'); setSkillFilter('Interviewing'); } },
-              { icon: '💰', label: 'Budgeting 101', action: () => { setTab('life-skills'); setSkillFilter('Budgeting'); } },
-              { icon: '🆘', label: 'I Need Help Now', action: () => setTab('emergency') },
+              { icon: '📚', label: 'Life Skills', action: () => setTab('skills') },
+              { icon: '🤝', label: 'Find Mentor', action: () => setTab('mentors') },
+              { icon: '👥', label: 'Build Network', action: () => setTab('network') },
             ].map(item => (
-              <button key={item.label} onClick={item.action} className="card p-3 text-center hover:shadow-md transition-shadow">
+              <button key={item.label} onClick={item.action} className="card p-4 text-center hover:shadow-md transition-shadow">
                 <p className="text-2xl">{item.icon}</p>
                 <p className="text-xs font-medium text-harbor-800 dark:text-white mt-1">{item.label}</p>
               </button>
             ))}
           </div>
+          <Link href="/vault" className="card flex items-center gap-3 hover:shadow-md transition-shadow">
+            <span className="text-xl">🔐</span>
+            <div>
+              <p className="text-sm font-medium text-harbor-800 dark:text-white">Document Vault</p>
+              <p className="text-xs text-gray-400">Store birth certificate, school records, medical files safely</p>
+            </div>
+          </Link>
         </div>
       )}
 
-      {/* Housing */}
+      {/* ─── Housing ─── */}
       {tab === 'housing' && (
         <div className="space-y-3">
-          <div className="card bg-gray-50 dark:bg-harbor-900/50">
-            <p className="text-xs font-medium text-harbor-800 dark:text-white">🏠 First Apartment Checklist</p>
-            <div className="grid grid-cols-2 gap-1 mt-2 text-[10px] text-gray-500">
-              {['ID & Social Security', 'Pay stubs or offer letter', 'References', 'Security deposit', 'Renter\'s insurance', 'Utilities setup'].map(item => (
-                <span key={item} className="flex items-center gap-1">☐ {item}</span>
-              ))}
+          <div className="card bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800">
+            <p className="text-xs text-purple-700 dark:text-purple-300">Priority housing for foster youth aging out. All roommates are vetted community members.</p>
+          </div>
+          {loading ? <Skeleton /> : housing.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">🏠</p>
+              <p className="text-sm text-gray-500">No listings right now</p>
+              <p className="text-xs text-gray-400 mt-1">New housing options are posted regularly</p>
             </div>
-          </div>
-          {loading ? [1, 2, 3].map(i => <div key={i} className="card skeleton h-24" />) :
-            housing.length === 0 ? (
-              <div className="card text-center py-8">
-                <p className="text-2xl mb-2">🏠</p>
-                <p className="text-sm text-gray-500">Housing options are being added for your area</p>
+          ) : housing.map(h => (
+            <div key={h.id} className="card space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{h.title}</p>
+                {h.roommate_vetted && <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Vetted</span>}
+                <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded capitalize">{h.type}</span>
               </div>
-            ) : housing.map(h => (
-              <div key={h.id} className="card space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-harbor-800 dark:text-white">{h.name}</p>
-                    <p className="text-xs text-gray-500">{h.type} • Ages {h.age_range}</p>
-                  </div>
-                  <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', h.has_openings ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600')}>
-                    {h.has_openings ? 'Open' : 'Waitlist'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">{h.address}</p>
-                <div className="flex flex-wrap gap-2 text-[10px] text-gray-400">
-                  <span>💰 {h.rent_range}/mo</span>
-                  {h.accepts_vouchers && <span className="text-green-600">✓ Vouchers OK</span>}
-                </div>
+              <p className="text-xs text-gray-500">{h.description}</p>
+              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                <span>📍 {h.location}</span>
+                <span className="text-teal-600 font-medium">{h.rent_mly} $MLY/mo</span>
+              </div>
+              {h.amenities?.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {h.amenities.slice(0, 4).map(a => (
-                    <span key={a} className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/20 text-teal-600 rounded">{a}</span>
-                  ))}
+                  {h.amenities.map(a => <span key={a} className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-harbor-800 text-gray-500 rounded">{a}</span>)}
                 </div>
-                <a href={`tel:${h.contact}`} className="btn-teal text-xs inline-block text-center w-full">Contact</a>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {/* Life Skills */}
-      {tab === 'life-skills' && (
-        <div className="space-y-3">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            <button onClick={() => setSkillFilter('All')} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', skillFilter === 'All' ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>All</button>
-            {LIFE_SKILL_CATEGORIES.map(c => (
-              <button key={c} onClick={() => setSkillFilter(c)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', skillFilter === c ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{c}</button>
-            ))}
-          </div>
-          {loading ? [1, 2, 3].map(i => <div key={i} className="card skeleton h-20" />) :
-            courses.filter(c => skillFilter === 'All' || c.category === skillFilter).length === 0 ? (
-              <div className="card text-center py-8"><p className="text-sm text-gray-500">Check back as new courses are added by the community</p></div>
-            ) : courses.filter(c => skillFilter === 'All' || c.category === skillFilter).map(course => (
-              <div key={course.id} className="card flex items-center gap-3">
-                <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center text-sm', course.completed ? 'bg-green-100 text-green-700' : 'bg-teal-100 dark:bg-teal-900/30 text-teal-700')}>
-                  {course.completed ? '✓' : '📚'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium', course.completed ? 'text-gray-400 line-through' : 'text-harbor-800 dark:text-white')}>{course.title}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                    <span>{course.category}</span>
-                    <span>{course.duration_mins} min</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-mly-600 font-bold">+{course.mly_reward}</span>
-                  <Link href={course.link || '/learn'} className="block btn-teal text-[10px] mt-1">{course.completed ? 'Review' : 'Start'}</Link>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {/* Mentors */}
-      {tab === 'mentors' && (
-        <div className="space-y-3">
-          <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800">
-            <p className="text-xs text-teal-600 dark:text-teal-300">Your mentors aged out of foster care too. They&apos;ve been where you are and made it through. They get it.</p>
-          </div>
-          {loading ? [1, 2].map(i => <div key={i} className="card skeleton h-24" />) :
-            mentors.length === 0 ? (
-              <div className="card text-center py-8">
-                <p className="text-2xl mb-2">🤝</p>
-                <p className="text-sm text-gray-500">Mentors are being matched for you</p>
-              </div>
-            ) : mentors.map(mentor => (
-              <div key={mentor.id} className="card flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-sm">{mentor.display_name.charAt(0)}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white">{mentor.display_name}</p>
-                  <p className="text-xs text-gray-500 line-clamp-2">{mentor.bio}</p>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
-                    <span>⭐ {mentor.rating.toFixed(1)}</span>
-                    <span>Aged out {mentor.aged_out_year}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {mentor.specialties.slice(0, 3).map(s => (
-                      <span key={s} className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/20 text-teal-600 rounded">{s}</span>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={() => requestMentor(mentor.id)} className="btn-teal text-xs">Connect</button>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {/* Emergency */}
-      {tab === 'emergency' && (
-        <div className="space-y-3">
-          <div className="card bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
-            <h3 className="text-sm font-bold text-red-700 dark:text-red-400">🆘 You&apos;re Not Alone</h3>
-            <p className="text-xs text-red-600 mt-1">If you&apos;re in crisis, these resources are free, confidential, and available right now.</p>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <button onClick={() => toast.success('Emergency fund application started')} className="card bg-teal-500 text-white text-center py-3 hover:bg-teal-600 transition-colors">
-              <p className="text-sm font-bold">💰 Emergency Funds</p>
-              <p className="text-xs mt-0.5">Apply for immediate financial help</p>
-            </button>
-            <button onClick={() => toast.success('Crisis housing search started')} className="card bg-orange-500 text-white text-center py-3 hover:bg-orange-600 transition-colors">
-              <p className="text-sm font-bold">🏠 Crisis Housing</p>
-              <p className="text-xs mt-0.5">I need a place to stay tonight</p>
-            </button>
-          </div>
-          {[
-            { label: '24/7 Youth Support Line', number: '1-800-786-2929', desc: 'National Runaway Safeline' },
-            { label: 'Crisis Text Line', number: 'Text HOME to 741741', desc: 'Free 24/7 text-based support' },
-            { label: 'Foster Care Ombudsman', number: '1-877-846-1602', desc: 'Know your rights in care' },
-            { label: 'Suicide & Crisis Lifeline', number: '988', desc: '24/7 confidential support' },
-            { label: 'MiLyfe Youth Emergency', number: 'In-app', desc: 'Connect with community NOW' },
-          ].map(item => (
-            <div key={item.label} className="card flex items-center gap-3">
-              <span className="text-xl">📞</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-harbor-800 dark:text-white">{item.label}</p>
-                <p className="text-xs text-gray-500">{item.desc}</p>
-              </div>
-              <a href={`tel:${item.number}`} className="text-xs font-bold text-teal-600">{item.number}</a>
+              )}
             </div>
           ))}
         </div>
       )}
+
+      {/* ─── Skills ─── */}
+      {tab === 'skills' && (
+        <div className="space-y-3">
+          <div className="card bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+            <p className="text-xs text-blue-700 dark:text-blue-300">Fast-track life skills from MiLearn — things nobody taught you but everyone expects you to know.</p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            <button onClick={() => setSkillFilter('all')} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', skillFilter === 'all' ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>All</button>
+            {SKILL_CATEGORIES.map(c => (
+              <button key={c} onClick={() => setSkillFilter(c)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', skillFilter.toLowerCase() === c.toLowerCase() ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{c}</button>
+            ))}
+          </div>
+          {loading ? <Skeleton /> : filteredSkills.length === 0 ? (
+            <div className="card text-center py-8"><p className="text-sm text-gray-500">No skills in this category yet</p></div>
+          ) : filteredSkills.map(skill => (
+            <div key={skill.id} className="card flex items-center gap-3">
+              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-xs', skill.completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 dark:bg-harbor-800 text-gray-500')}>
+                {skill.completed ? '✓' : '📚'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={cn('text-sm', skill.completed ? 'text-gray-400 line-through' : 'text-harbor-800 dark:text-white font-medium')}>{skill.title}</p>
+                <p className="text-[10px] text-gray-400">{skill.category} • {skill.duration_minutes} min</p>
+              </div>
+              {!skill.completed ? (
+                <button onClick={() => completeSkill(skill.id)} className="btn-teal text-xs">Start</button>
+              ) : (
+                <span className="text-xs text-green-600">+{skill.mly_reward}</span>
+              )}
+            </div>
+          ))}
+          <div className="card text-center">
+            <p className="text-xs text-gray-500">{completedSkills}/{skills.length} skills completed</p>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Mentors ─── */}
+      {tab === 'mentors' && (
+        <div className="space-y-3">
+          <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800">
+            <p className="text-xs text-teal-700 dark:text-teal-300">These are real community members — not counselors. People who genuinely want to guide you through this transition.</p>
+          </div>
+          {loading ? <Skeleton /> : mentors.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">🤝</p>
+              <p className="text-sm text-gray-500">Mentor matching in progress</p>
+            </div>
+          ) : mentors.map(mentor => (
+            <div key={mentor.id} className="card flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-sm font-bold text-teal-700">
+                {mentor.display_name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{mentor.display_name}</p>
+                <p className="text-xs text-gray-500 line-clamp-2">{mentor.bio}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {mentor.expertise?.slice(0, 3).map(e => (
+                    <span key={e} className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/20 text-teal-600 rounded">{e}</span>
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => connectMentor(mentor.id)} className="btn-teal text-xs">Connect</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── My Network ─── */}
+      {tab === 'network' && (
+        <div className="space-y-3">
+          <div className="card bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800">
+            <p className="text-sm font-semibold text-purple-700 dark:text-purple-300">Build Your Chosen Family</p>
+            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+              Add 3+ emergency contacts — people who get notified if you need help. These are your people.
+            </p>
+          </div>
+          <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-harbor-800 dark:text-white">Emergency Contacts</p>
+              <span className={cn('text-xs font-bold', network.length >= 3 ? 'text-green-600' : 'text-yellow-600')}>{network.length}/3 minimum</span>
+            </div>
+            {network.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-4">No contacts yet — start building your network</p>
+            ) : network.map(contact => (
+              <div key={contact.id} className="flex items-center gap-3 py-2 border-b border-gray-100 dark:border-harbor-800 last:border-0">
+                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-xs font-bold text-purple-700">
+                  {contact.name.charAt(0)}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-harbor-800 dark:text-white">{contact.name}</p>
+                  <p className="text-[10px] text-gray-400">{contact.relationship} • {contact.phone}</p>
+                </div>
+                {contact.notify_emergency && <span className="text-[10px] text-green-600">🔔 Notified</span>}
+              </div>
+            ))}
+          </div>
+          <Link href="/vault" className="card flex items-center gap-3 hover:shadow-md transition-shadow">
+            <span className="text-xl">📄</span>
+            <div>
+              <p className="text-sm font-medium text-harbor-800 dark:text-white">Document Vault</p>
+              <p className="text-xs text-gray-400">Birth certificate, school records, medical files</p>
+            </div>
+          </Link>
+          <div className="card bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800">
+            <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400">$MLY Integration</p>
+            <p className="text-[10px] text-yellow-600 dark:text-yellow-300 mt-1">Earn $MLY by completing life skills, helping other youth, and maintaining your housing. Your UBI bonus stacks with all other earnings.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency Footer */}
+      <div className="card bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
+        <p className="text-xs font-bold text-red-700 dark:text-red-400">Need Help Now?</p>
+        <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-red-600 dark:text-red-300">
+          <span>Crisis: <strong>988</strong></span>
+          <span>Runaway Safeline: <strong>1-800-786-2929</strong></span>
+          <span>Childhelp: <strong>1-800-422-4453</strong></span>
+        </div>
+      </div>
     </div>
   );
 }

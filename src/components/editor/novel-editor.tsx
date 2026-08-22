@@ -10,6 +10,7 @@ import {
   EditorCommandEmpty,
   EditorCommandList,
   EditorBubble,
+  EditorBubbleItem,
 } from 'novel';
 import { cn } from '@/lib/utils/cn';
 
@@ -181,14 +182,25 @@ export function NovelEditor({
 
 function BubbleButton({ command, label, className }: { command: string; label: string; className?: string }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        'px-2 py-1 rounded text-xs text-harbor-800 dark:text-white hover:bg-gray-100 dark:hover:bg-harbor-800 transition-colors',
-        className
-      )}
+    <EditorBubbleItem
+      onSelect={(editor) => {
+        switch (command) {
+          case 'toggleBold': editor.chain().focus().toggleBold().run(); break;
+          case 'toggleItalic': editor.chain().focus().toggleItalic().run(); break;
+          case 'toggleStrike': editor.chain().focus().toggleStrike().run(); break;
+          case 'toggleCode': editor.chain().focus().toggleCode().run(); break;
+        }
+      }}
     >
-      {label}
-    </button>
+      <button
+        type="button"
+        className={cn(
+          'px-2 py-1 rounded text-xs text-harbor-800 dark:text-white hover:bg-gray-100 dark:hover:bg-harbor-800 transition-colors',
+          className
+        )}
+      >
+        {label}
+      </button>
+    </EditorBubbleItem>
   );
 }

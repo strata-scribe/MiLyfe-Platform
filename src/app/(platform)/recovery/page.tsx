@@ -1,289 +1,376 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
 import { toast } from 'sonner';
 
-interface Meeting { id: string; name: string; type: 'AA' | 'NA' | 'SMART Recovery'; format: 'in-person' | 'virtual'; access: 'open' | 'closed'; location: string; day: string; time: string; }
-interface Sponsor { id: string; display_name: string; recovery_years: number; program: string; bio: string; available: boolean; }
-interface CheckIn { id: string; user_id: string; date: string; cravings: number; mood: string; triggers: string; grateful_for: string; }
-interface UserRecovery { id: string; user_id: string; sobriety_date: string; current_streak: number; longest_streak: number; badges: string[]; }
+/* ─── Types ─── */
+interface CheckInEntry {
+  id: string; user_id: string; date: string; sober: boolean;
+  mood: number; triggers: string[]; notes: string;
+}
+interface Meeting {
+  id: string; name: string; type: string; day: string; time: string;
+  location: string; address: string; format: string; virtual_link: string | null;
+}
+interface Sponsor {
+  id: string; display_name: string; avatar_url: string | null;
+  bio: string; years_sober: number; specialties: string[];
+  available: boolean; program: string;
+}
+interface Resource {
+  id: string; title: string; category: string; description: string;
+  address: string; phone: string; accepts_mly: boolean;
+}
+interface Milestone {
+  id: string; user_id: string; days: number; title: string;
+  reached: boolean; reached_at: string | null; mly_reward: number;
+}
 
-type RecoveryTab = 'home' | 'meetings' | 'sponsors' | 'progress' | 'emergency';
+type Tab = 'checkin' | 'meetings' | 'sponsor' | 'resources' | 'milestones';
 
-const MOODS = ['😊 Great', '🙂 Good', '😐 Okay', '😔 Struggling', '😰 Crisis'];
-const BADGES = [
-  { days: 1, label: '1 Day', icon: '🌱' },
-  { days: 7, label: '1 Week', icon: '🌿' },
-  { days: 30, label: '1 Month', icon: '🌳' },
-  { days: 90, label: '90 Days', icon: '⭐' },
-  { days: 180, label: '6 Months', icon: '🌟' },
-  { days: 365, label: '1 Year', icon: '🏆' },
-  { days: 730, label: '2 Years', icon: '💎' },
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'checkin', label: 'Check-in' },
+  { key: 'meetings', label: 'Meetings' },
+  { key: 'sponsor', label: 'Sponsor' },
+  { key: 'resources', label: 'Resources' },
+  { key: 'milestones', label: 'Milestones' },
 ];
 
+const MOODS = [
+  { value: 1, label: '😟', text: 'Struggling' },
+  { value: 2, label: '😐', text: 'Okay' },
+  { value: 3, label: '🙂', text: 'Good' },
+  { value: 4, label: '😊', text: 'Great' },
+  { value: 5, label: '🌟', text: 'Thriving' },
+];
+
+const COMMON_TRIGGERS = ['Stress', 'Loneliness', 'Boredom', 'Social Pressure', 'Pain', 'Anger', 'Celebration', 'Financial'];
+
+const MILESTONE_DAYS = [
+  { days: 1, title: 'Day 1 — You showed up', mly_reward: 5 },
+  { days: 7, title: '1 Week Strong', mly_reward: 10 },
+  { days: 14, title: '2 Weeks', mly_reward: 15 },
+  { days: 30, title: '30 Days — One month!', mly_reward: 30 },
+  { days: 60, title: '60 Days', mly_reward: 40 },
+  { days: 90, title: '90 Days — Quarter year!', mly_reward: 75 },
+  { days: 180, title: '6 Months — Half year!', mly_reward: 100 },
+  { days: 365, title: '1 Year — Incredible!', mly_reward: 200 },
+  { days: 730, title: '2 Years', mly_reward: 300 },
+  { days: 1825, title: '5 Years — Legend', mly_reward: 500 },
+];
+
+/* ─── Component ─── */
 export default function RecoveryPage() {
-  const [tab, setTab] = useState<RecoveryTab>('home');
+  const [tab, setTab] = useState<Tab>('checkin');
+  const [checkIns, setCheckIns] = useState<CheckInEntry[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
-  const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
-  const [recovery, setRecovery] = useState<UserRecovery | null>(null);
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
-  const [meetingFilter, setMeetingFilter] = useState<string>('All');
-  const [checkInForm, setCheckInForm] = useState({ cravings: 5, mood: '', triggers: '', grateful_for: '' });
+  const [todayMood, setTodayMood] = useState(3);
+  const [todayTriggers, setTodayTriggers] = useState<string[]>([]);
+  const [todayNotes, setTodayNotes] = useState('');
+  const [meetingFilter, setMeetingFilter] = useState('all');
 
   const { user } = useAppStore();
+  const supabase = createClient();
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     setLoading(true);
-    const supabase = createClient();
-    const { data: mt } = await supabase.from('pop_recovery_meetings').select('*').order('day');
-    if (mt) setMeetings(mt);
-    const { data: sp } = await supabase.from('pop_recovery_sponsors').select('*').eq('available', true);
-    if (sp) setSponsors(sp);
+    const [meetResult, sponsorResult, resResult] = await Promise.all([
+      supabase.from('recovery_meetings').select('*').order('day'),
+      supabase.from('recovery_sponsors').select('*').eq('available', true),
+      supabase.from('recovery_resources').select('*'),
+    ]);
+    if (meetResult.data) setMeetings(meetResult.data);
+    if (sponsorResult.data) setSponsors(sponsorResult.data);
+    if (resResult.data) setResources(resResult.data);
+
     if (user) {
-      const { data: rc } = await supabase.from('pop_recovery_users').select('*').eq('user_id', user.id).single();
-      if (rc) setRecovery(rc);
-      const { data: ci } = await supabase.from('pop_recovery_checkins').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30);
-      if (ci) setCheckIns(ci);
+      const [checkResult, msResult] = await Promise.all([
+        supabase.from('recovery_checkins').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
+        supabase.from('recovery_milestones').select('*').eq('user_id', user.id),
+      ]);
+      if (checkResult.data) setCheckIns(checkResult.data);
+      if (msResult.data) setMilestones(msResult.data);
     }
     setLoading(false);
   }
 
   async function submitCheckIn() {
+    if (!user) { toast.error('Sign in to check in'); return; }
+    const { error } = await supabase.from('recovery_checkins').insert({
+      user_id: user.id, date: new Date().toISOString().split('T')[0], sober: true,
+      mood: todayMood, triggers: todayTriggers, notes: todayNotes,
+    });
+    if (error) { toast.error('Check-in failed'); return; }
+    toast.success(`Day ${streakDays + 1} — You are doing this!`);
+    setTodayNotes('');
+    setTodayTriggers([]);
+    loadData();
+  }
+
+  async function reportRelapse() {
     if (!user) return;
-    const supabase = createClient();
-    const { error } = await supabase.from('pop_recovery_checkins').insert({ user_id: user.id, date: new Date().toISOString().split('T')[0], ...checkInForm });
-    if (error) { toast.error('Could not save check-in'); return; }
-    toast.success('Check-in saved. You\u2019re doing the work. 💪');
-    setCheckInForm({ cravings: 5, mood: '', triggers: '', grateful_for: '' });
+    await supabase.from('recovery_checkins').insert({
+      user_id: user.id, date: new Date().toISOString().split('T')[0], sober: false,
+      mood: todayMood, triggers: todayTriggers, notes: todayNotes,
+    });
+    toast('No judgment. Your support network has been notified. You can start again right now.', { duration: 6000 });
     loadData();
   }
 
   async function connectSponsor(sponsorId: string) {
+    if (!user) { toast.error('Sign in to connect'); return; }
+    const { error } = await supabase.from('recovery_sponsor_connections').insert({ user_id: user.id, sponsor_id: sponsorId });
+    if (error) { toast.error('Connection failed'); return; }
+    toast.success('Sponsor request sent! They will reach out soon.');
+  }
+
+  async function initMilestones() {
     if (!user) return;
-    const supabase = createClient();
-    await supabase.from('pop_recovery_connections').insert({ user_id: user.id, sponsor_id: sponsorId, status: 'pending' });
-    toast.success('Connection request sent anonymously');
+    const entries = MILESTONE_DAYS.map(m => ({ user_id: user.id, days: m.days, title: m.title, reached: false, reached_at: null, mly_reward: m.mly_reward }));
+    await supabase.from('recovery_milestones').insert(entries);
+    toast.success('Milestones activated! Earn $MLY at each one.');
+    loadData();
   }
 
-  function getSobrietyDisplay() {
-    if (!recovery?.sobriety_date) return null;
-    const start = new Date(recovery.sobriety_date);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const years = Math.floor(days / 365);
-    const months = Math.floor((days % 365) / 30);
-    const remainDays = days - (years * 365) - (months * 30);
-    return { days, years, months, remainDays };
-  }
+  const streakDays = checkIns.filter(c => c.sober).length;
+  const todayCheckedIn = checkIns.some(c => c.date === new Date().toISOString().split('T')[0]);
+  const reachedMilestones = milestones.filter(m => m.reached).length;
+  const totalMLY = milestones.filter(m => m.reached).reduce((s, m) => s + m.mly_reward, 0);
 
-  const sobriety = getSobrietyDisplay();
+  const filteredMeetings = meetings.filter(m => meetingFilter === 'all' || m.type.toLowerCase() === meetingFilter);
+
+  const Skeleton = () => (
+    <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="card h-20 animate-pulse bg-gray-100 dark:bg-harbor-800 rounded-xl" />)}</div>
+  );
 
   return (
     <div className="space-y-4 animate-slide-up">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">Recovery Support</h1>
-        <p className="text-xs text-gray-500">One day at a time. You are not alone.</p>
+        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiRecovery</h1>
+        <p className="text-xs text-gray-500 mt-0.5">One day at a time. Your community walks with you.</p>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {(['home', 'meetings', 'sponsors', 'progress', 'emergency'] as RecoveryTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t}</button>
+      {/* Streak Badge */}
+      {streakDays > 0 && (
+        <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800 text-center">
+          <p className="text-3xl font-bold text-teal-600">{streakDays}</p>
+          <p className="text-xs text-teal-700 dark:text-teal-300">days strong</p>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 overflow-x-auto bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={cn('flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-medium whitespace-nowrap transition-all px-2', tab === t.key ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t.label}</button>
         ))}
       </div>
 
-      {tab === 'home' && (
+      {/* ─── Check-in ─── */}
+      {tab === 'checkin' && (
         <div className="space-y-3">
-          <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800">
-            <p className="text-sm font-medium text-teal-700 dark:text-teal-400">Recovery is courage, not weakness.</p>
-            <p className="text-xs text-teal-600 dark:text-teal-300 mt-1 leading-relaxed">This is a judgment-free space. Whether it&apos;s day one or year ten, every step forward matters. Your journey is valid.</p>
-          </div>
-          {sobriety && (
-            <div className="card text-center">
-              <p className="text-xs text-gray-500 mb-2">Your Sobriety</p>
-              <div className="flex justify-center gap-4">
-                {sobriety.years > 0 && <div><p className="text-2xl font-bold text-teal-600">{sobriety.years}</p><p className="text-[10px] text-gray-400">years</p></div>}
-                {sobriety.months > 0 && <div><p className="text-2xl font-bold text-teal-600">{sobriety.months}</p><p className="text-[10px] text-gray-400">months</p></div>}
-                <div><p className="text-2xl font-bold text-teal-600">{sobriety.remainDays}</p><p className="text-[10px] text-gray-400">days</p></div>
-              </div>
-              <p className="text-xs text-mly-600 font-medium mt-2">{sobriety.days} total days 🎉</p>
+          {todayCheckedIn ? (
+            <div className="card text-center py-6 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
+              <p className="text-2xl mb-1">✓</p>
+              <p className="text-sm font-bold text-green-700 dark:text-green-300">Checked in today</p>
+              <p className="text-xs text-green-600 mt-1">Come back tomorrow. You are doing amazing.</p>
             </div>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { icon: '📅', label: 'Find a Meeting', action: () => setTab('meetings') },
-              { icon: '🤝', label: 'Find a Sponsor', action: () => setTab('sponsors') },
-              { icon: '📝', label: 'Daily Check-In', action: () => setTab('progress') },
-              { icon: '🆘', label: 'I Need Help Now', action: () => setTab('emergency') },
-            ].map(item => (
-              <button key={item.label} onClick={item.action} className="card p-3 text-center hover:shadow-md transition-shadow">
-                <p className="text-2xl">{item.icon}</p>
-                <p className="text-xs font-medium text-harbor-800 dark:text-white mt-1">{item.label}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {tab === 'meetings' && (
-        <div className="space-y-3">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {['All', 'AA', 'NA', 'SMART Recovery'].map(f => (
-              <button key={f} onClick={() => setMeetingFilter(f)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', meetingFilter === f ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{f}</button>
-            ))}
-          </div>
-          {loading ? [1, 2, 3].map(i => <div key={i} className="card skeleton h-20" />) :
-            meetings.filter(m => meetingFilter === 'All' || m.type === meetingFilter).map(meeting => (
-              <div key={meeting.id} className="card space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white">{meeting.name}</p>
-                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded', meeting.format === 'virtual' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700')}>{meeting.format}</span>
-                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded', meeting.access === 'open' ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-600')}>{meeting.access}</span>
-                </div>
-                <p className="text-xs text-gray-500">{meeting.type}</p>
-                <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                  <span>📍 {meeting.location}</span>
-                  <span>🕐 {meeting.day} {meeting.time}</span>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {tab === 'sponsors' && (
-        <div className="space-y-3">
-          <div className="card bg-harbor-50 dark:bg-harbor-900/50 border border-harbor-200 dark:border-harbor-700">
-            <p className="text-xs text-harbor-600 dark:text-harbor-300">Sponsors are peers with 2+ years of recovery who volunteer their time. All connections are anonymous until you choose to reveal yourself.</p>
-          </div>
-          {loading ? [1, 2].map(i => <div key={i} className="card skeleton h-24" />) :
-            sponsors.map(sponsor => (
-              <div key={sponsor.id} className="card flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-sm">{sponsor.display_name.charAt(0)}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white">{sponsor.display_name}</p>
-                  <p className="text-xs text-gray-500 line-clamp-2">{sponsor.bio}</p>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
-                    <span>{sponsor.recovery_years} years in recovery</span>
-                    <span>• {sponsor.program}</span>
-                  </div>
-                </div>
-                <button onClick={() => connectSponsor(sponsor.id)} className="btn-teal text-xs">Connect</button>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {tab === 'progress' && (
-        <div className="space-y-3">
-          <div className="card">
-            <p className="text-sm font-medium text-harbor-800 dark:text-white mb-3">Daily Check-In</p>
-            <div className="space-y-3">
+          ) : (
+            <div className="card space-y-4">
+              <p className="text-sm font-bold text-harbor-800 dark:text-white">Daily Check-in</p>
+              {/* Mood */}
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Cravings today (1-10)</label>
-                <input type="range" min="1" max="10" value={checkInForm.cravings} onChange={e => setCheckInForm(f => ({ ...f, cravings: Number(e.target.value) }))} className="w-full accent-teal-500" />
-                <div className="flex justify-between text-[10px] text-gray-400"><span>Minimal</span><span className="font-bold text-harbor-700 dark:text-white">{checkInForm.cravings}</span><span>Intense</span></div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">How are you feeling?</label>
-                <div className="flex gap-1 flex-wrap">
-                  {MOODS.map(m => (
-                    <button key={m} onClick={() => setCheckInForm(f => ({ ...f, mood: m }))} className={cn('px-2 py-1 rounded-full text-xs', checkInForm.mood === m ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{m}</button>
+                <p className="text-xs text-gray-500 mb-2">How are you feeling?</p>
+                <div className="flex gap-2 justify-between">
+                  {MOODS.map(mood => (
+                    <button key={mood.value} onClick={() => setTodayMood(mood.value)} className={cn('flex-1 py-2 rounded-lg text-center transition-all', todayMood === mood.value ? 'bg-teal-100 dark:bg-teal-900/30 ring-2 ring-teal-500' : 'bg-gray-50 dark:bg-harbor-800')}>
+                      <p className="text-xl">{mood.label}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">{mood.text}</p>
+                    </button>
                   ))}
                 </div>
               </div>
+              {/* Triggers */}
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Triggers today</label>
-                <input value={checkInForm.triggers} onChange={e => setCheckInForm(f => ({ ...f, triggers: e.target.value }))} className="input-field" placeholder="What challenged you today?" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Grateful for</label>
-                <input value={checkInForm.grateful_for} onChange={e => setCheckInForm(f => ({ ...f, grateful_for: e.target.value }))} className="input-field" placeholder="One thing you're grateful for..." />
-              </div>
-              <button onClick={submitCheckIn} className="btn-teal w-full text-sm">Save Check-In</button>
-            </div>
-          </div>
-          {recovery && (
-            <div className="card">
-              <p className="text-sm font-medium text-harbor-800 dark:text-white mb-2">Milestone Badges</p>
-              <div className="grid grid-cols-4 gap-2">
-                {BADGES.map(b => {
-                  const earned = (sobriety?.days || 0) >= b.days;
-                  return (
-                    <div key={b.days} className={cn('text-center p-2 rounded-lg', earned ? 'bg-teal-50 dark:bg-teal-900/20' : 'bg-gray-50 dark:bg-harbor-800 opacity-40')}>
-                      <p className="text-xl">{b.icon}</p>
-                      <p className="text-[10px] text-gray-500 mt-1">{b.label}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {checkIns.length > 0 && (
-            <div className="card">
-              <p className="text-sm font-medium text-harbor-800 dark:text-white mb-2">Recent Check-Ins</p>
-              {checkIns.slice(0, 5).map(ci => (
-                <div key={ci.id} className="flex items-center gap-2 py-2 border-b border-gray-100 dark:border-harbor-800 last:border-0">
-                  <span className="text-xs text-gray-400 w-16">{ci.date}</span>
-                  <span className="text-xs">{ci.mood}</span>
-                  <span className="text-[10px] text-gray-400 ml-auto">Cravings: {ci.cravings}/10</span>
+                <p className="text-xs text-gray-500 mb-2">Any triggers today?</p>
+                <div className="flex flex-wrap gap-2">
+                  {COMMON_TRIGGERS.map(trigger => (
+                    <button key={trigger} onClick={() => setTodayTriggers(prev => prev.includes(trigger) ? prev.filter(t => t !== trigger) : [...prev, trigger])} className={cn('px-3 py-1 rounded-full text-xs', todayTriggers.includes(trigger) ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-300' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{trigger}</button>
+                  ))}
                 </div>
-              ))}
+              </div>
+              {/* Notes */}
+              <textarea value={todayNotes} onChange={e => setTodayNotes(e.target.value)} placeholder="Anything else on your mind (optional)..." className="input-field w-full" rows={2} />
+              {/* Submit */}
+              <div className="flex gap-2">
+                <button onClick={submitCheckIn} className="btn-teal flex-1 py-3">I&apos;m Sober Today ✓</button>
+              </div>
+              <button onClick={reportRelapse} className="w-full text-center text-xs text-gray-400 hover:text-gray-600 py-2">
+                I need to reset my streak (no judgment)
+              </button>
             </div>
           )}
+          {/* 24/7 Peer Support */}
+          <div className="card bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+            <p className="text-xs text-blue-700 dark:text-blue-300">💬 24/7 Peer Support available — text RECOVERY in the MiLyfe chat anytime.</p>
+          </div>
         </div>
       )}
 
-      {tab === 'emergency' && (
+      {/* ─── Meetings ─── */}
+      {tab === 'meetings' && (
         <div className="space-y-3">
-          <div className="card bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
-            <h3 className="text-sm font-bold text-red-700 dark:text-red-400">🆘 You Are Not Alone</h3>
-            <p className="text-xs text-red-600 mt-1">A relapse is not a failure — it&apos;s a moment. Reach out now.</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {['all', 'aa', 'na', 'smart', 'refuge'].map(type => (
+              <button key={type} onClick={() => setMeetingFilter(type)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap uppercase', meetingFilter === type ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{type === 'all' ? 'All' : type}</button>
+            ))}
           </div>
-          {[
-            { label: 'SAMHSA National Helpline', number: '1-800-662-4357', desc: 'Free, confidential, 24/7 treatment referral' },
-            { label: 'Crisis Text Line', number: 'Text HOME to 741741', desc: 'Free crisis counseling via text' },
-            { label: 'Suicide & Crisis Lifeline', number: '988', desc: 'Immediate emotional support' },
-            { label: 'Peer Support (MiLyfe)', number: 'In-app', desc: 'Connect with a recovery peer now' },
-          ].map(item => (
-            <div key={item.label} className="card flex items-center gap-3">
-              <span className="text-xl">📞</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-harbor-800 dark:text-white">{item.label}</p>
-                <p className="text-xs text-gray-500">{item.desc}</p>
+          {loading ? <Skeleton /> : filteredMeetings.length === 0 ? (
+            <div className="card text-center py-8"><p className="text-sm text-gray-500">No meetings found for this filter</p></div>
+          ) : filteredMeetings.map(meeting => (
+            <div key={meeting.id} className="card space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{meeting.name}</p>
+                <span className="text-[10px] px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded uppercase">{meeting.type}</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded capitalize">{meeting.format}</span>
               </div>
-              <a href={`tel:${item.number.replace(/\D/g, '')}`} className="text-xs font-bold text-teal-600">{item.number}</a>
+              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                <span>📅 {meeting.day} at {meeting.time}</span>
+                <span>📍 {meeting.location}</span>
+              </div>
+              {meeting.virtual_link && <a href={meeting.virtual_link} className="text-xs text-teal-600 hover:underline">Join Virtual →</a>}
             </div>
           ))}
-          <div className="card">
-            <p className="text-sm font-medium text-harbor-800 dark:text-white mb-2">My Relapse Prevention Plan</p>
-            <ul className="space-y-1.5 text-xs text-gray-600 dark:text-gray-300">
-              <li className="flex items-start gap-2"><span className="text-teal-500">1.</span> Recognize my triggers</li>
-              <li className="flex items-start gap-2"><span className="text-teal-500">2.</span> Call my sponsor or support person</li>
-              <li className="flex items-start gap-2"><span className="text-teal-500">3.</span> Go to a safe place</li>
-              <li className="flex items-start gap-2"><span className="text-teal-500">4.</span> Attend a meeting (virtual options available 24/7)</li>
-              <li className="flex items-start gap-2"><span className="text-teal-500">5.</span> Remember: progress isn&apos;t erased by a setback</li>
-            </ul>
+          <Link href="/map" className="card flex items-center gap-3 hover:shadow-md transition-shadow">
+            <span className="text-xl">🗺️</span>
+            <div>
+              <p className="text-sm font-medium text-harbor-800 dark:text-white">View on MiNav Map</p>
+              <p className="text-xs text-gray-400">See all meetings near you</p>
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* ─── Sponsor ─── */}
+      {tab === 'sponsor' && (
+        <div className="space-y-3">
+          <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800">
+            <p className="text-xs text-teal-700 dark:text-teal-300">Sponsors are community members in long-term recovery who volunteer to walk this path with you. Not therapists — real people who understand.</p>
           </div>
-          <div className="card bg-teal-50 dark:bg-teal-900/10">
-            <p className="text-xs text-teal-700 dark:text-teal-300 text-center font-medium">Safe Places Near You</p>
-            <div className="mt-2 space-y-1">
-              {['Community Recovery Center', 'MiLyfe Partner Coffee Shop', '24-Hour Meeting Hall'].map(p => (
-                <div key={p} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                  <span>📍</span><span>{p}</span>
+          {loading ? <Skeleton /> : sponsors.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">🤝</p>
+              <p className="text-sm text-gray-500">Sponsors are being matched</p>
+            </div>
+          ) : sponsors.map(sponsor => (
+            <div key={sponsor.id} className="card flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-sm font-bold text-teal-700">
+                {sponsor.display_name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{sponsor.display_name}</p>
+                <p className="text-xs text-gray-500 line-clamp-2">{sponsor.bio}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{sponsor.years_sober}+ years in recovery • {sponsor.program}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {sponsor.specialties?.slice(0, 3).map(s => (
+                    <span key={s} className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/20 text-teal-600 rounded">{s}</span>
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => connectSponsor(sponsor.id)} className="btn-teal text-xs">Connect</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── Resources ─── */}
+      {tab === 'resources' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { icon: '💊', label: 'Naloxone Locations', desc: 'Free Narcan near you' },
+              { icon: '🏥', label: 'MAT Providers', desc: 'Medication-assisted treatment' },
+              { icon: '🧠', label: 'Counseling', desc: 'Covered by health pool' },
+              { icon: '🛡️', label: 'Harm Reduction', desc: 'Safe use supplies & education' },
+            ].map(item => (
+              <div key={item.label} className="card text-center p-3">
+                <p className="text-xl">{item.icon}</p>
+                <p className="text-xs font-medium text-harbor-800 dark:text-white mt-1">{item.label}</p>
+                <p className="text-[10px] text-gray-400">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          {loading ? <Skeleton /> : resources.map(res => (
+            <div key={res.id} className="card space-y-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{res.title}</p>
+                {res.accepts_mly && <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">$MLY</span>}
+              </div>
+              <p className="text-xs text-gray-500">{res.description}</p>
+              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                {res.address && <span>📍 {res.address}</span>}
+                {res.phone && <span>📞 {res.phone}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── Milestones ─── */}
+      {tab === 'milestones' && (
+        <div className="space-y-3">
+          {milestones.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">🎯</p>
+              <p className="text-sm font-medium text-harbor-800 dark:text-white">Sobriety Milestones</p>
+              <p className="text-xs text-gray-500 mt-1">Celebrate every milestone — earn $MLY at each one</p>
+              {user && <button onClick={initMilestones} className="btn-teal text-xs mt-4">Activate Milestones</button>}
+            </div>
+          ) : (
+            <>
+              <div className="card text-center">
+                <p className="text-xs text-gray-500">{reachedMilestones}/{milestones.length} milestones reached • ${totalMLY} $MLY earned</p>
+              </div>
+              {milestones.map(ms => (
+                <div key={ms.id} className="card flex items-center gap-3">
+                  <span className={cn('w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold', ms.reached ? 'bg-green-100 text-green-700' : streakDays >= ms.days ? 'bg-teal-100 text-teal-700 animate-pulse' : 'bg-gray-100 dark:bg-harbor-800 text-gray-400')}>
+                    {ms.reached ? '✓' : ms.days}
+                  </span>
+                  <div className="flex-1">
+                    <p className={cn('text-sm', ms.reached ? 'text-green-600 font-medium' : 'text-harbor-800 dark:text-white')}>{ms.title}</p>
+                    {ms.reached_at && <p className="text-[10px] text-gray-400">{new Date(ms.reached_at).toLocaleDateString()}</p>}
+                  </div>
+                  <span className="text-xs text-teal-600 font-bold">+{ms.mly_reward}</span>
                 </div>
               ))}
-            </div>
+            </>
+          )}
+          <div className="card bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800">
+            <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400">$MLY Integration</p>
+            <p className="text-[10px] text-yellow-600 dark:text-yellow-300 mt-1">Earn $MLY at every sobriety milestone. Relapse does not take away earned tokens. Every day is a new chance.</p>
           </div>
         </div>
       )}
+
+      {/* Emergency Footer */}
+      <div className="card bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
+        <p className="text-xs font-bold text-red-700 dark:text-red-400">Crisis Support</p>
+        <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-red-600 dark:text-red-300">
+          <span>SAMHSA: <strong>1-800-662-4357</strong></span>
+          <span>Crisis: <strong>988</strong></span>
+          <span>Text: <strong>HOME to 741741</strong></span>
+        </div>
+      </div>
     </div>
   );
 }

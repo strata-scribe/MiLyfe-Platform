@@ -6,111 +6,84 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id: string;
   display_name: string;
-  avatar_url: string | null;
   bio: string | null;
-  city: string;
-  neighborhood: string | null;
+  avatar_url: string | null;
+  standing_level: number;
   mly_balance: number;
-  standing_score: number;
+  neighborhood: string | null;
   joined_at: string;
-  followers_count: number;
-  following_count: number;
-  post_count: number;
   badges: string[];
 }
 
-interface Post {
+interface UserPost {
   id: string;
-  user_id: string;
   content: string;
-  image_url: string | null;
+  media_url: string | null;
   likes: number;
-  comment_count: number;
-  type: 'text' | 'image' | 'poll' | 'event';
+  comments_count: number;
   created_at: string;
 }
 
-interface Badge {
+interface MutualConnection {
   id: string;
-  name: string;
-  icon: string;
-  description: string;
-  earned_at: string;
+  display_name: string;
+  avatar_url: string | null;
 }
-
-type ProfileTab = 'posts' | 'badges' | 'activity';
 
 export default function UserProfilePage() {
   const params = useParams();
   const userId = params.id as string;
-
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [badges, setBadges] = useState<Badge[]>([]);
+  const [posts, setPosts] = useState<UserPost[]>([]);
+  const [mutuals, setMutuals] = useState<MutualConnection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<ProfileTab>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
-
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<'posts' | 'about'>('posts');
   const { user } = useAppStore();
-  const isOwnProfile = user?.id === userId;
+  const supabase = createClient();
 
   useEffect(() => { loadProfile(); }, [userId]);
 
   async function loadProfile() {
     setLoading(true);
-    const supabase = createClient();
-
-    const { data: p } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    const { data: p } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (p) setProfile(p as any);
 
-    const { data: posts } = await supabase
-      .from('social_posts')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(20);
-    if (posts) setPosts(posts);
+    const { data: userPosts } = await supabase.from('social_posts').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20);
+    if (userPosts) setPosts(userPosts as any);
 
-    const { data: b } = await supabase
-      .from('user_badges')
-      .select('*')
-      .eq('user_id', userId)
-      .order('earned_at', { ascending: false });
-    if (b) setBadges(b);
+    const { count: followers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId);
+    const { count: following } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId);
+    setFollowerCount(followers || 0);
+    setFollowingCount(following || 0);
 
-    // Check follow status
-    if (user && user.id !== userId) {
-      const { data: follow } = await supabase
-        .from('follows')
-        .select('id')
-        .eq('follower_id', user.id)
-        .eq('following_id', userId)
-        .single();
-      setIsFollowing(!!follow);
+    if (user) {
+      const { data: follow } = await supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', userId).single();
+      if (follow) setIsFollowing(true);
     }
-
     setLoading(false);
   }
 
   async function toggleFollow() {
-    if (!user || !profile) return;
-    const supabase = createClient();
+    if (!user) return;
     if (isFollowing) {
       await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', userId);
-      setProfile({ ...profile, followers_count: profile.followers_count - 1 });
+      setIsFollowing(false);
+      setFollowerCount(c => c - 1);
+      toast.success('Unfollowed');
     } else {
       await supabase.from('follows').insert({ follower_id: user.id, following_id: userId });
-      setProfile({ ...profile, followers_count: profile.followers_count + 1 });
+      setIsFollowing(true);
+      setFollowerCount(c => c + 1);
+      toast.success('Following!');
     }
-    setIsFollowing(!isFollowing);
   }
 
   function timeAgo(date: string) {
@@ -120,153 +93,79 @@ export default function UserProfilePage() {
     return `${Math.floor(s / 86400)}d`;
   }
 
-  function standingLabel(score: number): { label: string; color: string } {
-    if (score >= 90) return { label: 'Pillar', color: 'text-green-600' };
-    if (score >= 70) return { label: 'Good', color: 'text-teal-600' };
-    if (score >= 50) return { label: 'Neutral', color: 'text-gray-600' };
-    return { label: 'Low', color: 'text-red-600' };
-  }
+  if (loading) return <div className="space-y-4 animate-slide-up"><div className="skeleton h-32 rounded-xl" /><div className="skeleton h-48 rounded-xl" /></div>;
 
-  if (loading) {
-    return (
-      <div className="space-y-4 animate-slide-up">
-        <div className="card skeleton h-48" />
-        <div className="card skeleton h-32" />
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="space-y-4 animate-slide-up">
-        <Link href="/social" className="text-gray-400 hover:text-gray-600 text-sm">← Back</Link>
-        <div className="card text-center py-8">
-          <p className="text-sm text-gray-500">User not found</p>
-        </div>
-      </div>
-    );
-  }
-
-  const standing = standingLabel(profile.standing_score || 75);
+  if (!profile) return (
+    <div className="space-y-4 animate-slide-up">
+      <Link href="/social" className="text-gray-400 text-sm">← Back</Link>
+      <div className="card text-center py-8"><p className="text-gray-500">User not found</p></div>
+    </div>
+  );
 
   return (
     <div className="space-y-4 animate-slide-up">
-      <Link href="/social" className="text-gray-400 hover:text-gray-600 text-sm">← Back</Link>
+      <Link href="/social" className="text-gray-400 text-sm">← Back to Social</Link>
 
       {/* Profile Header */}
-      <div className="card text-center space-y-3">
-        {/* Avatar */}
-        <div className="w-20 h-20 rounded-full bg-teal-100 dark:bg-teal-900/30 mx-auto flex items-center justify-center">
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-          ) : (
-            <span className="text-3xl">{profile.display_name.charAt(0)}</span>
-          )}
+      <div className="card text-center py-6">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-400 to-harbor-600 mx-auto flex items-center justify-center text-3xl text-white">
+          {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" /> : profile.display_name?.charAt(0)}
         </div>
-
-        <div>
-          <h1 className="text-lg font-bold text-harbor-800 dark:text-white">{profile.display_name}</h1>
-          <p className="text-xs text-gray-500">📍 {profile.neighborhood || profile.city}</p>
-          <p className={cn('text-xs font-medium mt-1', standing.color)}>⭐ {standing.label} Standing</p>
+        <h1 className="text-lg font-bold text-harbor-800 dark:text-white mt-3">{profile.display_name}</h1>
+        {profile.bio && <p className="text-sm text-gray-500 mt-1 max-w-xs mx-auto">{profile.bio}</p>}
+        <div className="flex items-center justify-center gap-2 mt-2 text-xs text-gray-400">
+          <span>⭐ Level {profile.standing_level}</span>
+          {profile.neighborhood && <><span>·</span><span>📍 {profile.neighborhood}</span></>}
         </div>
-
-        {profile.bio && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 max-w-sm mx-auto">{profile.bio}</p>
-        )}
 
         {/* Stats */}
-        <div className="flex justify-center gap-6">
-          <div className="text-center">
-            <p className="text-sm font-bold text-harbor-800 dark:text-white">{profile.post_count || posts.length}</p>
-            <p className="text-[10px] text-gray-500">Posts</p>
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-bold text-harbor-800 dark:text-white">{profile.followers_count || 0}</p>
-            <p className="text-[10px] text-gray-500">Followers</p>
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-bold text-harbor-800 dark:text-white">{profile.following_count || 0}</p>
-            <p className="text-[10px] text-gray-500">Following</p>
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-bold text-mly-600">${profile.mly_balance?.toFixed(0)}</p>
-            <p className="text-[10px] text-gray-500">MLY</p>
-          </div>
+        <div className="flex justify-center gap-6 mt-4">
+          <div className="text-center"><p className="text-lg font-bold text-harbor-800 dark:text-white">{posts.length}</p><p className="text-[10px] text-gray-400">Posts</p></div>
+          <div className="text-center"><p className="text-lg font-bold text-harbor-800 dark:text-white">{followerCount}</p><p className="text-[10px] text-gray-400">Followers</p></div>
+          <div className="text-center"><p className="text-lg font-bold text-harbor-800 dark:text-white">{followingCount}</p><p className="text-[10px] text-gray-400">Following</p></div>
         </div>
 
         {/* Actions */}
-        {!isOwnProfile && user && (
-          <div className="flex gap-2 justify-center">
-            <button onClick={toggleFollow} className={cn('px-6 py-2 rounded-lg text-xs font-medium transition-all', isFollowing ? 'bg-gray-100 dark:bg-harbor-800 text-gray-600' : 'bg-teal-500 text-white')}>
+        {user && user.id !== userId && (
+          <div className="flex justify-center gap-2 mt-4">
+            <button onClick={toggleFollow} className={cn('px-6 py-2 rounded-lg text-sm font-medium', isFollowing ? 'bg-gray-100 dark:bg-harbor-800 text-gray-600' : 'btn-teal')}>
               {isFollowing ? 'Following' : 'Follow'}
             </button>
-            <Link href="/connect" className="px-6 py-2 rounded-lg text-xs font-medium bg-gray-100 dark:bg-harbor-800 text-gray-600">Message</Link>
+            <Link href={`/connect?user=${userId}`} className="px-6 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-harbor-800 text-gray-600">Message</Link>
           </div>
         )}
-
-        {/* Member since */}
-        <p className="text-[10px] text-gray-400">Member since {new Date(profile.joined_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}</p>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {(['posts', 'badges', 'activity'] as ProfileTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t} {t === 'badges' ? `(${badges.length})` : ''}</button>
-        ))}
+        <button onClick={() => setActiveTab('posts')} className={cn('flex-1 py-2 rounded-lg text-sm font-medium', activeTab === 'posts' ? 'bg-white dark:bg-harbor-800 shadow-sm text-harbor-800 dark:text-white' : 'text-gray-500')}>Posts</button>
+        <button onClick={() => setActiveTab('about')} className={cn('flex-1 py-2 rounded-lg text-sm font-medium', activeTab === 'about' ? 'bg-white dark:bg-harbor-800 shadow-sm text-harbor-800 dark:text-white' : 'text-gray-500')}>About</button>
       </div>
 
-      {/* Posts */}
-      {tab === 'posts' && (
-        <div className="space-y-3">
-          {posts.length === 0 ? (
-            <div className="card text-center py-8">
-              <p className="text-sm text-gray-500">No posts yet</p>
+      {activeTab === 'posts' && (
+        posts.length === 0 ? (
+          <div className="card text-center py-8"><p className="text-gray-500 text-sm">No posts yet</p></div>
+        ) : posts.map(post => (
+          <div key={post.id} className="card">
+            <p className="text-sm text-gray-700 dark:text-gray-300">{post.content}</p>
+            {post.media_url && <img src={post.media_url} alt="" className="mt-2 rounded-lg max-h-64 object-cover w-full" />}
+            <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+              <span>❤️ {post.likes}</span>
+              <span>💬 {post.comments_count}</span>
+              <span className="ml-auto">{timeAgo(post.created_at)}</span>
             </div>
-          ) : posts.map(post => (
-            <div key={post.id} className="card">
-              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{post.content}</p>
-              {post.image_url && (
-                <div className="mt-2 aspect-video bg-gray-100 dark:bg-harbor-800 rounded-lg overflow-hidden">
-                  <img src={post.image_url} alt="" className="w-full h-full object-cover" />
-                </div>
-              )}
-              <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                <span>❤️ {post.likes}</span>
-                <span>💬 {post.comment_count}</span>
-                <span className="ml-auto">{timeAgo(post.created_at)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+          </div>
+        ))
       )}
 
-      {/* Badges */}
-      {tab === 'badges' && (
-        <div className="space-y-2">
-          {badges.length === 0 ? (
-            <div className="card text-center py-8">
-              <p className="text-sm text-gray-500">No badges earned yet</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {badges.map(badge => (
-                <div key={badge.id} className="card text-center py-3">
-                  <p className="text-2xl">{badge.icon}</p>
-                  <p className="text-xs font-medium text-harbor-800 dark:text-white mt-1">{badge.name}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{badge.description}</p>
-                </div>
-              ))}
-            </div>
+      {activeTab === 'about' && (
+        <div className="card space-y-3">
+          <div><span className="text-xs text-gray-400">Member since</span><p className="text-sm text-harbor-800 dark:text-white">{new Date(profile.joined_at || profile.id).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}</p></div>
+          <div><span className="text-xs text-gray-400">Standing Level</span><p className="text-sm text-harbor-800 dark:text-white">Level {profile.standing_level} — {['Newcomer','Neighbor','Active','Builder','Leader'][profile.standing_level - 1] || 'Member'}</p></div>
+          {profile.neighborhood && <div><span className="text-xs text-gray-400">Neighborhood</span><p className="text-sm text-harbor-800 dark:text-white">{profile.neighborhood}</p></div>}
+          {profile.badges && profile.badges.length > 0 && (
+            <div><span className="text-xs text-gray-400">Badges</span><div className="flex flex-wrap gap-1 mt-1">{profile.badges.map((b, i) => <span key={i} className="px-2 py-0.5 bg-mly-100 text-mly-700 rounded text-xs">{b}</span>)}</div></div>
           )}
-        </div>
-      )}
-
-      {/* Activity */}
-      {tab === 'activity' && (
-        <div className="card text-center py-8">
-          <p className="text-2xl mb-2">📊</p>
-          <p className="text-sm text-gray-500">Check their posts tab for recent activity</p>
-          <p className="text-xs text-gray-400 mt-1">Contributions, votes, and community participation</p>
         </div>
       )}
     </div>

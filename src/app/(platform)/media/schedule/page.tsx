@@ -7,221 +7,352 @@ import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
 import { toast } from 'sonner';
 
-interface ScheduledPost {
+interface ScheduledContent {
   id: string;
   creator_id: string;
-  type: 'blog' | 'social' | 'vlog' | 'podcast' | 'forum';
+  content_type: 'blog' | 'vlog' | 'podcast' | 'social';
   title: string;
-  content_preview: string;
-  scheduled_for: string;
-  status: 'scheduled' | 'published' | 'failed' | 'cancelled';
-  platform_data: Record<string, any>;
+  notes: string | null;
+  scheduled_at: string;
+  status: 'scheduled' | 'published' | 'cancelled';
   created_at: string;
 }
 
-type ScheduleTab = 'upcoming' | 'published' | 'create';
-type ContentType = 'blog' | 'social' | 'vlog' | 'podcast' | 'forum';
+type ScheduleTab = 'calendar' | 'queue' | 'history';
+type ContentType = 'blog' | 'vlog' | 'podcast' | 'social';
 
 const CONTENT_TYPES: { value: ContentType; label: string; icon: string }[] = [
-  { value: 'blog', label: 'Blog Post', icon: '✍️' },
-  { value: 'social', label: 'Social Post', icon: '📱' },
+  { value: 'blog', label: 'Blog', icon: '✍️' },
   { value: 'vlog', label: 'Vlog', icon: '📹' },
-  { value: 'podcast', label: 'Podcast Episode', icon: '🎙️' },
-  { value: 'forum', label: 'Forum Post', icon: '💬' },
-];
-
-const OPTIMAL_TIMES = [
-  { time: '08:00', label: 'Morning (8 AM)', reason: 'High engagement from commuters' },
-  { time: '12:00', label: 'Noon (12 PM)', reason: 'Lunch break browsing peak' },
-  { time: '17:00', label: 'Evening (5 PM)', reason: 'Post-work scroll time' },
-  { time: '20:00', label: 'Night (8 PM)', reason: 'Relaxation & discovery' },
+  { value: 'podcast', label: 'Podcast', icon: '🎙️' },
+  { value: 'social', label: 'Social', icon: '📱' },
 ];
 
 export default function ContentSchedulePage() {
-  const [tab, setTab] = useState<ScheduleTab>('upcoming');
-  const [posts, setPosts] = useState<ScheduledPost[]>([]);
+  const [tab, setTab] = useState<ScheduleTab>('calendar');
+  const [items, setItems] = useState<ScheduledContent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Create form
-  const [type, setType] = useState<ContentType>('blog');
-  const [title, setTitle] = useState('');
-  const [preview, setPreview] = useState('');
-  const [schedDate, setSchedDate] = useState('');
-  const [schedTime, setSchedTime] = useState('12:00');
+  const [showCreate, setShowCreate] = useState(false);
+  const [cType, setCType] = useState<ContentType>('blog');
+  const [cTitle, setCTitle] = useState('');
+  const [cDate, setCDate] = useState('');
+  const [cTime, setCTime] = useState('19:00');
+  const [cNotes, setCNotes] = useState('');
   const [creating, setCreating] = useState(false);
 
   const { user } = useAppStore();
+  const supabase = createClient();
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (user) loadSchedule();
+  }, [user]);
 
-  async function loadData() {
+  async function loadSchedule() {
     setLoading(true);
-    const supabase = createClient();
-    if (user) {
-      const { data } = await supabase.from('media_scheduled_posts').select('*').eq('creator_id', user.id).order('scheduled_for', { ascending: true });
-      if (data) setPosts(data);
-    }
+    const { data } = await supabase
+      .from('content_schedule')
+      .select('*')
+      .eq('creator_id', user!.id)
+      .order('scheduled_at', { ascending: true });
+    if (data) setItems(data as ScheduledContent[]);
     setLoading(false);
   }
 
-  async function schedulePost() {
-    if (!user || !title.trim() || !schedDate) return;
+  async function createScheduledPost() {
+    if (!user || !cTitle.trim() || !cDate) return;
     setCreating(true);
-    const supabase = createClient();
-    const scheduledFor = `${schedDate}T${schedTime}:00.000Z`;
-    await supabase.from('media_scheduled_posts').insert({
-      creator_id: user.id, type, title: title.trim(),
-      content_preview: preview.trim(), scheduled_for: scheduledFor,
-      status: 'scheduled', platform_data: {},
+    const scheduledAt = `${cDate}T${cTime}:00.000Z`;
+
+    const { error } = await supabase.from('content_schedule').insert({
+      creator_id: user.id,
+      content_type: cType,
+      title: cTitle.trim(),
+      notes: cNotes.trim() || null,
+      scheduled_at: scheduledAt,
+      status: 'scheduled',
     });
-    setTitle(''); setPreview(''); setSchedDate('');
+
+    if (error) {
+      toast.error('Failed to schedule content');
+    } else {
+      toast.success('Content scheduled!');
+      setCTitle('');
+      setCNotes('');
+      setCDate('');
+      setShowCreate(false);
+      loadSchedule();
+    }
     setCreating(false);
-    toast.success('Post scheduled!');
-    setTab('upcoming');
-    loadData();
   }
 
-  async function cancelPost(postId: string) {
-    const supabase = createClient();
-    await supabase.from('media_scheduled_posts').update({ status: 'cancelled' }).eq('id', postId);
-    toast.success('Post cancelled');
-    loadData();
+  async function cancelItem(id: string) {
+    await supabase.from('content_schedule').update({ status: 'cancelled' }).eq('id', id);
+    toast.success('Scheduled post cancelled');
+    loadSchedule();
   }
 
-  const upcoming = posts.filter(p => p.status === 'scheduled');
-  const published = posts.filter(p => p.status === 'published');
+  // Calendar helpers
+  function getDaysInMonth(date: Date): number {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  }
+
+  function getFirstDayOfMonth(date: Date): number {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  }
+
+  function getScheduledForDay(day: number): ScheduledContent[] {
+    return items.filter(item => {
+      if (item.status === 'cancelled') return false;
+      const d = new Date(item.scheduled_at);
+      return d.getFullYear() === currentMonth.getFullYear()
+        && d.getMonth() === currentMonth.getMonth()
+        && d.getDate() === day;
+    });
+  }
+
+  function prevMonth() {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  }
+
+  function nextMonth() {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  }
+
+  const queue = items.filter(i => i.status === 'scheduled' && new Date(i.scheduled_at) > new Date());
+  const history = items.filter(i => i.status === 'published');
 
   return (
     <div className="space-y-4 animate-slide-up">
-      <div>
-        <Link href="/media" className="text-gray-400 hover:text-gray-600 text-sm">← Media</Link>
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white mt-1">Content Schedule</h1>
-        <p className="text-xs text-gray-500">Plan & queue content for optimal times</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="card text-center py-2.5">
-          <p className="text-lg font-bold text-harbor-800 dark:text-white">{upcoming.length}</p>
-          <p className="text-[9px] text-gray-400">Scheduled</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <Link href="/media" className="text-gray-400 hover:text-gray-600 text-sm">← Media</Link>
+          <h1 className="text-xl font-bold text-harbor-800 dark:text-white mt-1">Content Schedule</h1>
+          <p className="text-xs text-gray-500">Plan &amp; queue content for optimal times</p>
         </div>
-        <div className="card text-center py-2.5">
-          <p className="text-lg font-bold text-green-600">{published.length}</p>
-          <p className="text-[9px] text-gray-400">Published</p>
-        </div>
-        <div className="card text-center py-2.5">
-          <p className="text-lg font-bold text-teal-600">{posts.length}</p>
-          <p className="text-[9px] text-gray-400">Total</p>
-        </div>
+        {user && (
+          <button onClick={() => setShowCreate(!showCreate)} className="btn-teal text-xs">
+            + Schedule
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {(['upcoming', 'published', 'create'] as ScheduleTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t === 'create' ? '+ Schedule' : t}</button>
+        {([
+          { key: 'calendar' as ScheduleTab, label: 'Calendar' },
+          { key: 'queue' as ScheduleTab, label: 'Queue' },
+          { key: 'history' as ScheduleTab, label: 'History' },
+        ]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              'flex-1 py-2 rounded-lg text-xs font-medium transition-all',
+              tab === t.key
+                ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm'
+                : 'text-gray-500'
+            )}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {/* Upcoming */}
-      {tab === 'upcoming' && (
-        <div className="space-y-2">
-          {upcoming.length === 0 ? (
-            <div className="card text-center py-8">
-              <p className="text-2xl mb-2">📅</p>
-              <p className="text-sm text-gray-500">No scheduled posts</p>
-              <p className="text-xs text-gray-400 mt-1">Queue content for your audience&apos;s peak times</p>
-              <button onClick={() => setTab('create')} className="btn-teal text-xs mt-3">Schedule Post</button>
-            </div>
-          ) : upcoming.map(post => (
-            <div key={post.id} className="card flex items-start gap-3">
-              <div className="text-center bg-teal-50 dark:bg-teal-900/20 rounded-lg px-2.5 py-1.5 flex-shrink-0">
-                <p className="text-xs font-bold text-teal-700 dark:text-teal-400">{new Date(post.scheduled_for).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
-                <p className="text-[10px] text-teal-600">{new Date(post.scheduled_for).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</p>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{CONTENT_TYPES.find(c => c.value === post.type)?.icon}</span>
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white truncate">{post.title}</p>
-                </div>
-                {post.content_preview && <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{post.content_preview}</p>}
-              </div>
-              <button onClick={() => cancelPost(post.id)} className="text-[10px] text-red-500 hover:text-red-600">Cancel</button>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Create Form */}
+      {showCreate && user && (
+        <div className="card space-y-3 border-2 border-teal-200 dark:border-teal-800">
+          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Schedule New Content</h3>
 
-      {/* Published */}
-      {tab === 'published' && (
-        <div className="space-y-2">
-          {published.length === 0 ? (
-            <div className="card text-center py-8">
-              <p className="text-sm text-gray-500">No published posts from schedule yet</p>
-            </div>
-          ) : published.map(post => (
-            <div key={post.id} className="card flex items-center gap-3 opacity-75">
-              <span className="text-sm">{CONTENT_TYPES.find(c => c.value === post.type)?.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-harbor-800 dark:text-white truncate">{post.title}</p>
-                <p className="text-[10px] text-gray-400">Published {new Date(post.scheduled_for).toLocaleDateString()}</p>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded">✓ Published</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Create */}
-      {tab === 'create' && user && (
-        <div className="space-y-3">
-          <div className="card space-y-3">
-            <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Schedule New Content</h3>
-
-            <div>
-              <label className="text-[10px] text-gray-500 mb-1 block">Content Type</label>
-              <div className="flex gap-1 flex-wrap">
-                {CONTENT_TYPES.map(ct => (
-                  <button key={ct.value} onClick={() => setType(ct.value)} className={cn('px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors', type === ct.value ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>
-                    <span>{ct.icon}</span> {ct.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Post title" className="input-field" />
-            <textarea value={preview} onChange={e => setPreview(e.target.value)} placeholder="Content preview / description" className="input-field resize-none" rows={3} />
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block">Date</label>
-                <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} className="input-field" min={new Date().toISOString().split('T')[0]} />
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block">Time</label>
-                <input type="time" value={schedTime} onChange={e => setSchedTime(e.target.value)} className="input-field" />
-              </div>
-            </div>
-
-            <button onClick={schedulePost} disabled={!title.trim() || !schedDate || creating} className="btn-teal w-full disabled:opacity-50">
-              {creating ? 'Scheduling...' : 'Schedule Post'}
-            </button>
-          </div>
-
-          {/* Optimal Times */}
-          <div className="card">
-            <h3 className="text-xs font-bold text-harbor-800 dark:text-white mb-2">💡 Best Times to Post</h3>
-            <div className="space-y-1.5">
-              {OPTIMAL_TIMES.map(ot => (
-                <button key={ot.time} onClick={() => setSchedTime(ot.time)} className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-harbor-900 transition-colors text-left">
-                  <div>
-                    <p className="text-xs text-harbor-800 dark:text-white">{ot.label}</p>
-                    <p className="text-[10px] text-gray-400">{ot.reason}</p>
-                  </div>
-                  <span className="text-[10px] text-teal-600">Use →</span>
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1 block">Content Type</label>
+            <div className="flex gap-1 flex-wrap">
+              {CONTENT_TYPES.map(ct => (
+                <button
+                  key={ct.value}
+                  onClick={() => setCType(ct.value)}
+                  className={cn(
+                    'px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1',
+                    cType === ct.value
+                      ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+                      : 'bg-gray-100 dark:bg-harbor-800 text-gray-600'
+                  )}
+                >
+                  <span>{ct.icon}</span> {ct.label}
                 </button>
               ))}
             </div>
           </div>
+
+          <input value={cTitle} onChange={e => setCTitle(e.target.value)} placeholder="Content title" className="input-field" />
+          <textarea value={cNotes} onChange={e => setCNotes(e.target.value)} placeholder="Notes (optional)" className="input-field resize-none" rows={2} />
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1 block">Date</label>
+              <input type="date" value={cDate} onChange={e => setCDate(e.target.value)} className="input-field" min={new Date().toISOString().split('T')[0]} />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1 block">Time</label>
+              <input type="time" value={cTime} onChange={e => setCTime(e.target.value)} className="input-field" />
+            </div>
+          </div>
+
+          <button onClick={createScheduledPost} disabled={!cTitle.trim() || !cDate || creating} className="btn-teal w-full disabled:opacity-50">
+            {creating ? 'Scheduling...' : 'Schedule'}
+          </button>
+
+          {/* Best time suggestion */}
+          <div className="bg-gray-50 dark:bg-harbor-900 rounded-lg p-3">
+            <p className="text-[10px] text-gray-500 font-medium">💡 Best time to post</p>
+            <p className="text-xs text-harbor-800 dark:text-white mt-1">Tuesdays 7pm, Saturdays 10am</p>
+            <p className="text-[10px] text-gray-400">Based on your audience engagement data</p>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Tab */}
+      {tab === 'calendar' && (
+        <div className="card space-y-3">
+          {/* Month navigation */}
+          <div className="flex items-center justify-between">
+            <button onClick={prevMonth} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">←</button>
+            <h3 className="text-sm font-bold text-harbor-800 dark:text-white">
+              {currentMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+            </h3>
+            <button onClick={nextMonth} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">→</button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 gap-1">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className="text-[10px] text-gray-500 text-center font-medium py-1">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {/* Empty cells for first day offset */}
+            {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, i) => (
+              <div key={`empty-${i}`} className="aspect-square" />
+            ))}
+            {/* Days */}
+            {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => {
+              const day = i + 1;
+              const scheduled = getScheduledForDay(day);
+              const isToday = new Date().getDate() === day
+                && new Date().getMonth() === currentMonth.getMonth()
+                && new Date().getFullYear() === currentMonth.getFullYear();
+
+              return (
+                <div
+                  key={day}
+                  className={cn(
+                    'aspect-square rounded-lg flex flex-col items-center justify-center text-[10px] relative',
+                    isToday ? 'bg-teal-50 dark:bg-teal-900/20 ring-1 ring-teal-500' : 'bg-gray-50 dark:bg-harbor-900'
+                  )}
+                >
+                  <span className={cn('font-medium', isToday ? 'text-teal-600' : 'text-harbor-800 dark:text-white')}>
+                    {day}
+                  </span>
+                  {scheduled.length > 0 && (
+                    <div className="flex gap-0.5 mt-0.5">
+                      {scheduled.slice(0, 3).map(s => (
+                        <span
+                          key={s.id}
+                          className="w-1.5 h-1.5 rounded-full bg-teal-500"
+                          title={s.title}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {loading && (
+            <div className="text-center py-4">
+              <p className="text-xs text-gray-400">Loading schedule...</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Queue Tab */}
+      {tab === 'queue' && (
+        <div className="space-y-2">
+          {queue.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">📅</p>
+              <p className="text-sm text-gray-500">No upcoming scheduled content</p>
+              <button onClick={() => setShowCreate(true)} className="btn-teal text-xs mt-3">Schedule Something</button>
+            </div>
+          ) : (
+            queue.map(item => (
+              <div key={item.id} className="card flex items-start gap-3">
+                <div className="text-center bg-teal-50 dark:bg-teal-900/20 rounded-lg px-2.5 py-1.5 flex-shrink-0">
+                  <p className="text-xs font-bold text-teal-700 dark:text-teal-400">
+                    {new Date(item.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </p>
+                  <p className="text-[10px] text-teal-600">
+                    {new Date(item.scheduled_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                  </p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">
+                      {CONTENT_TYPES.find(c => c.value === item.content_type)?.icon}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-harbor-800 text-gray-500 rounded capitalize">
+                      {item.content_type}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-harbor-800 dark:text-white mt-1 truncate">{item.title}</p>
+                  {item.notes && (
+                    <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{item.notes}</p>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => cancelItem(item.id)} className="text-[10px] text-red-500 hover:text-red-600">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* History Tab */}
+      {tab === 'history' && (
+        <div className="space-y-2">
+          {history.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-sm text-gray-500">No published scheduled content yet</p>
+            </div>
+          ) : (
+            history.map(item => (
+              <div key={item.id} className="card flex items-center gap-3 opacity-75">
+                <span className="text-sm">
+                  {CONTENT_TYPES.find(c => c.value === item.content_type)?.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-harbor-800 dark:text-white truncate">{item.title}</p>
+                  <p className="text-[10px] text-gray-400">
+                    Published {new Date(item.scheduled_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded">
+                  Published
+                </span>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

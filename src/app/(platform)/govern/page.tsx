@@ -2,9 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { useAppStore } from '@/lib/store/app-store'
 import { cn } from '@/lib/utils/cn'
+
+const NovelEditor = dynamic(
+  () => import('@/components/editor/novel-editor').then(m => ({ default: m.NovelEditor })),
+  { ssr: false, loading: () => <div className="h-[120px] rounded-lg bg-gray-100 dark:bg-harbor-800 animate-pulse" /> }
+)
 import { toast } from 'sonner'
 
 type Tab = 'proposals' | 'vote' | 'delegates' | 'history' | 'create'
@@ -322,7 +328,7 @@ export default function GovernPage() {
             <option value="policy">Policy</option>
             <option value="infrastructure">Infrastructure</option>
           </select>
-          <textarea className="input-field w-full px-4 py-2.5 rounded-lg min-h-[120px]" placeholder="Describe your proposal in detail..." value={createForm.description} onChange={e => setCreateForm(p => ({ ...p, description: e.target.value }))} />
+          <NovelEditor placeholder="Describe your proposal in detail..." onTextChange={(text) => setCreateForm((p: any) => ({ ...p, description: text }))} className="min-h-[120px]" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input className="input-field px-4 py-2.5 rounded-lg" placeholder="Budget impact (e.g. 500 $MLY)" value={createForm.budgetImpact} onChange={e => setCreateForm(p => ({ ...p, budgetImpact: e.target.value }))} />
             <input className="input-field px-4 py-2.5 rounded-lg" placeholder="Timeline (e.g. 3 months)" value={createForm.timeline} onChange={e => setCreateForm(p => ({ ...p, timeline: e.target.value }))} />

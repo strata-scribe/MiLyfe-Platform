@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { WebRTCSignaling } from '@/lib/calls/webrtc-signal';
 
 interface CallState {
   status: 'idle' | 'calling' | 'ringing' | 'active' | 'ended';
@@ -36,7 +37,7 @@ function CallPage() {
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const signalingRef = useRef<WebRTCSignaling | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { user } = useAppStore();
 
@@ -68,47 +69,67 @@ function CallPage() {
     // Create call session
     await supabase.from('call_sessions').insert({ caller_id: user.id, callee_id: calleeId, type: callType });
 
-    // Get local media
+    // Initialize real WebRTC signaling
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === 'video',
+      const signaling = new WebRTCSignaling({
+        userId: user.id,
+        peerId: calleeId,
+        onRemoteStream: (stream: MediaStream) => {
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = stream;
+          }
+          // Connection established — start timer
+          setState(s => ({ ...s, status: 'active' }));
+          timerRef.current = setInterval(() => {
+            setState(s => ({ ...s, duration: s.duration + 1 }));
+          }, 1000);
+        },
+        onHangup: () => {
+          endCall();
+        },
+        onStateChange: (connectionState: RTCPeerConnectionState) => {
+          if (connectionState === 'connected') {
+            setState(s => ({ ...s, status: 'active' }));
+          }
+        },
       });
-      streamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-      // Simulate connection (real WebRTC would use signaling here)
-      setTimeout(() => {
-        setState(s => ({ ...s, status: 'active' }));
-        timerRef.current = setInterval(() => {
-          setState(s => ({ ...s, duration: s.duration + 1 }));
-        }, 1000);
-      }, 2000);
-    } catch {
+      signalingRef.current = signaling;
+      const localStream = await signaling.init(callType);
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+      }
+
+      // Initiate the call (send offer)
+      await signaling.call();
+    } catch (err) {
+      console.error('Call initialization failed:', err);
       setState(s => ({ ...s, status: 'ended' }));
     }
   }
 
   function endCall() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
+    if (signalingRef.current) {
+      signalingRef.current.hangup();
+      signalingRef.current.cleanup();
+      signalingRef.current = null;
     }
     if (timerRef.current) clearInterval(timerRef.current);
     setState(s => ({ ...s, status: 'ended' }));
   }
 
   function toggleMute() {
-    if (streamRef.current) {
-      streamRef.current.getAudioTracks().forEach(t => { t.enabled = muted; });
-      setMuted(!muted);
+    if (signalingRef.current) {
+      const isMuted = signalingRef.current.toggleMute();
+      setMuted(isMuted);
     }
   }
 
   function toggleVideo() {
-    if (streamRef.current) {
-      streamRef.current.getVideoTracks().forEach(t => { t.enabled = videoOff; });
-      setVideoOff(!videoOff);
+    if (signalingRef.current) {
+      const isOff = signalingRef.current.toggleVideo();
+      setVideoOff(isOff);
     }
   }
 

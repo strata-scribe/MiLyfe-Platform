@@ -5,68 +5,147 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { toast } from 'sonner';
+
+interface CreditScore {
+  total_score: number;
+  factors: CreditFactor[];
+  history: ScoreHistoryPoint[];
+  last_updated: string;
+}
 
 interface CreditFactor {
   name: string;
   score: number;
-  max: number;
+  max_score: number;
+  weight: number;
   description: string;
   icon: string;
 }
 
-interface CreditHistory {
-  id: string;
-  type: 'loan_repaid' | 'loan_defaulted' | 'circle_completed' | 'contribution' | 'verification' | 'dispute_lost';
-  description: string;
-  impact: number;
-  created_at: string;
+interface ScoreHistoryPoint {
+  date: string;
+  score: number;
+}
+
+interface ImprovementTip {
+  factor: string;
+  tip: string;
+  priority: 'high' | 'medium' | 'low';
 }
 
 export default function CommunityCreditPage() {
-  const [score, setScore] = useState(75);
-  const [factors, setFactors] = useState<CreditFactor[]>([]);
-  const [history, setHistory] = useState<CreditHistory[]>([]);
+  const [creditScore, setCreditScore] = useState<CreditScore | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [tips, setTips] = useState<ImprovementTip[]>([]);
 
   const { user } = useAppStore();
 
-  useEffect(() => { loadCreditData(); }, []);
+  useEffect(() => { loadCreditScore(); }, []);
 
-  async function loadCreditData() {
+  async function loadCreditScore() {
+    if (!user) { setLoading(false); return; }
     setLoading(true);
-    // In production, this aggregates from multiple tables
-    setFactors([
-      { name: 'Loan Repayment', score: 25, max: 30, description: 'On-time repayments of peer loans', icon: '💰' },
-      { name: 'Circle Participation', score: 15, max: 20, description: 'Savings circle contributions & completions', icon: '🫂' },
-      { name: 'Community Standing', score: 18, max: 20, description: 'Your overall platform standing score', icon: '⭐' },
-      { name: 'Contribution History', score: 10, max: 15, description: 'Emergency fund & mutual aid contributions', icon: '💝' },
-      { name: 'Account Age', score: 7, max: 15, description: 'Time as an active community member', icon: '📅' },
-    ]);
-    setHistory([]);
-    setScore(75);
+    const supabase = createClient();
+
+    const { data } = await supabase
+      .from('community_credit_scores')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    if (data) {
+      const factors: CreditFactor[] = [
+        { name: 'Circle Payments', score: data.circle_payment_score || 0, max_score: 25, weight: 25, description: 'On-time savings circle contributions', icon: '🫂' },
+        { name: 'Loan Repayment', score: data.loan_repayment_score || 0, max_score: 25, weight: 25, description: 'Peer loan repayment history', icon: '🤝' },
+        { name: 'Bill Split Reliability', score: data.bill_split_score || 0, max_score: 20, weight: 20, description: 'Paying your share on time', icon: '✂️' },
+        { name: 'Platform Standing', score: data.standing_score || 0, max_score: 15, weight: 15, description: 'Your community standing level', icon: '⭐' },
+        { name: 'Time on Platform', score: data.tenure_score || 0, max_score: 15, weight: 15, description: 'How long you have been a member', icon: '📅' },
+      ];
+
+      const totalScore = factors.reduce((sum, f) => sum + f.score, 0);
+
+      setCreditScore({
+        total_score: totalScore,
+        factors,
+        history: data.score_history || [],
+        last_updated: data.updated_at || new Date().toISOString(),
+      });
+
+      // Generate tips based on lowest factors
+      generateTips(factors);
+    } else {
+      // No score yet — show default
+      const defaultFactors: CreditFactor[] = [
+        { name: 'Circle Payments', score: 0, max_score: 25, weight: 25, description: 'On-time savings circle contributions', icon: '🫂' },
+        { name: 'Loan Repayment', score: 0, max_score: 25, weight: 25, description: 'Peer loan repayment history', icon: '🤝' },
+        { name: 'Bill Split Reliability', score: 0, max_score: 20, weight: 20, description: 'Paying your share on time', icon: '✂️' },
+        { name: 'Platform Standing', score: 0, max_score: 15, weight: 15, description: 'Your community standing level', icon: '⭐' },
+        { name: 'Time on Platform', score: 0, max_score: 15, weight: 15, description: 'How long you have been a member', icon: '📅' },
+      ];
+      setCreditScore({ total_score: 0, factors: defaultFactors, history: [], last_updated: new Date().toISOString() });
+      generateTips(defaultFactors);
+    }
     setLoading(false);
   }
 
+  function generateTips(factors: CreditFactor[]) {
+    const sorted = [...factors].sort((a, b) => (a.score / a.max_score) - (b.score / b.max_score));
+    const tips: ImprovementTip[] = [];
+
+    for (const factor of sorted.slice(0, 3)) {
+      const ratio = factor.score / factor.max_score;
+      if (ratio >= 0.9) continue;
+
+      let tip = '';
+      switch (factor.name) {
+        case 'Circle Payments':
+          tip = 'Join a savings circle and make your contributions on time every period.';
+          break;
+        case 'Loan Repayment':
+          tip = 'If you have active loans, make payments before the due date. Small consistent payments help.';
+          break;
+        case 'Bill Split Reliability':
+          tip = 'When you are part of a bill split, pay your share within 24 hours of creation.';
+          break;
+        case 'Platform Standing':
+          tip = 'Participate in community events, help others, and stay active to increase your standing.';
+          break;
+        case 'Time on Platform':
+          tip = 'This increases naturally. Stay engaged and your tenure score grows each month.';
+          break;
+      }
+
+      tips.push({
+        factor: factor.name,
+        tip,
+        priority: ratio < 0.3 ? 'high' : ratio < 0.6 ? 'medium' : 'low',
+      });
+    }
+    setTips(tips);
+  }
+
   function getScoreColor(score: number): string {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 70) return 'text-teal-600';
-    if (score >= 50) return 'text-yellow-600';
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-teal-600';
+    if (score >= 40) return 'text-yellow-600';
     return 'text-red-600';
   }
 
   function getScoreLabel(score: number): string {
     if (score >= 90) return 'Excellent';
-    if (score >= 70) return 'Good';
-    if (score >= 50) return 'Fair';
-    return 'Building';
+    if (score >= 75) return 'Great';
+    if (score >= 60) return 'Good';
+    if (score >= 40) return 'Building';
+    if (score >= 20) return 'Getting Started';
+    return 'New';
   }
 
-  function getScoreRing(score: number): string {
-    if (score >= 90) return 'border-green-500';
-    if (score >= 70) return 'border-teal-500';
-    if (score >= 50) return 'border-yellow-500';
-    return 'border-red-500';
+  function getScoreRingColor(score: number): string {
+    if (score >= 80) return 'stroke-green-500';
+    if (score >= 60) return 'stroke-teal-500';
+    if (score >= 40) return 'stroke-yellow-500';
+    return 'stroke-red-500';
   }
 
   return (
@@ -74,87 +153,101 @@ export default function CommunityCreditPage() {
       <div>
         <Link href="/finance" className="text-gray-400 hover:text-gray-600 text-sm">← Financial Services</Link>
         <h1 className="text-xl font-bold text-harbor-800 dark:text-white mt-1">Community Credit Score</h1>
-        <p className="text-xs text-gray-500">Your reputation in the community financial system</p>
+        <p className="text-xs text-gray-500">Your reputation within MiLyfe — built on trust, not debt</p>
       </div>
 
-      {/* Score Circle */}
-      <div className="card text-center py-6">
-        <div className={cn('w-32 h-32 mx-auto rounded-full border-8 flex items-center justify-center', getScoreRing(score))}>
-          <div>
-            <p className={cn('text-3xl font-bold', getScoreColor(score))}>{score}</p>
-            <p className="text-[10px] text-gray-500">out of 100</p>
-          </div>
-        </div>
-        <p className={cn('text-sm font-medium mt-3', getScoreColor(score))}>{getScoreLabel(score)}</p>
-        <p className="text-xs text-gray-500 mt-1">Based on your community financial activity</p>
-      </div>
-
-      {/* What this means */}
-      <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800">
-        <p className="text-xs text-teal-700 dark:text-teal-400 leading-relaxed">
-          <strong>This is NOT a traditional credit score.</strong> It reflects how reliable you are within the MiLyfe community. It affects: loan approval speed, savings circle priority, and access to higher-tier mutual aid.
+      {/* Privacy Notice */}
+      <div className="card bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+        <p className="text-xs text-blue-700 dark:text-blue-400">
+          🔒 <strong>Internal only</strong> — Your community credit score is never shared outside MiLyfe. It is not a FICO score and has no effect on traditional credit.
         </p>
       </div>
 
-      {/* Factor Breakdown */}
-      <div className="card space-y-3">
-        <button onClick={() => setShowBreakdown(!showBreakdown)} className="flex items-center justify-between w-full">
-          <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Score Breakdown</h3>
-          <span className="text-xs text-gray-400">{showBreakdown ? '▼' : '▶'}</span>
-        </button>
-        {showBreakdown && (
-          <div className="space-y-3">
-            {factors.map(factor => (
+      {loading ? (
+        <div className="space-y-3">
+          <div className="card skeleton h-40" />
+          <div className="card skeleton h-32" />
+        </div>
+      ) : !user ? (
+        <div className="card text-center py-8">
+          <p className="text-sm text-gray-500">Sign in to view your community credit score</p>
+        </div>
+      ) : creditScore && (
+        <>
+          {/* Score Display */}
+          <div className="card text-center space-y-3">
+            <div className="relative inline-block">
+              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="50" fill="none" strokeWidth="8" className="stroke-gray-200 dark:stroke-harbor-700" />
+                <circle cx="60" cy="60" r="50" fill="none" strokeWidth="8" strokeLinecap="round" className={getScoreRingColor(creditScore.total_score)} strokeDasharray={`${(creditScore.total_score / 100) * 314} 314`} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <p className={cn('text-3xl font-bold', getScoreColor(creditScore.total_score))}>{creditScore.total_score}</p>
+                <p className="text-[10px] text-gray-500">/100</p>
+              </div>
+            </div>
+            <p className={cn('text-sm font-medium', getScoreColor(creditScore.total_score))}>
+              {getScoreLabel(creditScore.total_score)}
+            </p>
+            <p className="text-[10px] text-gray-400">Last updated: {new Date(creditScore.last_updated).toLocaleDateString()}</p>
+          </div>
+
+          {/* Score Breakdown */}
+          <div className="card space-y-3">
+            <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Score Breakdown</h3>
+            {creditScore.factors.map(factor => (
               <div key={factor.name} className="space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">{factor.icon}</span>
-                    <span className="text-xs font-medium text-harbor-800 dark:text-white">{factor.name}</span>
+                    <span className="text-xs text-harbor-800 dark:text-white">{factor.name}</span>
                   </div>
-                  <span className="text-xs text-gray-500">{factor.score}/{factor.max}</span>
+                  <span className="text-xs font-medium text-harbor-800 dark:text-white">{factor.score}/{factor.max_score}</span>
                 </div>
-                <div className="h-2 bg-gray-100 dark:bg-harbor-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-teal-500 rounded-full" style={{ width: `${(factor.score / factor.max) * 100}%` }} />
+                <div className="h-1.5 bg-gray-100 dark:bg-harbor-800 rounded-full overflow-hidden">
+                  <div className={cn('h-full rounded-full transition-all', factor.score / factor.max_score >= 0.7 ? 'bg-green-500' : factor.score / factor.max_score >= 0.4 ? 'bg-teal-500' : 'bg-orange-500')} style={{ width: `${(factor.score / factor.max_score) * 100}%` }} />
                 </div>
-                <p className="text-[10px] text-gray-400">{factor.description}</p>
+                <p className="text-[10px] text-gray-400">{factor.description} · Weight: {factor.weight}%</p>
               </div>
             ))}
           </div>
-        )}
-      </div>
 
-      {/* How to Improve */}
-      <div className="card space-y-2">
-        <h3 className="text-sm font-bold text-harbor-800 dark:text-white">📈 How to Improve</h3>
-        {[
-          { action: 'Repay a peer loan on time', impact: '+3-5 points', icon: '💰' },
-          { action: 'Complete a savings circle', impact: '+5-8 points', icon: '🫂' },
-          { action: 'Contribute to emergency fund', impact: '+1-3 points', icon: '🚨' },
-          { action: 'Maintain Level 4+ standing', impact: '+2-4 points', icon: '⭐' },
-          { action: 'Verify your identity', impact: '+5 points (one-time)', icon: '✓' },
-        ].map(item => (
-          <div key={item.action} className="flex items-center gap-3 py-1.5">
-            <span className="text-sm">{item.icon}</span>
-            <div className="flex-1">
-              <p className="text-xs text-harbor-800 dark:text-white">{item.action}</p>
+          {/* Score History Placeholder */}
+          <div className="card space-y-2">
+            <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Score Over Time</h3>
+            {creditScore.history.length === 0 ? (
+              <div className="h-24 flex items-center justify-center bg-gray-50 dark:bg-harbor-900 rounded-lg">
+                <p className="text-xs text-gray-400">Chart will appear after your first month</p>
+              </div>
+            ) : (
+              <div className="h-24 flex items-end gap-1 bg-gray-50 dark:bg-harbor-900 rounded-lg p-3">
+                {creditScore.history.slice(-12).map((point, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                    <div className="w-full bg-teal-500 rounded-sm" style={{ height: `${(point.score / 100) * 60}px` }} />
+                    <span className="text-[8px] text-gray-400">{new Date(point.date).toLocaleDateString('en', { month: 'short' })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Improvement Tips */}
+          {tips.length > 0 && (
+            <div className="card space-y-2">
+              <h3 className="text-sm font-bold text-harbor-800 dark:text-white">How to Improve</h3>
+              {tips.map((tip, i) => (
+                <div key={i} className={cn('p-2 rounded-lg text-xs', tip.priority === 'high' ? 'bg-red-50 dark:bg-red-900/10' : tip.priority === 'medium' ? 'bg-yellow-50 dark:bg-yellow-900/10' : 'bg-green-50 dark:bg-green-900/10')}>
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <span className={cn('w-1.5 h-1.5 rounded-full', tip.priority === 'high' ? 'bg-red-500' : tip.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500')} />
+                    <span className="font-medium text-harbor-800 dark:text-white">{tip.factor}</span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 pl-3">{tip.tip}</p>
+                </div>
+              ))}
             </div>
-            <span className="text-[10px] text-green-600 font-medium">{item.impact}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* History */}
-      <div className="card space-y-2">
-        <h3 className="text-sm font-bold text-harbor-800 dark:text-white">Recent Activity</h3>
-        {history.length === 0 ? (
-          <p className="text-xs text-gray-500 py-4 text-center">No credit events yet — start participating!</p>
-        ) : history.map(h => (
-          <div key={h.id} className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-harbor-800 last:border-0">
-            <p className="text-xs text-harbor-800 dark:text-white">{h.description}</p>
-            <span className={cn('text-xs font-bold', h.impact > 0 ? 'text-green-600' : 'text-red-600')}>{h.impact > 0 ? '+' : ''}{h.impact}</span>
-          </div>
-        ))}
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { encryptFile, decryptFile, isCryptoAvailable } from '@/lib/crypto/vault-encryption';
 
 type VaultTab = 'documents' | 'credentials' | 'activity';
 
@@ -89,38 +90,54 @@ export default function VaultPage() {
     setUploading(true);
     setUploadError('');
 
-    // Upload file to vault storage (private bucket)
-    const fileExt = uploadFile.name.split('.').pop();
-    const filePath = `${user.id}/${Date.now()}-${uploadTitle.replace(/\s+/g, '_')}.${fileExt}`;
+    try {
+      // Encrypt file client-side before upload
+      let fileToUpload: Blob | File = uploadFile;
+      let encryptionSalt: string | null = null;
 
-    const { error: storageError } = await supabase.storage
-      .from('vault')
-      .upload(filePath, uploadFile);
+      if (isCryptoAvailable()) {
+        const { encryptedBlob, salt } = await encryptFile(uploadFile, user.id);
+        fileToUpload = encryptedBlob;
+        encryptionSalt = salt;
+      }
 
-    if (storageError) {
-      setUploadError(`Upload failed: ${storageError.message}`);
-      setUploading(false);
-      return;
-    }
+      // Upload encrypted file to vault storage (private bucket)
+      const fileExt = uploadFile.name.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}-${uploadTitle.replace(/\s+/g, '_')}.${fileExt}.enc`;
 
-    // Create document record
-    const { error: insertError } = await supabase.from('vault_documents').insert({
-      user_id: user.id,
-      title: uploadTitle.trim(),
-      type: uploadType,
-      file_path: filePath,
-      file_size: uploadFile.size,
-      mime_type: uploadFile.type,
-      expires_at: uploadExpiry || null,
-    });
+      const { error: storageError } = await supabase.storage
+        .from('vault')
+        .upload(filePath, fileToUpload);
 
-    if (insertError) {
-      setUploadError(insertError.message);
-    } else {
-      setShowUpload(false);
-      setUploadTitle('');
-      setUploadFile(null);
-      setUploadExpiry('');
+      if (storageError) {
+        setUploadError(`Upload failed: ${storageError.message}`);
+        setUploading(false);
+        return;
+      }
+
+      // Create document record with encryption metadata
+      const { error: insertError } = await supabase.from('vault_documents').insert({
+        user_id: user.id,
+        title: uploadTitle.trim(),
+        type: uploadType,
+        file_path: filePath,
+        file_size: uploadFile.size,
+        mime_type: uploadFile.type,
+        expires_at: uploadExpiry || null,
+        encrypted: true,
+        encryption_salt: encryptionSalt,
+      });
+
+      if (insertError) {
+        setUploadError(insertError.message);
+      } else {
+        setShowUpload(false);
+        setUploadTitle('');
+        setUploadFile(null);
+        setUploadExpiry('');
+      }
+    } catch (err: any) {
+      setUploadError(`Encryption failed: ${err.message || 'Unknown error'}`);
     }
 
     setUploading(false);
@@ -149,12 +166,41 @@ export default function VaultPage() {
   };
 
   const handleDownload = async (doc: VaultDoc) => {
-    const { data } = await supabase.storage
-      .from('vault')
-      .createSignedUrl(doc.file_path, 60); // 60 second expiry
+    if (!user) return;
 
-    if (data?.signedUrl) {
-      window.open(data.signedUrl, '_blank');
+    // Download the encrypted file
+    const { data: fileData, error } = await supabase.storage
+      .from('vault')
+      .download(doc.file_path);
+
+    if (error || !fileData) {
+      console.error('Download failed:', error);
+      return;
+    }
+
+    // Decrypt client-side
+    try {
+      const encryptedBuffer = await fileData.arrayBuffer();
+      const decryptedBlob = await decryptFile(encryptedBuffer, user.id, doc.mime_type || 'application/octet-stream');
+
+      // Trigger browser download
+      const url = URL.createObjectURL(decryptedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.title + (doc.mime_type?.includes('pdf') ? '.pdf' : '');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Decryption failed:', err);
+      // Fallback: try signed URL (for legacy unencrypted files)
+      const { data } = await supabase.storage
+        .from('vault')
+        .createSignedUrl(doc.file_path, 60);
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      }
     }
   };
 

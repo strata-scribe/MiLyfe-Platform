@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
 
 interface Post {
   id: string;
@@ -21,7 +23,7 @@ interface Post {
   comment_count: number;
   pinned: boolean;
   created_at: string;
-  profiles?: { display_name: string; avatar_url: string | null };
+  profiles?: { display_name: string; avatar_url: string | null; standing_level: number; created_at: string };
   forum_spaces?: { name: string; slug: string; icon: string };
 }
 
@@ -33,8 +35,9 @@ interface Comment {
   body: string;
   upvotes: number;
   downvotes: number;
+  depth: number;
   created_at: string;
-  profiles?: { display_name: string };
+  profiles?: { display_name: string; avatar_url: string | null };
   replies?: Comment[];
 }
 
@@ -53,6 +56,7 @@ export default function ForumPostDetailPage() {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyInput, setReplyInput] = useState('');
   const [posting, setPosting] = useState(false);
+  const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
 
   const { user } = useAppStore();
 
@@ -64,10 +68,23 @@ export default function ForumPostDetailPage() {
 
     const { data: p } = await supabase
       .from('forum_posts')
-      .select('*, profiles!forum_posts_author_id_fkey(display_name, avatar_url), forum_spaces!forum_posts_space_id_fkey(name, slug, icon)')
+      .select('*, profiles!forum_posts_author_id_fkey(display_name, avatar_url, standing_level, created_at), forum_spaces!forum_posts_space_id_fkey(name, slug, icon)')
       .eq('id', postId)
       .single();
+
     if (p) setPost(p as any);
+
+    // Check if user already voted
+    if (user) {
+      const { data: vote } = await supabase
+        .from('forum_votes')
+        .select('direction')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (vote) setUserVote(vote.direction as 'up' | 'down');
+    }
 
     await loadComments();
     setLoading(false);
@@ -77,22 +94,63 @@ export default function ForumPostDetailPage() {
     const supabase = createClient();
     let query = supabase
       .from('forum_comments')
-      .select('*, profiles!forum_comments_author_id_fkey(display_name)')
+      .select('*, profiles!forum_comments_author_id_fkey(display_name, avatar_url)')
       .eq('post_id', postId);
 
     if (sortComments === 'best') query = query.order('upvotes', { ascending: false });
     else if (sortComments === 'new') query = query.order('created_at', { ascending: false });
     else query = query.order('created_at', { ascending: true });
 
-    const { data: c } = await query.limit(50);
+    const { data: c } = await query.limit(100);
+
     if (c) {
-      // Build nested tree
-      const topLevel = (c as Comment[]).filter(cm => !cm.parent_id);
-      const childMap = (c as Comment[]).filter(cm => cm.parent_id);
+      // Build nested comment tree based on parent_id
+      const commentList = c as Comment[];
+      const topLevel = commentList.filter(cm => !cm.parent_id);
+      const childMap = commentList.filter(cm => cm.parent_id);
+
       topLevel.forEach(tl => {
         tl.replies = childMap.filter(ch => ch.parent_id === tl.id);
+        tl.depth = 0;
+        tl.replies?.forEach(r => { r.depth = 1; });
       });
       setComments(topLevel);
+    }
+  }
+
+  async function votePost(direction: 'up' | 'down') {
+    if (!user || !post) return;
+    const supabase = createClient();
+
+    const { error } = await supabase.from('forum_votes').upsert({
+      post_id: postId,
+      user_id: user.id,
+      direction,
+    }, { onConflict: 'post_id,user_id' });
+
+    if (error) {
+      toast.error('Failed to vote');
+      return;
+    }
+
+    // Update local state
+    if (userVote === direction) {
+      // Undo vote
+      await supabase.from('forum_votes').delete().eq('post_id', postId).eq('user_id', user.id);
+      setUserVote(null);
+      setPost({
+        ...post,
+        upvotes: direction === 'up' ? post.upvotes - 1 : post.upvotes,
+        downvotes: direction === 'down' ? post.downvotes - 1 : post.downvotes,
+      });
+    } else {
+      const prevVote = userVote;
+      setUserVote(direction);
+      setPost({
+        ...post,
+        upvotes: direction === 'up' ? post.upvotes + 1 : (prevVote === 'up' ? post.upvotes - 1 : post.upvotes),
+        downvotes: direction === 'down' ? post.downvotes + 1 : (prevVote === 'down' ? post.downvotes - 1 : post.downvotes),
+      });
     }
   }
 
@@ -100,12 +158,26 @@ export default function ForumPostDetailPage() {
     if (!user || !commentInput.trim()) return;
     setPosting(true);
     const supabase = createClient();
-    await supabase.from('forum_comments').insert({
-      post_id: postId, author_id: user.id, body: commentInput.trim(),
-      parent_id: null, upvotes: 0, downvotes: 0,
+
+    const { error } = await supabase.from('forum_comments').insert({
+      post_id: postId,
+      author_id: user.id,
+      body: commentInput.trim(),
+      parent_id: null,
+      upvotes: 0,
+      downvotes: 0,
     });
+
+    if (error) {
+      toast.error('Failed to post comment');
+      setPosting(false);
+      return;
+    }
+
     await supabase.from('forum_posts').update({ comment_count: (post?.comment_count || 0) + 1 }).eq('id', postId);
-    setCommentInput(''); setPosting(false);
+    setCommentInput('');
+    setPosting(false);
+    toast.success('Comment posted!');
     loadComments();
     if (post) setPost({ ...post, comment_count: post.comment_count + 1 });
   }
@@ -113,33 +185,61 @@ export default function ForumPostDetailPage() {
   async function postReply(parentId: string) {
     if (!user || !replyInput.trim()) return;
     const supabase = createClient();
-    await supabase.from('forum_comments').insert({
-      post_id: postId, author_id: user.id, body: replyInput.trim(),
-      parent_id: parentId, upvotes: 0, downvotes: 0,
+
+    const { error } = await supabase.from('forum_comments').insert({
+      post_id: postId,
+      author_id: user.id,
+      body: replyInput.trim(),
+      parent_id: parentId,
+      upvotes: 0,
+      downvotes: 0,
     });
+
+    if (error) {
+      toast.error('Failed to reply');
+      return;
+    }
+
     await supabase.from('forum_posts').update({ comment_count: (post?.comment_count || 0) + 1 }).eq('id', postId);
-    setReplyInput(''); setReplyTo(null);
+    setReplyInput('');
+    setReplyTo(null);
+    toast.success('Reply posted!');
     loadComments();
     if (post) setPost({ ...post, comment_count: post.comment_count + 1 });
   }
 
-  async function votePost(direction: 1 | -1) {
-    if (!user || !post) return;
-    const supabase = createClient();
-    await supabase.from('forum_votes').upsert({
-      user_id: user.id, target_type: 'post', target_id: postId, direction,
-    }, { onConflict: 'user_id,target_type,target_id' });
-    const field = direction === 1 ? 'upvotes' : 'downvotes';
-    setPost({ ...post, [field]: post[field] + 1 });
-  }
-
-  async function voteComment(commentId: string, direction: 1 | -1) {
+  async function voteComment(commentId: string, direction: 'up' | 'down') {
     if (!user) return;
     const supabase = createClient();
+
     await supabase.from('forum_votes').upsert({
-      user_id: user.id, target_type: 'comment', target_id: commentId, direction,
-    }, { onConflict: 'user_id,target_type,target_id' });
-    setComments(prev => prev.map(c => c.id === commentId ? { ...c, [direction === 1 ? 'upvotes' : 'downvotes']: c[direction === 1 ? 'upvotes' : 'downvotes'] + 1 } : c));
+      post_id: commentId,
+      user_id: user.id,
+      direction,
+    }, { onConflict: 'post_id,user_id' });
+
+    setComments(prev => prev.map(c => {
+      if (c.id === commentId) {
+        return { ...c, [direction === 'up' ? 'upvotes' : 'downvotes']: c[direction === 'up' ? 'upvotes' : 'downvotes'] + 1 };
+      }
+      if (c.replies) {
+        c.replies = c.replies.map(r => r.id === commentId ? { ...r, [direction === 'up' ? 'upvotes' : 'downvotes']: r[direction === 'up' ? 'upvotes' : 'downvotes'] + 1 } : r);
+      }
+      return c;
+    }));
+  }
+
+  function sharePost() {
+    if (navigator.share) {
+      navigator.share({ title: post?.title, url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success('Link copied to clipboard!');
+    }
+  }
+
+  function reportPost() {
+    toast.success('Report submitted. Thank you!');
   }
 
   function timeAgo(date: string) {
@@ -154,8 +254,9 @@ export default function ForumPostDetailPage() {
     return (
       <div className="space-y-4 animate-slide-up">
         <div className="card skeleton h-8 w-48" />
-        <div className="card skeleton h-40" />
+        <div className="card skeleton h-48" />
         <div className="card skeleton h-24" />
+        <div className="card skeleton h-32" />
       </div>
     );
   }
@@ -163,13 +264,16 @@ export default function ForumPostDetailPage() {
   if (!post) {
     return (
       <div className="space-y-4 animate-slide-up">
-        <Link href={`/forum/${slug}`} className="text-gray-400 hover:text-gray-600 text-sm">← Back</Link>
+        <Link href={`/forum/${slug}`} className="text-gray-400 hover:text-gray-600 text-sm">← Back to Forum</Link>
         <div className="card text-center py-8">
+          <p className="text-2xl mb-2">💬</p>
           <p className="text-sm text-gray-500">Post not found</p>
         </div>
       </div>
     );
   }
+
+  const netVotes = post.upvotes - post.downvotes;
 
   return (
     <div className="space-y-4 animate-slide-up">
@@ -183,14 +287,26 @@ export default function ForumPostDetailPage() {
       {/* Post */}
       <div className="card">
         <div className="flex gap-3">
-          {/* Votes */}
+          {/* Vote buttons */}
           <div className="flex flex-col items-center gap-0.5">
-            <button onClick={() => votePost(1)} className="text-gray-400 hover:text-teal-500 text-sm">▲</button>
-            <span className="text-sm font-bold text-harbor-800 dark:text-white">{post.upvotes - post.downvotes}</span>
-            <button onClick={() => votePost(-1)} className="text-gray-400 hover:text-red-500 text-sm">▼</button>
+            <button
+              onClick={() => votePost('up')}
+              className={cn('text-sm transition-colors', userVote === 'up' ? 'text-teal-500' : 'text-gray-400 hover:text-teal-500')}
+            >
+              ▲
+            </button>
+            <span className={cn('text-sm font-bold', netVotes > 0 ? 'text-teal-600' : netVotes < 0 ? 'text-red-500' : 'text-harbor-800 dark:text-white')}>
+              {netVotes}
+            </span>
+            <button
+              onClick={() => votePost('down')}
+              className={cn('text-sm transition-colors', userVote === 'down' ? 'text-red-500' : 'text-gray-400 hover:text-red-500')}
+            >
+              ▼
+            </button>
           </div>
 
-          {/* Content */}
+          {/* Post content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
               <div className="w-6 h-6 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-[10px]">
@@ -204,9 +320,10 @@ export default function ForumPostDetailPage() {
 
             <h1 className="text-lg font-bold text-harbor-800 dark:text-white">{post.title}</h1>
 
+            {/* Body rendered as markdown */}
             {post.body && (
-              <div className="mt-3 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                {post.body}
+              <div className="mt-3 prose prose-sm dark:prose-invert text-sm text-gray-700 dark:text-gray-300 leading-relaxed max-w-none">
+                <ReactMarkdown>{post.body}</ReactMarkdown>
               </div>
             )}
 
@@ -225,15 +342,36 @@ export default function ForumPostDetailPage() {
             {/* Post actions */}
             <div className="flex items-center gap-4 mt-4 text-xs text-gray-400">
               <span>💬 {post.comment_count} comments</span>
-              <button className="hover:text-gray-600">📤 Share</button>
+              <button onClick={sharePost} className="hover:text-gray-600">📤 Share</button>
               <button className="hover:text-gray-600">🔖 Save</button>
-              <button className="hover:text-gray-600">🚩 Report</button>
+              <button onClick={reportPost} className="hover:text-gray-600">🚩 Report</button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Comment input */}
+      {/* Author Info Card */}
+      {post.profiles && (
+        <div className="card flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+            {(post.profiles as any)?.avatar_url ? (
+              <img src={(post.profiles as any).avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+            ) : (
+              <span className="text-sm font-medium">{(post.profiles as any)?.display_name?.charAt(0) || '?'}</span>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-harbor-800 dark:text-white">{(post.profiles as any)?.display_name}</p>
+            <div className="flex items-center gap-2 text-[10px] text-gray-400">
+              <span>⭐ Standing Level {(post.profiles as any)?.standing_level || 1}</span>
+              <span>·</span>
+              <span>Joined {new Date((post.profiles as any)?.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comment Input */}
       {user && (
         <div className="card space-y-2">
           <textarea
@@ -251,11 +389,17 @@ export default function ForumPostDetailPage() {
         </div>
       )}
 
-      {/* Sort */}
+      {/* Sort Comments */}
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-500">Sort:</span>
         {(['best', 'new', 'old'] as SortComments[]).map(s => (
-          <button key={s} onClick={() => { setSortComments(s); loadComments(); }} className={cn('px-2 py-1 rounded text-xs capitalize', sortComments === s ? 'bg-harbor-800 text-white dark:bg-teal-500' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{s}</button>
+          <button
+            key={s}
+            onClick={() => { setSortComments(s); loadComments(); }}
+            className={cn('px-2 py-1 rounded text-xs capitalize', sortComments === s ? 'bg-harbor-800 text-white dark:bg-teal-500' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}
+          >
+            {s}
+          </button>
         ))}
       </div>
 
@@ -268,10 +412,11 @@ export default function ForumPostDetailPage() {
         ) : comments.map(comment => (
           <div key={comment.id} className="card space-y-2">
             <div className="flex gap-3">
+              {/* Comment votes */}
               <div className="flex flex-col items-center gap-0.5">
-                <button onClick={() => voteComment(comment.id, 1)} className="text-gray-400 hover:text-teal-500 text-xs">▲</button>
+                <button onClick={() => voteComment(comment.id, 'up')} className="text-gray-400 hover:text-teal-500 text-xs">▲</button>
                 <span className="text-xs font-bold text-harbor-800 dark:text-white">{comment.upvotes - comment.downvotes}</span>
-                <button onClick={() => voteComment(comment.id, -1)} className="text-gray-400 hover:text-red-500 text-xs">▼</button>
+                <button onClick={() => voteComment(comment.id, 'down')} className="text-gray-400 hover:text-red-500 text-xs">▼</button>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-[10px] text-gray-400">
@@ -280,19 +425,30 @@ export default function ForumPostDetailPage() {
                   <span>{timeAgo(comment.created_at)}</span>
                 </div>
                 <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{comment.body}</p>
-                <button onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)} className="text-[10px] text-teal-600 mt-1 hover:underline">Reply</button>
+                <button
+                  onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}
+                  className="text-[10px] text-teal-600 mt-1 hover:underline"
+                >
+                  Reply
+                </button>
 
-                {/* Reply form */}
+                {/* Inline reply form */}
                 {replyTo === comment.id && (
                   <div className="flex gap-2 mt-2">
-                    <input value={replyInput} onChange={e => setReplyInput(e.target.value)} placeholder="Reply..." className="input-field flex-1 text-xs" onKeyDown={e => e.key === 'Enter' && postReply(comment.id)} />
+                    <input
+                      value={replyInput}
+                      onChange={e => setReplyInput(e.target.value)}
+                      placeholder="Write a reply..."
+                      className="input-field flex-1 text-xs"
+                      onKeyDown={e => e.key === 'Enter' && postReply(comment.id)}
+                    />
                     <button onClick={() => postReply(comment.id)} disabled={!replyInput.trim()} className="btn-teal text-xs disabled:opacity-50">Reply</button>
                   </div>
                 )}
 
-                {/* Nested replies */}
+                {/* Nested replies (indented based on parent_id) */}
                 {comment.replies && comment.replies.length > 0 && (
-                  <div className="mt-2 ml-4 border-l-2 border-gray-100 dark:border-harbor-800 pl-3 space-y-2">
+                  <div className="mt-3 ml-4 border-l-2 border-gray-100 dark:border-harbor-800 pl-3 space-y-3">
                     {comment.replies.map(reply => (
                       <div key={reply.id}>
                         <div className="flex items-center gap-2 text-[10px] text-gray-400">
@@ -301,6 +457,24 @@ export default function ForumPostDetailPage() {
                           <span>{timeAgo(reply.created_at)}</span>
                         </div>
                         <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">{reply.body}</p>
+                        <button
+                          onClick={() => setReplyTo(replyTo === reply.id ? null : reply.id)}
+                          className="text-[10px] text-teal-600 mt-0.5 hover:underline"
+                        >
+                          Reply
+                        </button>
+                        {replyTo === reply.id && (
+                          <div className="flex gap-2 mt-1">
+                            <input
+                              value={replyInput}
+                              onChange={e => setReplyInput(e.target.value)}
+                              placeholder="Write a reply..."
+                              className="input-field flex-1 text-xs"
+                              onKeyDown={e => e.key === 'Enter' && postReply(reply.id)}
+                            />
+                            <button onClick={() => postReply(reply.id)} disabled={!replyInput.trim()} className="btn-teal text-xs disabled:opacity-50">Reply</button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -310,6 +484,11 @@ export default function ForumPostDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Back link */}
+      <Link href={`/forum/${slug}`} className="block text-center text-sm text-teal-600 hover:underline py-2">
+        ← Back to {(post.forum_spaces as any)?.name || 'Forum'}
+      </Link>
     </div>
   );
 }

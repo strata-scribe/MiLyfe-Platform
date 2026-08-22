@@ -2,9 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+
+const NovelEditor = dynamic(
+  () => import('@/components/editor/novel-editor').then(m => ({ default: m.NovelEditor })),
+  { ssr: false, loading: () => <div className="h-[150px] rounded-lg bg-gray-100 dark:bg-harbor-800 animate-pulse" /> }
+);
 
 interface Space { id: string; name: string; slug: string; description: string; icon: string; member_count: number; post_count: number; }
 interface Post { id: string; space_id: string; author_id: string; type: string; title: string; body: string | null; url: string | null; image_url: string | null; upvotes: number; downvotes: number; comment_count: number; pinned: boolean; created_at: string; profiles?: { display_name: string }; forum_spaces?: { name: string; slug: string; icon: string }; }
@@ -116,7 +122,7 @@ export default function ForumPage() {
             ))}
           </div>
           <input value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Post title" className="input-field" />
-          {postType === 'text' && <textarea value={postBody} onChange={e => setPostBody(e.target.value)} placeholder="What's on your mind?" className="input-field resize-none" rows={4} />}
+          {postType === 'text' && <NovelEditor placeholder="What's on your mind?" onTextChange={(text) => setPostBody(text)} className="min-h-[150px]" />}
           {postType === 'link' && <input value={postUrl} onChange={e => setPostUrl(e.target.value)} placeholder="https://..." className="input-field" />}
           <button onClick={createPost} disabled={!postTitle.trim() || !postSpaceId || posting} className="btn-teal w-full disabled:opacity-50">{posting ? 'Posting...' : 'Post to Forum'}</button>
         </div>

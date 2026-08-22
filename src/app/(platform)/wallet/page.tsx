@@ -86,13 +86,30 @@ export default function WalletPage() {
 
   async function sendMLY() {
     if (!user || !sendTo.trim() || !sendAmount) return;
+    const amount = parseFloat(sendAmount);
+    const balance = user.mly_balance || 0;
+
+    // Client-side balance check
+    if (amount <= 0) { toast.error('Amount must be greater than 0'); return; }
+    if (amount > balance) { toast.error('Insufficient $MLY balance'); return; }
+
     setSending(true);
     const supabase = createClient();
-    await supabase.from('transactions').insert({
-      user_id: user.id, type: 'sent', amount: parseFloat(sendAmount),
-      description: sendNote.trim() || `Sent to ${sendTo}`, category: 'transfer',
-      to_user: sendTo.trim(),
+
+    // Server-side validated transfer via RPC
+    const { error } = await supabase.rpc('transfer_mly', {
+      sender_id: user.id,
+      recipient_identifier: sendTo.trim(),
+      transfer_amount: amount,
+      transfer_note: sendNote.trim() || `Sent to ${sendTo}`,
     });
+
+    if (error) {
+      toast.error(error.message || 'Transfer failed');
+      setSending(false);
+      return;
+    }
+
     setSendTo(''); setSendAmount(''); setSendNote('');
     setSending(false);
     toast.success(`$${sendAmount} MLY sent!`);

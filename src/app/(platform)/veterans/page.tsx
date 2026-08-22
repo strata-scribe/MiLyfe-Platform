@@ -1,234 +1,324 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
 import { toast } from 'sonner';
 
-interface Benefit { id: string; category: string; title: string; description: string; eligibility: string; link: string; }
-interface Claim { id: string; user_id: string; type: string; status: 'submitted' | 'in-review' | 'approved' | 'denied'; submitted_at: string; updated_at: string; }
-interface Peer { id: string; display_name: string; branch: string; era: string; specialties: string[]; available: boolean; }
-interface Employer { id: string; company: string; industry: string; vet_friendly_rating: number; hiring_active: boolean; location: string; benefits: string[]; }
-interface VetEvent { id: string; title: string; date: string; location: string; type: string; }
+/* ─── Types ─── */
+interface Benefit {
+  id: string; title: string; category: string; description: string;
+  eligibility: string; how_to_apply: string; link: string;
+}
+interface ClaimStep {
+  id: string; user_id: string; title: string; category: string;
+  status: 'not_started' | 'in_progress' | 'submitted' | 'approved' | 'denied';
+  notes: string; updated_at: string;
+}
+interface Peer {
+  id: string; display_name: string; avatar_url: string | null;
+  branch: string; years_served: number; bio: string;
+  specialties: string[]; available: boolean;
+}
+interface TranslatedSkill {
+  id: string; mos_code: string; mos_title: string;
+  civilian_titles: string[]; salary_range: string; description: string;
+}
+interface Resource {
+  id: string; title: string; category: string; description: string;
+  address: string; phone: string; veteran_owned: boolean; accepts_mly: boolean;
+}
 
-type VeteranTab = 'home' | 'benefits' | 'peer' | 'employment' | 'emergency';
+type Tab = 'benefits' | 'claims' | 'peers' | 'transition' | 'resources';
 
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'benefits', label: 'Benefits' },
+  { key: 'claims', label: 'Claims' },
+  { key: 'peers', label: 'Peers' },
+  { key: 'transition', label: 'Transition' },
+  { key: 'resources', label: 'Resources' },
+];
+
+const BENEFIT_CATEGORIES = ['Healthcare', 'Education', 'Housing', 'Employment', 'Disability', 'Family', 'Burial'];
 const BRANCHES = ['Army', 'Navy', 'Air Force', 'Marines', 'Coast Guard', 'Space Force'];
-const BENEFIT_CATEGORIES = ['Healthcare', 'Education', 'Disability', 'Housing', 'Employment', 'Life Insurance'];
 
+/* ─── Component ─── */
 export default function VeteransPage() {
-  const [tab, setTab] = useState<VeteranTab>('home');
+  const [tab, setTab] = useState<Tab>('benefits');
   const [benefits, setBenefits] = useState<Benefit[]>([]);
-  const [claims, setClaims] = useState<Claim[]>([]);
+  const [claims, setClaims] = useState<ClaimStep[]>([]);
   const [peers, setPeers] = useState<Peer[]>([]);
-  const [employers, setEmployers] = useState<Employer[]>([]);
-  const [events, setEvents] = useState<VetEvent[]>([]);
+  const [translatedSkills, setTranslatedSkills] = useState<TranslatedSkill[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
-  const [benefitFilter, setBenefitFilter] = useState('All');
-  const [skillsInput, setSkillsInput] = useState('');
+  const [benefitFilter, setBenefitFilter] = useState('all');
+  const [mosSearch, setMosSearch] = useState('');
+  const [resourceFilter, setResourceFilter] = useState('all');
 
   const { user } = useAppStore();
+  const supabase = createClient();
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     setLoading(true);
-    const supabase = createClient();
-    const { data: b } = await supabase.from('pop_veteran_benefits').select('*').order('category');
-    if (b) setBenefits(b);
-    const { data: p } = await supabase.from('pop_veteran_peers').select('*').eq('available', true);
-    if (p) setPeers(p);
-    const { data: emp } = await supabase.from('pop_veteran_employers').select('*').eq('hiring_active', true);
-    if (emp) setEmployers(emp);
-    const { data: ev } = await supabase.from('pop_veteran_events').select('*').order('date').limit(5);
-    if (ev) setEvents(ev);
+    const [benResult, peerResult, resResult] = await Promise.all([
+      supabase.from('veterans_benefits').select('*'),
+      supabase.from('veterans_peers').select('*').eq('available', true),
+      supabase.from('veterans_resources').select('*'),
+    ]);
+    if (benResult.data) setBenefits(benResult.data);
+    if (peerResult.data) setPeers(peerResult.data);
+    if (resResult.data) setResources(resResult.data);
+
     if (user) {
-      const { data: cl } = await supabase.from('pop_veteran_claims').select('*').eq('user_id', user.id);
-      if (cl) setClaims(cl);
+      const { data: claimsData } = await supabase.from('veterans_claims').select('*').eq('user_id', user.id);
+      if (claimsData) setClaims(claimsData);
     }
     setLoading(false);
   }
 
-  async function requestBuddy(peerId: string) {
-    if (!user) return;
-    const supabase = createClient();
-    await supabase.from('pop_veteran_buddy_requests').insert({ user_id: user.id, peer_id: peerId, status: 'pending' });
-    toast.success('Battle buddy request sent. They\u2019ll reach out soon.');
+  async function searchMOS() {
+    if (!mosSearch.trim()) return;
+    const { data } = await supabase.from('veterans_mos_translations').select('*').or(`mos_code.ilike.%${mosSearch}%,mos_title.ilike.%${mosSearch}%`);
+    if (data) setTranslatedSkills(data);
+    else toast.error('No matches found — try a different MOS code or title');
   }
 
-  function getStatusColor(status: string) {
-    switch (status) {
-      case 'approved': return 'bg-green-100 text-green-700';
-      case 'in-review': return 'bg-yellow-100 text-yellow-700';
-      case 'denied': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-600';
-    }
+  async function connectPeer(peerId: string) {
+    if (!user) { toast.error('Sign in to connect'); return; }
+    const { error } = await supabase.from('veterans_peer_connections').insert({ user_id: user.id, peer_id: peerId });
+    if (error) { toast.error('Connection failed'); return; }
+    toast.success('Connection sent! Your fellow vet will reach out.');
   }
+
+  async function updateClaimStatus(id: string, status: ClaimStep['status']) {
+    await supabase.from('veterans_claims').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    toast.success('Claim status updated');
+    loadData();
+  }
+
+  const filteredBenefits = benefits.filter(b => benefitFilter === 'all' || b.category.toLowerCase() === benefitFilter.toLowerCase());
+  const filteredResources = resources.filter(r => resourceFilter === 'all' || r.category.toLowerCase() === resourceFilter.toLowerCase());
+
+  const Skeleton = () => (
+    <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="card h-20 animate-pulse bg-gray-100 dark:bg-harbor-800 rounded-xl" />)}</div>
+  );
 
   return (
     <div className="space-y-4 animate-slide-up">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">Veteran Services</h1>
-        <p className="text-xs text-gray-500">Thank you for your service. We&apos;ve got your six.</p>
+        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">MiVeterans</h1>
+        <p className="text-xs text-gray-500 mt-0.5">Thank you for your service. Now let us serve you.</p>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
-        {(['home', 'benefits', 'peer', 'employment', 'emergency'] as VeteranTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={cn('flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-medium capitalize transition-all', tab === t ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t}</button>
+      {/* Tabs */}
+      <div className="flex gap-1 overflow-x-auto bg-gray-100 dark:bg-harbor-900 rounded-xl p-1">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={cn('flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-medium whitespace-nowrap transition-all px-2', tab === t.key ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm' : 'text-gray-500')}>{t.label}</button>
         ))}
       </div>
 
-      {tab === 'home' && (
-        <div className="space-y-3">
-          <div className="card bg-harbor-50 dark:bg-harbor-900/50 border border-harbor-200 dark:border-harbor-700">
-            <p className="text-sm font-medium text-harbor-700 dark:text-harbor-300">🎖️ Thank you for your service.</p>
-            <p className="text-xs text-harbor-600 dark:text-harbor-400 mt-1 leading-relaxed">You served this country. Now let this community serve you. From benefits navigation to finding your tribe — we&apos;re here for every chapter after service.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { icon: '📋', label: 'VA Benefits', action: () => setTab('benefits') },
-              { icon: '🤝', label: 'Battle Buddy', action: () => setTab('peer') },
-              { icon: '💼', label: 'Vet-Friendly Jobs', action: () => setTab('employment') },
-              { icon: '🆘', label: 'Crisis Support', action: () => setTab('emergency') },
-            ].map(item => (
-              <button key={item.label} onClick={item.action} className="card p-3 text-center hover:shadow-md transition-shadow">
-                <p className="text-2xl">{item.icon}</p>
-                <p className="text-xs font-medium text-harbor-800 dark:text-white mt-1">{item.label}</p>
-              </button>
-            ))}
-          </div>
-          {events.length > 0 && (
-            <div className="card">
-              <p className="text-sm font-medium text-harbor-800 dark:text-white mb-2">Upcoming Vet Events</p>
-              {events.map(ev => (
-                <div key={ev.id} className="flex items-center gap-2 py-2 border-b border-gray-100 dark:border-harbor-800 last:border-0">
-                  <span className="text-xs text-teal-600 font-medium w-20">{new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-harbor-800 dark:text-white truncate">{ev.title}</p>
-                    <p className="text-[10px] text-gray-400">{ev.location}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* ─── Benefits ─── */}
       {tab === 'benefits' && (
         <div className="space-y-3">
+          <div className="card bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
+            <p className="text-sm font-semibold text-green-700 dark:text-green-300">VA Benefits Navigator</p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">Step-by-step guide to every benefit you earned. Broken down by category with eligibility and how to apply.</p>
+          </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {['All', ...BENEFIT_CATEGORIES].map(f => (
-              <button key={f} onClick={() => setBenefitFilter(f)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', benefitFilter === f ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{f}</button>
+            <button onClick={() => setBenefitFilter('all')} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', benefitFilter === 'all' ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>All</button>
+            {BENEFIT_CATEGORIES.map(c => (
+              <button key={c} onClick={() => setBenefitFilter(c)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap', benefitFilter.toLowerCase() === c.toLowerCase() ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{c}</button>
             ))}
           </div>
-          {loading ? [1, 2, 3].map(i => <div key={i} className="card skeleton h-20" />) :
-            benefits.filter(b => benefitFilter === 'All' || b.category === benefitFilter).map(benefit => (
-              <div key={benefit.id} className="card space-y-1">
-                <p className="text-sm font-medium text-harbor-800 dark:text-white">{benefit.title}</p>
-                <p className="text-xs text-gray-500">{benefit.description}</p>
-                <p className="text-[10px] text-teal-600">Eligibility: {benefit.eligibility}</p>
+          {loading ? <Skeleton /> : filteredBenefits.length === 0 ? (
+            <div className="card text-center py-8"><p className="text-sm text-gray-500">No benefits in this category</p></div>
+          ) : filteredBenefits.map(ben => (
+            <div key={ben.id} className="card space-y-2">
+              <p className="text-sm font-medium text-harbor-800 dark:text-white">{ben.title}</p>
+              <p className="text-xs text-gray-500">{ben.description}</p>
+              <div className="space-y-1 text-[10px] text-gray-400">
+                <p><span className="font-medium">Eligibility:</span> {ben.eligibility}</p>
+                <p><span className="font-medium">How to Apply:</span> {ben.how_to_apply}</p>
               </div>
-            ))
-          }
-          {claims.length > 0 && (
-            <div className="card">
-              <p className="text-sm font-medium text-harbor-800 dark:text-white mb-2">My Claims Status</p>
-              {claims.map(cl => (
-                <div key={cl.id} className="flex items-center gap-2 py-2 border-b border-gray-100 dark:border-harbor-800 last:border-0">
-                  <div className="flex-1">
-                    <p className="text-xs text-harbor-800 dark:text-white">{cl.type}</p>
-                    <p className="text-[10px] text-gray-400">Submitted {new Date(cl.submitted_at).toLocaleDateString()}</p>
+              {ben.link && <a href={ben.link} target="_blank" rel="noopener noreferrer" className="text-xs text-teal-600 hover:underline">Learn more →</a>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── Claims ─── */}
+      {tab === 'claims' && (
+        <div className="space-y-3">
+          <div className="card bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Disability Claim Assistant</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Track your claims, get buddy statement templates, nexus letter guidance, and appeal walkthrough.</p>
+          </div>
+          {claims.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">📋</p>
+              <p className="text-sm text-gray-500">No claims tracked yet</p>
+              <p className="text-xs text-gray-400 mt-1">Add your first claim to start tracking progress</p>
+            </div>
+          ) : claims.map(claim => (
+            <div key={claim.id} className="card space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{claim.title}</p>
+                <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', {
+                  'bg-gray-100 text-gray-600': claim.status === 'not_started',
+                  'bg-yellow-100 text-yellow-700': claim.status === 'in_progress',
+                  'bg-blue-100 text-blue-700': claim.status === 'submitted',
+                  'bg-green-100 text-green-700': claim.status === 'approved',
+                  'bg-red-100 text-red-700': claim.status === 'denied',
+                })}>{claim.status.replace('_', ' ')}</span>
+              </div>
+              {claim.notes && <p className="text-xs text-gray-500">{claim.notes}</p>}
+              <p className="text-[10px] text-gray-400">Updated: {new Date(claim.updated_at).toLocaleDateString()}</p>
+            </div>
+          ))}
+          <div className="card space-y-2">
+            <p className="text-sm font-bold text-harbor-800 dark:text-white">Helpful Tools</p>
+            <div className="grid grid-cols-1 gap-2">
+              {[
+                { label: 'Buddy Statement Template', desc: 'Template for fellow service members to corroborate' },
+                { label: 'Nexus Letter Guide', desc: 'How to get a medical nexus connecting condition to service' },
+                { label: 'Appeal Walkthrough', desc: 'Step-by-step Higher-Level Review or Board Appeal' },
+              ].map(tool => (
+                <div key={tool.label} className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-harbor-800 rounded-lg">
+                  <span className="text-lg">📄</span>
+                  <div>
+                    <p className="text-xs font-medium text-harbor-800 dark:text-white">{tool.label}</p>
+                    <p className="text-[10px] text-gray-400">{tool.desc}</p>
                   </div>
-                  <span className={cn('text-[10px] px-2 py-0.5 rounded-full capitalize', getStatusColor(cl.status))}>{cl.status}</span>
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {tab === 'peer' && (
+      {/* ─── Peers ─── */}
+      {tab === 'peers' && (
         <div className="space-y-3">
           <div className="card bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800">
-            <p className="text-xs text-teal-700 dark:text-teal-300">The Battle Buddy system connects you with fellow veterans who understand. Transition support, someone to talk to, or just shared understanding.</p>
+            <p className="text-xs text-teal-700 dark:text-teal-300">Connect with fellow veterans in your community. People who get it — no explanation needed.</p>
           </div>
-          {loading ? [1, 2].map(i => <div key={i} className="card skeleton h-24" />) :
-            peers.map(peer => (
-              <div key={peer.id} className="card flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-harbor-100 dark:bg-harbor-800 flex items-center justify-center text-sm font-bold text-harbor-600">{peer.display_name.charAt(0)}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white">{peer.display_name}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
-                    <span>{peer.branch}</span><span>•</span><span>{peer.era}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {peer.specialties.slice(0, 3).map(s => (
-                      <span key={s} className="text-[10px] px-1.5 py-0.5 bg-harbor-50 dark:bg-harbor-800 text-harbor-600 dark:text-harbor-300 rounded">{s}</span>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={() => requestBuddy(peer.id)} className="btn-teal text-xs">Connect</button>
+          {loading ? <Skeleton /> : peers.length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-2xl mb-2">🎖️</p>
+              <p className="text-sm text-gray-500">No peers listed yet — you could be the first</p>
+            </div>
+          ) : peers.map(peer => (
+            <div key={peer.id} className="card flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-sm font-bold text-green-700">
+                {peer.display_name.charAt(0)}
               </div>
-            ))
-          }
-        </div>
-      )}
-
-      {tab === 'employment' && (
-        <div className="space-y-3">
-          <div className="card">
-            <p className="text-sm font-medium text-harbor-800 dark:text-white mb-2">Skills Translator</p>
-            <p className="text-xs text-gray-500 mb-2">Translate your military skills to civilian terms</p>
-            <input value={skillsInput} onChange={e => setSkillsInput(e.target.value)} className="input-field" placeholder="e.g., 11B Infantryman, E-6 logistics..." />
-            <button onClick={() => toast.success('Skills translator: Translate your military MOS code in the search box above')} className="btn-teal text-xs mt-2 w-full">Translate My Skills</button>
-          </div>
-          {loading ? [1, 2].map(i => <div key={i} className="card skeleton h-20" />) :
-            employers.map(emp => (
-              <div key={emp.id} className="card space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-harbor-800 dark:text-white">{emp.company}</p>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded">🎖️ Vet-Friendly</span>
-                </div>
-                <p className="text-xs text-gray-500">{emp.industry} • {emp.location}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{peer.display_name}</p>
+                <p className="text-[10px] text-gray-400">{peer.branch} • {peer.years_served} years served</p>
+                <p className="text-xs text-gray-500 line-clamp-2 mt-1">{peer.bio}</p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {emp.benefits.map(b => (
-                    <span key={b} className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-harbor-800 text-gray-600 rounded">{b}</span>
+                  {peer.specialties?.slice(0, 3).map(s => (
+                    <span key={s} className="text-[10px] px-1.5 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-600 rounded">{s}</span>
                   ))}
                 </div>
               </div>
-            ))
-          }
+              <button onClick={() => connectPeer(peer.id)} className="btn-teal text-xs">Connect</button>
+            </div>
+          ))}
         </div>
       )}
 
-      {tab === 'emergency' && (
+      {/* ─── Transition ─── */}
+      {tab === 'transition' && (
         <div className="space-y-3">
-          <div className="card bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
-            <h3 className="text-sm font-bold text-red-700 dark:text-red-400">🆘 Veteran Crisis Resources</h3>
-            <p className="text-xs text-red-600 mt-1">You served bravely. Let someone serve you now.</p>
+          <div className="card bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Military-to-Civilian Skills Translator</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Enter your MOS code or military job title to see civilian equivalents and salary ranges.</p>
           </div>
-          {[
-            { label: 'Veterans Crisis Line', number: '988 (Press 1)', desc: 'Free, confidential support for veterans 24/7' },
-            { label: 'Crisis Text Line', number: 'Text 838255', desc: 'Text support for veterans' },
-            { label: 'Emergency Veteran Housing', number: '1-877-424-3838', desc: 'SSVF - immediate housing assistance' },
-            { label: 'Vet Center Combat Call', number: '1-877-927-8387', desc: 'Combat veteran peer support' },
-            { label: 'VA Financial Hardship', number: '1-800-827-1000', desc: 'Emergency financial assistance' },
-          ].map(item => (
-            <div key={item.label} className="card flex items-center gap-3">
-              <span className="text-xl">📞</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-harbor-800 dark:text-white">{item.label}</p>
-                <p className="text-xs text-gray-500">{item.desc}</p>
+          <div className="flex gap-2">
+            <input type="text" placeholder="MOS code or job title (e.g. 11B, 68W)..." value={mosSearch} onChange={e => setMosSearch(e.target.value)} className="input-field flex-1" />
+            <button onClick={searchMOS} className="btn-teal text-xs px-4">Translate</button>
+          </div>
+          {translatedSkills.length > 0 && (
+            <div className="space-y-2">
+              {translatedSkills.map(skill => (
+                <div key={skill.id} className="card space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded font-mono">{skill.mos_code}</span>
+                    <p className="text-sm font-medium text-harbor-800 dark:text-white">{skill.mos_title}</p>
+                  </div>
+                  <p className="text-xs text-gray-500">{skill.description}</p>
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-1">Civilian equivalents:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {skill.civilian_titles.map(title => (
+                        <span key={title} className="text-[10px] px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded">{title}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-teal-600 font-medium">Salary range: {skill.salary_range}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <Link href="/career" className="card flex items-center gap-3 hover:shadow-md transition-shadow">
+            <span className="text-xl">📝</span>
+            <div>
+              <p className="text-sm font-medium text-harbor-800 dark:text-white">Resume Builder</p>
+              <p className="text-xs text-gray-400">Translate your military experience into civilian terms</p>
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* ─── Resources ─── */}
+      {tab === 'resources' && (
+        <div className="space-y-3">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {['all', 'housing', 'health', 'employment', 'business', 'education'].map(cat => (
+              <button key={cat} onClick={() => setResourceFilter(cat)} className={cn('px-3 py-1 rounded-full text-xs whitespace-nowrap capitalize', resourceFilter === cat ? 'bg-teal-500 text-white' : 'bg-gray-100 dark:bg-harbor-800 text-gray-600')}>{cat}</button>
+            ))}
+          </div>
+          {loading ? <Skeleton /> : filteredResources.map(res => (
+            <div key={res.id} className="card space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium text-harbor-800 dark:text-white">{res.title}</p>
+                {res.veteran_owned && <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded">Vet Owned</span>}
+                {res.accepts_mly && <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">$MLY</span>}
               </div>
-              <a href={`tel:${item.number.replace(/\D/g, '')}`} className="text-xs font-bold text-teal-600">{item.number}</a>
+              <p className="text-xs text-gray-500">{res.description}</p>
+              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                {res.address && <span>📍 {res.address}</span>}
+                {res.phone && <span>📞 {res.phone}</span>}
+              </div>
             </div>
           ))}
-          <div className="card bg-harbor-50 dark:bg-harbor-900/50">
-            <p className="text-xs text-harbor-600 dark:text-harbor-300 text-center">You don&apos;t have to fight this battle alone. Your brothers and sisters in arms are here.</p>
+          <div className="card space-y-2">
+            <p className="text-sm font-bold text-harbor-800 dark:text-white">Key Programs</p>
+            <div className="space-y-1 text-xs text-gray-500">
+              <p>• <strong>HUD-VASH</strong> — Housing vouchers for homeless veterans</p>
+              <p>• <strong>VA Home Loan</strong> — $0 down, no PMI mortgage</p>
+              <p>• <strong>GI Bill</strong> — Education benefits transfer info</p>
+              <p>• <strong>Vet Center</strong> — Free readjustment counseling</p>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Crisis Footer */}
+      <div className="card bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
+        <p className="text-xs font-bold text-red-700 dark:text-red-400">Veterans Crisis Line</p>
+        <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-red-600 dark:text-red-300">
+          <span>Call: <strong>988 (Press 1)</strong></span>
+          <span>Text: <strong>838255</strong></span>
+          <span>Vet Center: <strong>1-877-927-8387</strong></span>
+        </div>
+      </div>
     </div>
   );
 }
