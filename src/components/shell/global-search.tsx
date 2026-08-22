@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { searchApps, type SearchResult } from '@/lib/search/search-index';
 import { createClient } from '@/lib/supabase/client';
+import { trackSearchUsed } from '@/lib/analytics/track';
 
 export function GlobalSearch() {
   const [isOpen, setIsOpen] = useState(false);
@@ -94,6 +95,7 @@ export function GlobalSearch() {
 
   const handleSelect = (result: SearchResult) => {
     setIsOpen(false);
+    trackSearchUsed(query, allResults.length);
     router.push(result.href);
   };
 

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { useRouter } from 'next/navigation';
+import { StandingCard } from '@/components/ui/standing-badge';
+import { FeatureUnlockList } from '@/components/ui/feature-gate';
 
 interface ProfileData {
   id: string;
@@ -187,6 +189,15 @@ export default function ProfilePage() {
             <p className="text-xs text-gray-500">Trust</p>
           </div>
         </div>
+      </section>
+
+      {/* Community Standing */}
+      <StandingCard />
+
+      {/* Feature Unlocks */}
+      <section className="card">
+        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Feature Unlocks</h2>
+        <FeatureUnlockList />
       </section>
 
       {/* Edit Profile */}

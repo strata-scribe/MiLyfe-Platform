@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
+import { FeatureGate } from '@/components/ui/feature-gate';
 
 interface Channel {
   id: string;
@@ -114,12 +115,14 @@ export default function ChannelsPage() {
           <p className="text-xs text-gray-500">Creator pages on MiMedia</p>
         </div>
         {user && (
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="btn-primary text-xs"
-          >
-            + Create Channel
-          </button>
+          <FeatureGate featureId="media_channel">
+            <button
+              onClick={() => setShowCreate(!showCreate)}
+              className="btn-primary text-xs"
+            >
+              + Create Channel
+            </button>
+          </FeatureGate>
         )}
       </div>
 

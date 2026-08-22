@@ -29,7 +29,7 @@ RULES:
 export async function POST(request: Request) {
   // Rate limit
   const ip = request.headers.get('x-forwarded-for') || 'unknown';
-  const rateCheck = checkRateLimit(`mi:${ip}`, RATE_LIMITS.ai);
+  const rateCheck = await checkRateLimit(`mi:${ip}`, RATE_LIMITS.ai, 'ai');
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { response: "I need a moment to catch my breath. Try again in a minute!" },

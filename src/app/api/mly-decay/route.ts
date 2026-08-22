@@ -24,7 +24,7 @@ const MIN_DECAY_AMOUNT = 0.5; // Don't bother decaying less than $0.50
 export async function POST(request: Request) {
   // Rate limit check
   const ip = request.headers.get('x-forwarded-for') || 'cron';
-  const rateCheck = checkRateLimit(`decay:${ip}`, RATE_LIMITS.decay);
+  const rateCheck = await checkRateLimit(`decay:${ip}`, RATE_LIMITS.decay, 'decay');
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded' },

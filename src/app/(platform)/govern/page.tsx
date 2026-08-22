@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { cn } from '@/lib/utils/cn';
+import { FeatureGate } from '@/components/ui/feature-gate';
 import { format, formatDistanceToNow, differenceInSeconds, isPast } from 'date-fns';
 
 type GovTab = 'active' | 'create' | 'results' | 'constitution';

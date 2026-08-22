@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store/app-store';
+import { trackHealthCheckin } from '@/lib/analytics/track';
 import { cn } from '@/lib/utils/cn';
 
 const moods = [
@@ -154,6 +155,7 @@ export default function HealthPage() {
     setCheckedIn(true);
     setStreak((prev) => prev + 1);
     setLoading(false);
+    trackHealthCheckin(selectedMood, streak + 1);
   };
 
   if (checkedIn) {

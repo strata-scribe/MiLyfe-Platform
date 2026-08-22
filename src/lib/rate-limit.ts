@@ -1,86 +1,125 @@
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
 /**
- * Simple in-memory rate limiter for API routes.
+ * Distributed Rate Limiting using Upstash Redis.
  * 
- * Uses a sliding window approach with per-IP tracking.
- * For production scale, swap with Redis-based solution (Upstash).
+ * Falls back to in-memory when Redis is not configured (development).
+ * Survives deployments, works across all serverless instances.
  */
 
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
+// ─── UPSTASH REDIS CLIENT ────────────────────────────────────────
+const redis = process.env.UPSTASH_REDIS_REST_URL
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+    })
+  : null;
 
-const store = new Map<string, RateLimitEntry>();
+// ─── RATE LIMITERS (Upstash — sliding window) ────────────────────
+const createLimiter = (requests: number, window: `${number} ${'s' | 'ms' | 'm' | 'h' | 'd'}`) => {
+  if (redis) {
+    return new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(requests, window),
+      analytics: true,
+      prefix: 'milyfe-rl',
+    });
+  }
+  return null;
+};
 
-// Clean up old entries periodically (every 5 minutes)
+const limiters = {
+  ubi: createLimiter(2, '1 h'),
+  decay: createLimiter(2, '1 h'),
+  ai: createLimiter(20, '1 m'),
+  general: createLimiter(100, '1 m'),
+  auth: createLimiter(5, '1 m'),
+  notifications: createLimiter(60, '1 m'),
+};
+
+// ─── IN-MEMORY FALLBACK ──────────────────────────────────────────
+interface MemoryEntry { count: number; resetAt: number; }
+const memoryStore = new Map<string, MemoryEntry>();
+
+// Clean up periodically
 if (typeof setInterval !== 'undefined') {
   setInterval(() => {
     const now = Date.now();
-    store.forEach((entry, key) => {
-      if (now > entry.resetAt) {
-        store.delete(key);
-      }
+    memoryStore.forEach((entry, key) => {
+      if (now > entry.resetAt) memoryStore.delete(key);
     });
   }, 5 * 60 * 1000);
 }
 
-interface RateLimitConfig {
-  /** Maximum requests allowed in the window */
-  maxRequests: number;
-  /** Time window in seconds */
-  windowSeconds: number;
-}
+// ─── PUBLIC INTERFACE ────────────────────────────────────────────
 
-interface RateLimitResult {
+export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   resetAt: number;
   retryAfterSeconds: number;
 }
 
+export const RATE_LIMITS = {
+  ubi: { maxRequests: 2, windowSeconds: 3600 },
+  decay: { maxRequests: 2, windowSeconds: 3600 },
+  ai: { maxRequests: 20, windowSeconds: 60 },
+  general: { maxRequests: 100, windowSeconds: 60 },
+  auth: { maxRequests: 5, windowSeconds: 60 },
+  notifications: { maxRequests: 60, windowSeconds: 60 },
+} as const;
+
+type LimiterName = keyof typeof limiters;
+
 /**
- * Check rate limit for a given identifier (usually IP or user ID)
+ * Check rate limit. Uses Upstash Redis in production, in-memory in dev.
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   identifier: string,
-  config: RateLimitConfig
+  config: { maxRequests: number; windowSeconds: number },
+  limiterName?: LimiterName
+): Promise<RateLimitResult> {
+  // Try Upstash first
+  const limiter = limiterName ? limiters[limiterName] : null;
+  if (limiter) {
+    try {
+      const result = await limiter.limit(identifier);
+      return {
+        allowed: result.success,
+        remaining: result.remaining,
+        resetAt: result.reset,
+        retryAfterSeconds: result.success ? 0 : Math.ceil((result.reset - Date.now()) / 1000),
+      };
+    } catch {
+      // Redis unavailable — fall through to memory
+    }
+  }
+
+  // In-memory fallback
+  return checkRateLimitMemory(identifier, config);
+}
+
+function checkRateLimitMemory(
+  identifier: string,
+  config: { maxRequests: number; windowSeconds: number }
 ): RateLimitResult {
   const now = Date.now();
   const windowMs = config.windowSeconds * 1000;
-  const key = `${identifier}`;
+  const entry = memoryStore.get(identifier);
 
-  const entry = store.get(key);
-
-  // No entry or expired window — allow and start fresh
   if (!entry || now > entry.resetAt) {
-    store.set(key, { count: 1, resetAt: now + windowMs });
-    return {
-      allowed: true,
-      remaining: config.maxRequests - 1,
-      resetAt: now + windowMs,
-      retryAfterSeconds: 0,
-    };
+    memoryStore.set(identifier, { count: 1, resetAt: now + windowMs });
+    return { allowed: true, remaining: config.maxRequests - 1, resetAt: now + windowMs, retryAfterSeconds: 0 };
   }
 
-  // Within window — check count
   if (entry.count < config.maxRequests) {
     entry.count++;
-    return {
-      allowed: true,
-      remaining: config.maxRequests - entry.count,
-      resetAt: entry.resetAt,
-      retryAfterSeconds: 0,
-    };
+    return { allowed: true, remaining: config.maxRequests - entry.count, resetAt: entry.resetAt, retryAfterSeconds: 0 };
   }
 
-  // Rate limited
   const retryAfterSeconds = Math.ceil((entry.resetAt - now) / 1000);
-  return {
-    allowed: false,
-    remaining: 0,
-    resetAt: entry.resetAt,
-    retryAfterSeconds,
-  };
+  return { allowed: false, remaining: 0, resetAt: entry.resetAt, retryAfterSeconds };
 }
 
 /**
@@ -93,17 +132,3 @@ export function rateLimitHeaders(result: RateLimitResult): Record<string, string
     ...(result.allowed ? {} : { 'Retry-After': result.retryAfterSeconds.toString() }),
   };
 }
-
-// Pre-configured limiters for different endpoints
-export const RATE_LIMITS = {
-  /** UBI cron — very restrictive (1 per hour) */
-  ubi: { maxRequests: 2, windowSeconds: 3600 },
-  /** MLY decay cron — very restrictive (1 per hour) */
-  decay: { maxRequests: 2, windowSeconds: 3600 },
-  /** Mi AI assistant — moderate (20 per minute) */
-  ai: { maxRequests: 20, windowSeconds: 60 },
-  /** General API — lenient (100 per minute) */
-  general: { maxRequests: 100, windowSeconds: 60 },
-  /** Auth attempts — strict (5 per minute) */
-  auth: { maxRequests: 5, windowSeconds: 60 },
-} as const;

@@ -16,6 +16,9 @@
     "@supabase/ssr": "0.5.1",
     "@supabase/supabase-js": "2.45.4",
     "@types/leaflet": "^1.9.22",
+    "@upstash/qstash": "^2.7.17",
+    "@upstash/ratelimit": "^2.0.5",
+    "@upstash/redis": "^1.34.3",
     "@vidstack/react": "^0.6.15",
     "clsx": "2.1.1",
     "date-fns": "^4.4.0",
@@ -35,7 +38,9 @@
     "react-leaflet": "^5.0.0",
     "react-player": "^3.4.0",
     "recharts": "^3.10.1",
+    "resend": "^6.22.0",
     "tailwind-merge": "2.5.2",
+    "web-push": "^3.6.7",
     "zustand": "4.5.5"
   },
   "devDependencies": {

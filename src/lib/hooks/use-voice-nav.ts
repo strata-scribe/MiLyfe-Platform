@@ -120,11 +120,33 @@ export function useVoiceNav(): VoiceNavState & {
         setState((s) => ({ ...s, feedback: `Navigating to ${appName}...` }));
         router.push(route);
       } else {
-        setState((s) => ({ ...s, feedback: `Didn't recognize: "${transcript}"` }));
+        // Forward to Mi AI as a natural language command
+        setState((s) => ({ ...s, feedback: `Asking Mi: "${transcript}"...` }));
+        fetch('/api/mi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: transcript, history: [] }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.response) {
+              setState((s) => ({ ...s, feedback: data.response.slice(0, 100) }));
+              // Speak the response
+              if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(data.response);
+                utterance.lang = localStorage.getItem('milyfe-lang') === 'es' ? 'es-US' : 'en-US';
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+              }
+            }
+          })
+          .catch(() => {
+            setState((s) => ({ ...s, feedback: `Didn't recognize: "${transcript}"` }));
+          });
       }
 
-      // Clear feedback after 3s
-      setTimeout(() => setState((s) => ({ ...s, feedback: null })), 3000);
+      // Clear feedback after 6s (longer for AI responses)
+      setTimeout(() => setState((s) => ({ ...s, feedback: null })), 6000);
     };
 
     recognition.onend = () => {

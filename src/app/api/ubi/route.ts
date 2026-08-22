@@ -13,7 +13,7 @@ const UBI_CRON_SECRET = process.env.UBI_CRON_SECRET || 'milyfe-ubi-secret';
 export async function POST(request: Request) {
   // Rate limit check
   const ip = request.headers.get('x-forwarded-for') || 'cron';
-  const rateCheck = checkRateLimit(`ubi:${ip}`, RATE_LIMITS.ubi);
+  const rateCheck = await checkRateLimit(`ubi:${ip}`, RATE_LIMITS.ubi, 'ubi');
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded' },
