@@ -9,7 +9,7 @@
  * Same-household attestations count less. New profiles earn slowly.
  */
 
-import { getAttestationWeight, StandingFacet, applyDecay } from './standing';
+import { getAttestationWeight, StandingFacet, applyDecay } from './standing-engine';
 
 export interface Attestation {
   id: string;
