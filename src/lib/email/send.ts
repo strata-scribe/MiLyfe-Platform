@@ -1,22 +1,17 @@
 import { Resend } from 'resend';
+import { render } from '@react-email/render';
 
 /**
- * Resend email client — sends transactional emails using React Email templates.
+ * Email sending — supports SMTP (Mailpit/Postal) and Resend.
+ * Uses SMTP when SMTP_HOST is set, falls back to Resend.
  * 
- * Usage:
- * ```ts
- * import { sendEmail } from '@/lib/email/send';
- * import { WelcomeEmail } from '@/lib/email/templates';
- * 
- * await sendEmail({
- *   to: 'user@example.com',
- *   subject: 'Welcome to MiLyfe!',
- *   react: WelcomeEmail({ name: 'John' }),
- * });
- * ```
+ * Mailpit UI: http://localhost:8025 (see all sent emails)
  */
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '1025');
+const SMTP_FROM = process.env.SMTP_FROM || 'MiLyfe <noreply@milyfe.fun>';
 
 interface SendEmailOptions {
   to: string | string[];
@@ -28,6 +23,47 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, react, from, replyTo, tags }: SendEmailOptions) {
+  const fromAddress = from || SMTP_FROM;
+  const recipients = Array.isArray(to) ? to : [to];
+
+  // If SMTP is configured (Mailpit/Postal), use it
+  if (SMTP_HOST) {
+    try {
+      const html = await render(react);
+      const net = await import('net');
+      
+      return new Promise<{ success: boolean; error?: any }>((resolve) => {
+        const socket = net.createConnection(SMTP_PORT, SMTP_HOST, () => {
+          const commands = [
+            `EHLO milyfe.fun\r\n`,
+            `MAIL FROM:<${fromAddress.match(/<(.+)>/)?.[1] || 'noreply@milyfe.fun'}>\r\n`,
+            ...recipients.map(r => `RCPT TO:<${r}>\r\n`),
+            `DATA\r\n`,
+            `From: ${fromAddress}\r\nTo: ${recipients.join(', ')}\r\nSubject: ${subject}\r\nContent-Type: text/html; charset=utf-8\r\nMIME-Version: 1.0\r\n\r\n${html}\r\n.\r\n`,
+            `QUIT\r\n`,
+          ];
+          let cmdIndex = 0;
+          socket.on('data', () => {
+            if (cmdIndex < commands.length) {
+              socket.write(commands[cmdIndex++]);
+            }
+          });
+          socket.on('end', () => resolve({ success: true }));
+          socket.on('error', (err) => resolve({ success: false, error: err }));
+        });
+        socket.on('error', (err) => resolve({ success: false, error: err }));
+      });
+    } catch (err) {
+      console.error('[MiLyfe Email] SMTP failed:', err);
+      return { success: false, error: err };
+    }
+  }
+
+  // Fallback to Resend
+  if (!resend) {
+    console.warn('[MiLyfe Email] No email provider configured (set SMTP_HOST or RESEND_API_KEY)');
+    return { success: false, error: 'No email provider configured' };
+  }
   try {
     const { data, error } = await resend.emails.send({
       from: from || 'MiLyfe <noreply@milyfe.fun>',
