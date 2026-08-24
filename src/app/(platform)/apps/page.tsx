@@ -1,15 +1,17 @@
-'use client';
+import { createServerSupabase } from '@/lib/supabase/server';
+import { AppsView } from './apps-view';
 
-import { AllAppsGrid } from '@/components/ui/app-grid';
+export const metadata = { title: 'Apps' };
 
-export default function AppsPage() {
-  return (
-    <div className="space-y-4 animate-slide-up">
-      <div>
-        <h1 className="text-xl font-bold text-harbor-800 dark:text-white">All Apps</h1>
-        <p className="text-xs text-gray-500">Everything MiLyfe has to offer</p>
-      </div>
-      <AllAppsGrid />
-    </div>
-  );
+export default async function AppsPage() {
+  const supabase = createServerSupabase();
+
+  const { data: apps } = await supabase
+    .from('apps')
+    .select('*, developer:profiles!apps_developer_id_fkey(username, display_name)')
+    .eq('status', 'published')
+    .order('install_count', { ascending: false })
+    .limit(30);
+
+  return <AppsView apps={apps || []} />;
 }

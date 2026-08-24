@@ -1,130 +1,123 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function SignupPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [username, setUsername] = useState('');
   const [error, setError] = useState('');
-  const router = useRouter();
-  const supabase = createClient();
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = async (e: React.FormEvent) => {
+  async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
-    try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, display_name: displayName }),
-      });
+    const supabase = createClient();
+    const { error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
+          display_name: username,
+        },
+      },
+    });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Signup failed');
-        setLoading(false);
-      } else {
-        // Sign in with the client to set cookies
-        await supabase.auth.signInWithPassword({ email, password });
-        router.push('/onboarding');
-        router.refresh();
-      }
-    } catch {
-      setError('Network error. Try again.');
+    if (authError) {
+      setError(authError.message);
       setLoading(false);
+      return;
     }
-  };
+
+    router.push('/onboarding');
+    router.refresh();
+  }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
-        {/* Brand */}
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="MiLyfe" className="h-12 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-harbor-800 dark:text-white">Join MiLyfe</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Free forever. Community-owned.</p>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSignup} className="space-y-4">
-          {error && (
-            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              What should we call you?
-            </label>
-            <input
-              id="displayName"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="input-field"
-              placeholder="Your name"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-field"
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              placeholder="At least 6 characters"
-              required
-              minLength={6}
-              autoComplete="new-password"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Creating account...' : 'Create My Account'}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
-          Already have an account?{' '}
-          <Link href="/login" className="text-teal-500 hover:underline font-medium">
-            Sign in
-          </Link>
+    <div className="space-y-6">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-harbor-800 dark:text-white">
+          Join MiLyfe
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Your city. Your life. Your platform.
         </p>
       </div>
-    </main>
+
+      <form onSubmit={handleSignup} className="space-y-4">
+        <div>
+          <label htmlFor="username" className="block text-sm font-medium text-harbor-800 dark:text-gray-200 mb-1">
+            Username
+          </label>
+          <Input
+            id="username"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+            placeholder="your_username"
+            required
+            autoComplete="username"
+            minLength={3}
+            maxLength={24}
+            pattern="[a-z0-9_]+"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-harbor-800 dark:text-gray-200 mb-1">
+            Email
+          </label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            autoComplete="email"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-harbor-800 dark:text-gray-200 mb-1">
+            Password
+          </label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 8 characters"
+            required
+            autoComplete="new-password"
+            minLength={8}
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
+        )}
+
+        <Button type="submit" variant="harbor" size="lg" className="w-full" disabled={loading}>
+          {loading ? 'Creating account...' : 'Create account'}
+        </Button>
+      </form>
+
+      <p className="text-center text-sm text-gray-500">
+        Already have an account?{' '}
+        <Link href="/login" className="text-teal-600 hover:underline font-medium">
+          Sign in
+        </Link>
+      </p>
+    </div>
   );
 }

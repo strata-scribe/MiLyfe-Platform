@@ -1,10 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import type { Database } from '@/types/database';
 
 export function createServerSupabase() {
   const cookieStore = cookies();
 
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -18,9 +19,23 @@ export function createServerSupabase() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Server Component — can't set cookies, that's fine
+            // Server Component — can't set cookies
           }
         },
+      },
+    }
+  );
+}
+
+/** Service role client for admin operations (server-side only) */
+export function createServiceSupabase() {
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() { return []; },
+        setAll() {},
       },
     }
   );

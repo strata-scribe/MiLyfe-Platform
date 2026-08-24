@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+const PUBLIC_ROUTES = ['/', '/login', '/signup', '/auth/callback'];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -26,11 +28,18 @@ export async function updateSession(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
+  const pathname = request.nextUrl.pathname;
 
-  // Protect platform routes
-  if (!user && request.nextUrl.pathname.startsWith('/(platform)')) {
+  // Allow public routes
+  if (PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith('/auth'))) {
+    return supabaseResponse;
+  }
+
+  // Redirect unauthenticated users to login
+  if (!user) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
 

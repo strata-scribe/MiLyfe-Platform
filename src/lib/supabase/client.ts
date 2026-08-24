@@ -1,6 +1,7 @@
 import { createBrowserClient } from '@supabase/ssr';
+import type { Database } from '@/types/database';
 
-let client: ReturnType<typeof createBrowserClient> | null = null;
+let client: ReturnType<typeof createBrowserClient<Database>> | null = null;
 
 export function createClient() {
   if (client) return client;
@@ -9,9 +10,9 @@ export function createClient() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error('[MiLyfe] Missing Supabase environment variables');
+    throw new Error('[MiLyfe] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 
-  client = createBrowserClient(url, key);
+  client = createBrowserClient<Database>(url, key);
   return client;
 }

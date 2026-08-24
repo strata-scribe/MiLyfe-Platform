@@ -1,109 +1,104 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import { ArrowRight, Users, Wallet, Shield, Vote, Heart, BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+const FEATURES = [
+  { icon: Wallet, title: 'Earn $MLY', description: 'Universal basic income for every citizen. Spend, save, or give back.' },
+  { icon: Users, title: 'Connect', description: 'Real relationships with real neighbors. Not followers — connections.' },
+  { icon: Vote, title: 'Govern Together', description: 'Direct democracy. Every voice counts. Propose, vote, build.' },
+  { icon: Shield, title: 'Standing', description: '8 facets of reputation. Earned through action, not popularity.' },
+  { icon: Heart, title: 'Health & Wellness', description: 'Check in, track your journey, find resources when you need them.' },
+  { icon: BookOpen, title: 'Community Wiki', description: 'Shared knowledge. Built by citizens, for citizens.' },
+];
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-surface-light dark:bg-surface-dark">
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-16 md:py-24 text-center">
-        {/* Real Logo */}
-        <div className="mb-8">
-          <Image
-            src="/logo.png"
-            alt="MiLyfe"
-            width={205}
-            height={75}
-            priority
-            className="h-16 md:h-20 w-auto"
-          />
-        </div>
-
-        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-harbor-800 dark:text-white mb-4 text-balance leading-tight">
-          Your City. Your Life.
-          <br />
-          <span className="text-teal-500">Your Platform.</span>
-        </h1>
-
-        <p className="text-base sm:text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mb-8 md:mb-10 text-balance">
-          One app for civic engagement, health, community commerce, and mutual aid.
-          Powered by <strong className="text-mly-600">$MLY</strong> — worth $1 each. Earn by participating.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <Link href="/signup" className="btn-teal text-center text-lg px-8 py-4">
-            Join Free
-          </Link>
-          <Link href="/login" className="btn-primary text-center text-lg px-8 py-4">
-            Sign In
-          </Link>
-        </div>
-
-        <p className="text-xs text-gray-400 mt-4">$0 to start. Free forever. Community-owned.</p>
-      </section>
-
-      {/* What You Get */}
-      <section className="px-6 py-12 md:py-16 bg-gray-50 dark:bg-harbor-950">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-xl md:text-2xl font-bold text-harbor-800 dark:text-white text-center mb-8">
-            Everything your community needs. One app.
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-            {[
-              { icon: '🏛️', name: 'City', desc: 'Report issues. Vote. Shape policy.' },
-              { icon: '💰', name: 'Pocket', desc: '$MLY wallet. Shop local. Rideshare.' },
-              { icon: '📚', name: 'Learn', desc: 'Know your rights. Build skills.' },
-              { icon: '🤝', name: 'Aid', desc: 'Help neighbors. Get help.' },
-              { icon: '🎬', name: 'Media', desc: 'Video. Music. Radio. Podcasts.' },
-            ].map((app) => (
-              <div key={app.name} className="card text-center hover:scale-105 transition-transform p-4 md:p-6">
-                <div className="text-3xl md:text-4xl mb-2">{app.icon}</div>
-                <h3 className="font-bold text-harbor-800 dark:text-white text-sm md:text-base">{app.name}</h3>
-                <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mt-1">{app.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* MLY Value Prop */}
-      <section className="px-6 py-12 md:py-16">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-harbor-800 dark:text-white mb-6">
-            <span className="text-mly-500">$MLY</span> = $1 USD
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="card p-5">
-              <p className="text-2xl font-bold text-teal-500">+$10</p>
-              <p className="text-sm text-gray-500 mt-1">Daily UBI for active members</p>
+      <header className="relative overflow-hidden">
+        <div className="max-w-5xl mx-auto px-4 pt-12 pb-20 md:pt-20 md:pb-32 text-center">
+          <nav className="flex items-center justify-between mb-16" aria-label="Landing navigation">
+            <div className="flex items-center gap-1">
+              <span className="text-2xl font-bold text-harbor-800 dark:text-white">Mi</span>
+              <span className="text-2xl font-bold text-teal-500">Lyfe</span>
             </div>
-            <div className="card p-5">
-              <p className="text-2xl font-bold text-teal-500">+$5</p>
-              <p className="text-sm text-gray-500 mt-1">Every health check-in</p>
+            <div className="flex items-center gap-3">
+              <Link href="/login">
+                <Button variant="ghost" size="sm">Sign in</Button>
+              </Link>
+              <Link href="/signup">
+                <Button variant="harbor" size="sm">Join</Button>
+              </Link>
             </div>
-            <div className="card p-5">
-              <p className="text-2xl font-bold text-teal-500">+$10</p>
-              <p className="text-sm text-gray-500 mt-1">Report a city issue</p>
-            </div>
-          </div>
-          <p className="text-sm text-gray-500 mt-6">
-            Spend at local businesses. Exchange peer-to-peer. Your money. Your rules.
+          </nav>
+
+          <h1 className="text-4xl md:text-6xl font-bold text-harbor-800 dark:text-white leading-tight text-balance">
+            Your City. Your Life.{' '}
+            <span className="text-teal-500">Your Platform.</span>
+          </h1>
+          <p className="mt-6 text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto text-balance">
+            A community-owned civic platform where every citizen earns, governs, 
+            connects, and thrives. No ads. No algorithms. Just people.
           </p>
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/signup">
+              <Button variant="harbor" size="lg" className="w-full sm:w-auto">
+                Become a citizen
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Link>
+            <Link href="/wiki">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                Learn more
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Background decoration */}
+        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-teal-100/30 dark:bg-teal-900/10 blur-3xl" aria-hidden="true" />
+        <div className="absolute -bottom-20 -left-20 w-60 h-60 rounded-full bg-mly-100/30 dark:bg-mly-900/10 blur-3xl" aria-hidden="true" />
+      </header>
+
+      {/* Features grid */}
+      <section className="max-w-5xl mx-auto px-4 pb-20 md:pb-32" aria-labelledby="features-heading">
+        <h2 id="features-heading" className="sr-only">Platform Features</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {FEATURES.map(({ icon: Icon, title, description }) => (
+            <div key={title} className="card group">
+              <div className="rounded-lg bg-teal-50 dark:bg-teal-900/20 p-2.5 w-fit mb-3 group-hover:scale-105 transition-transform">
+                <Icon className="h-5 w-5 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+              </div>
+              <h3 className="font-bold text-harbor-800 dark:text-white mb-1">{title}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="bg-harbor-800 dark:bg-harbor-900 py-16 md:py-24">
+        <div className="max-w-3xl mx-auto px-4 text-center">
+          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4 text-balance">
+            Built for the people who need it most
+          </h2>
+          <p className="text-harbor-200 mb-8 text-balance">
+            Governed by the people who use it. Built by the people who believe in it.
+          </p>
+          <Link href="/signup">
+            <Button variant="mly" size="lg">
+              Join MiLyfe — It&apos;s free
+            </Button>
+          </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="px-6 py-8 text-center border-t border-gray-100 dark:border-harbor-800">
-        <Image
-          src="/logo.png"
-          alt="MiLyfe"
-          width={120}
-          height={44}
-          className="h-8 w-auto mx-auto mb-3 opacity-60"
-        />
-        <p className="text-xs text-gray-400">
-          Decentralized. Community-Owned. People-Powered. Protected by the Constitution.
+      <footer className="max-w-5xl mx-auto px-4 py-8 text-center">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Community-owned. Open source. People-powered.
         </p>
       </footer>
-    </main>
+    </div>
   );
 }

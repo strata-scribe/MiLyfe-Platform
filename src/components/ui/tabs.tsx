@@ -1,88 +1,54 @@
 'use client';
 
 import * as React from 'react';
+import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils/cn';
 
-interface TabsProps {
-  defaultValue?: string;
-  value?: string;
-  onValueChange?: (value: string) => void;
-  children: React.ReactNode;
-  className?: string;
-}
+const Tabs = TabsPrimitive.Root;
 
-const TabsContext = React.createContext<{
-  value: string;
-  onChange: (value: string) => void;
-}>({ value: '', onChange: () => {} });
+const TabsList = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.List>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.List
+    ref={ref}
+    className={cn(
+      'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-harbor-900 p-1 text-gray-500',
+      className
+    )}
+    {...props}
+  />
+));
+TabsList.displayName = 'TabsList';
 
-function Tabs({ defaultValue = '', value, onValueChange, children, className }: TabsProps) {
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const currentValue = value ?? internalValue;
-  const handleChange = onValueChange ?? setInternalValue;
+const TabsTrigger = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white dark:data-[state=active]:bg-harbor-800 data-[state=active]:text-harbor-800 dark:data-[state=active]:text-white data-[state=active]:shadow-sm',
+      className
+    )}
+    {...props}
+  />
+));
+TabsTrigger.displayName = 'TabsTrigger';
 
-  return (
-    <TabsContext.Provider value={{ value: currentValue, onChange: handleChange }}>
-      <div className={className}>{children}</div>
-    </TabsContext.Provider>
-  );
-}
-
-function TabsList({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        'inline-flex items-center gap-1 bg-gray-100 dark:bg-harbor-900 rounded-xl p-1 w-full',
-        className
-      )}
-      role="tablist"
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  value: string;
-}
-
-function TabsTrigger({ value, className, children, ...props }: TabsTriggerProps) {
-  const { value: selectedValue, onChange } = React.useContext(TabsContext);
-  const isActive = selectedValue === value;
-
-  return (
-    <button
-      role="tab"
-      aria-selected={isActive}
-      onClick={() => onChange(value)}
-      className={cn(
-        'flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all',
-        isActive
-          ? 'bg-white dark:bg-harbor-800 text-harbor-800 dark:text-white shadow-sm'
-          : 'text-gray-500 hover:text-gray-700',
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-interface TabsContentProps extends React.HTMLAttributes<HTMLDivElement> {
-  value: string;
-}
-
-function TabsContent({ value, className, children, ...props }: TabsContentProps) {
-  const { value: selectedValue } = React.useContext(TabsContext);
-  if (selectedValue !== value) return null;
-
-  return (
-    <div role="tabpanel" className={cn('mt-3', className)} {...props}>
-      {children}
-    </div>
-  );
-}
+const TabsContent = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Content
+    ref={ref}
+    className={cn(
+      'mt-3 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 animate-fade-in',
+      className
+    )}
+    {...props}
+  />
+));
+TabsContent.displayName = 'TabsContent';
 
 export { Tabs, TabsList, TabsTrigger, TabsContent };

@@ -1,103 +1,48 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useAppStore } from '@/lib/store/app-store';
-import { useRouter } from 'next/navigation';
+import { useAppStore } from '@/lib/store';
+import type { Tables } from '@/types/database';
 
-// v2 — fixed subscription cleanup
-const AUTH_PROVIDER_VERSION = 2;
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setUser } = useAppStore();
-  const router = useRouter();
-  const initialized = useRef(false);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const { setUser, setWallet, setStanding } = useAppStore();
 
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-
     const supabase = createClient();
 
-    // Load initial session
-    const loadSession = async () => {
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+    async function loadUserData(userId: string) {
+      const [profileRes, walletRes, standingRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase.from('wallets').select('*').eq('user_id', userId).single(),
+        supabase.from('standing').select('*').eq('user_id', userId).single(),
+      ]);
 
-        if (authUser) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', authUser.id)
-            .single();
+      if (profileRes.data) setUser(profileRes.data as Tables<'profiles'>);
+      if (walletRes.data) setWallet(walletRes.data as Tables<'wallets'>);
+      if (standingRes.data) setStanding(standingRes.data as Tables<'standing'>);
+    }
 
-          if (profile) {
-            setUser({
-              id: profile.id,
-              email: profile.email,
-              display_name: profile.display_name,
-              avatar_url: profile.avatar_url,
-              mly_balance: profile.mly_balance,
-              city: profile.city,
-              joined_at: profile.created_at,
-            });
-          } else {
-            setUser({
-              id: authUser.id,
-              email: authUser.email ?? '',
-              display_name: authUser.user_metadata?.display_name ?? 'Neighbor',
-              avatar_url: authUser.user_metadata?.avatar_url,
-              mly_balance: 100,
-              city: 'Jacksonville',
-              joined_at: authUser.created_at,
-            });
-          }
-        }
-      } catch (e) {
-        console.log('[MiLyfe] Auth check skipped — not logged in');
-      }
-    };
+    // Load initial user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) loadUserData(user.id);
+    });
 
-    loadSession();
-
-    // Listen for auth state changes
-    const { data } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          try {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-
-            if (profile) {
-              setUser({
-                id: profile.id,
-                email: profile.email,
-                display_name: profile.display_name,
-                avatar_url: profile.avatar_url,
-                mly_balance: profile.mly_balance,
-                city: profile.city,
-                joined_at: profile.created_at,
-              });
-            }
-          } catch {
-            // Profile fetch failed, that's okay
-          }
-        }
-
-        if (event === 'SIGNED_OUT') {
+          loadUserData(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
-          router.push('/login');
+          setWallet(null);
+          setStanding(null);
         }
       }
     );
 
-    return () => {
-      data?.subscription?.unsubscribe();
-    };
-  }, [setUser, router]);
+    return () => subscription.unsubscribe();
+  }, [setUser, setWallet, setStanding]);
 
   return <>{children}</>;
 }
