@@ -2,119 +2,164 @@
 
 **Your City. Your Life. Your Platform.**
 
-A decentralized civic engagement platform connecting communities through mutual aid, health tracking, local commerce, governance, and safety — powered by $MLY community currency.
+A community-owned civic platform where every citizen earns $MLY, governs together, connects with neighbors, and accesses resources. No ads. No algorithms. Just people.
 
-## What It Does
+**Live:** [milyfe-platform.vercel.app](https://milyfe-platform.vercel.app)
 
-| App | Purpose |
-|-----|---------|
-| **MiCity** | Report infrastructure issues, upvote priorities, track resolution |
-| **MiHealth** | Daily wellness check-ins with streak tracking |
-| **MiShop** | Local marketplace — buy/sell with $MLY credits |
-| **MiConnect** | Real-time community messaging |
-| **MiVault** | Encrypted document storage with revocable sharing |
-| **MiMap** | Interactive map of issues, events, and resources |
-| **Governance** | Community proposals with voting and quorum tracking |
-| **Jobs** | Local gigs marketplace with $MLY payments |
-| **Mutual Aid** | Request/offer help, neighbor matching |
-| **Resources** | Verified directory of free community services |
-| **Safety** | Wellness check-ins, emergency contacts, anonymous tips |
-| **Mi AI** | Community assistant powered by Groq LLM |
+---
 
-## Tech Stack
+## 14 Core Routes
 
-- **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- **Backend:** Supabase (PostgreSQL + Auth + Realtime + Storage)
-- **AI:** Groq API (llama-3.1-8b-instant) with local fallback
-- **Maps:** Leaflet + OpenStreetMap
-- **State:** Zustand
-- **PWA:** Service worker + offline support
-- **Deployment:** Vercel
+| Route | What it does |
+|-------|-------------|
+| `/` | Public landing page |
+| `/onboarding` | 3-step signup wizard |
+| `/home` | Dashboard — balance, standing, rewards, activity |
+| `/connect` | Connections, messaging, people search |
+| `/wallet` | $MLY three-pot system, transfers, transaction history |
+| `/rewards` | Claim UBI, quest rewards, badges |
+| `/standing` | 8-facet reputation (Neighbor, Carer, Maker, Teacher, Keeper, Voice, Shop, Helper) |
+| `/governance` | Proposals, voting, direct democracy |
+| `/news` | Community journalism |
+| `/forum` | Discussion spaces |
+| `/health` | Wellness check-ins, streak tracking, resource directory |
+| `/wiki` | Community knowledge base |
+| `/profile` | Profile management, settings, sign out |
+| `/apps` | Community-built app directory |
 
-## Quick Start
+Everything else is a [bounty for contributors](./BOUNTY_ROADMAP.md).
+
+---
+
+## Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 14 (App Router) |
+| Database | Supabase (Postgres + Auth + RLS) |
+| Styling | Tailwind CSS + Radix UI primitives |
+| State | Zustand |
+| Forms | React Hook Form + Zod |
+| Editor | Tiptap |
+| Search | Meilisearch |
+| Realtime | LiveKit |
+| Offline | Dexie.js (IndexedDB) |
+| Charts | Recharts |
+| Maps | MapLibre GL |
+| Notifications | Novu (planned) |
+
+---
+
+## Getting Started
 
 ```bash
-# Install dependencies
-npm install --legacy-peer-deps
+# Clone
+git clone https://github.com/RealMiLyfe/MiLyfe-Platform.git
+cd MiLyfe-Platform
 
-# Set up environment
+# Install
+npm install
+
+# Environment
 cp .env.local.example .env.local
-# Fill in your Supabase keys
+# Fill in your Supabase credentials
 
-# Run the database migration
-npx supabase db push
+# Run migration
+# Apply supabase/migrations/001_mvp_schema.sql to your Supabase project
 
-# Start development
+# Dev
 npm run dev
 ```
 
-## Environment Variables
+### Environment Variables
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-UBI_CRON_SECRET=your_secret
-GROQ_API_KEY=your_groq_key (optional, falls back to local)
+NEXT_PUBLIC_SUPABASE_URL=        # Your Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=   # Supabase anon/public key
+SUPABASE_SERVICE_ROLE_KEY=       # Supabase service role key (server only)
+UBI_CRON_SECRET=                 # Secret for the daily UBI distribution cron
 ```
 
-## $MLY Currency
+Optional (for full feature set):
+```
+MEILISEARCH_URL=                 # Search (default: localhost:7700)
+LIVEKIT_URL=                     # Video/audio calls
+REDIS_URL=                       # Caching
+LITELLM_URL=                     # AI helpers
+```
 
-Earn $MLY through community participation:
-- Daily health check-in: +5 MLY
-- Report city issue: +10 MLY
-- Daily UBI (active users): +10 MLY
-- Vote on proposal: +3 MLY
-- Offer mutual aid: +15 MLY
-- Safety check-in: +2 MLY
-
-Spend at local vendors on MiShop or transfer to neighbors.
+---
 
 ## Architecture
 
 ```
 src/
 ├── app/
-│   ├── (auth)/          # Login, signup
-│   ├── (platform)/      # All authenticated apps
-│   │   ├── home/        # Dashboard + community feed
-│   │   ├── city/        # Issue reporting + tracking
-│   │   ├── health/      # Wellness check-ins
-│   │   ├── shop/        # Local marketplace
-│   │   ├── connect/     # Messaging
-│   │   ├── vault/       # Document storage
-│   │   ├── map/         # Interactive city map
-│   │   ├── govern/      # Proposals + voting
-│   │   ├── jobs/        # Gigs marketplace
-│   │   ├── aid/         # Mutual aid network
-│   │   ├── resources/   # Service directory
-│   │   ├── safety/      # Wellness + emergency
-│   │   ├── admin/       # Platform management
-│   │   └── profile/     # Settings + transactions
-│   ├── api/
-│   │   ├── ubi/         # Daily UBI distribution
-│   │   └── mi/          # AI assistant endpoint
-│   └── auth/callback/   # OAuth handler
+│   ├── (auth)/          # Login, signup (public)
+│   ├── (platform)/      # 13 authenticated routes
+│   ├── api/             # Auth callback, UBI cron
+│   ├── layout.tsx       # Root layout
+│   └── page.tsx         # Landing page
 ├── components/
-│   ├── shell/           # Navigation, top bar, auth
-│   ├── mi/              # AI assistant UI
-│   └── ui/              # Reusable components
+│   ├── shell/           # Sidebar, top bar, bottom nav, auth provider
+│   └── ui/              # Button, Card, Badge, Skeleton, Tabs, etc.
 ├── lib/
-│   ├── supabase/        # Client, server, middleware
-│   ├── store/           # Zustand state
-│   ├── hooks/           # Real-time subscriptions
-│   └── utils/           # Helpers
-└── types/               # TypeScript definitions
+│   ├── actions/         # Server actions (wallet ops)
+│   ├── hooks/           # useUser
+│   ├── store/           # Zustand global state
+│   ├── supabase/        # Client, server, middleware helpers
+│   └── utils/           # cn()
+└── types/
+    └── database.ts      # Typed Supabase schema (25 tables)
 ```
 
-## Security
+---
 
-- Row Level Security on every table
-- Service role key never exposed to client
-- Encrypted vault storage (private bucket)
-- Safety Mode: one-tap to hide from all searches
-- Anonymous tips: zero traceability
+## Database
+
+25 tables with Row Level Security:
+
+**Identity:** profiles, standing, attestations, badges, user_badges  
+**Economy:** wallets, transactions, rewards, community_treasury  
+**Social:** connections, messages, notifications  
+**Civic:** proposals, votes  
+**Content:** forum_spaces, forum_posts, forum_replies, wiki_pages, wiki_revisions, news_articles, news_comments  
+**Health:** health_checkins, health_resources  
+**Apps:** apps, app_reviews
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
+
+**Quick version:**
+1. Check [BOUNTY_ROADMAP.md](./BOUNTY_ROADMAP.md) for available bounties
+2. Comment on the issue to claim it (7-day lock)
+3. Fork → branch → build → PR
+4. Earn $MLY + permanent "Built by" credit
+
+---
+
+## Bounty System
+
+160 bounties across 15 domains:
+
+- 🟢 Small (50-150 $MLY) — Single component or fix
+- 🟡 Medium (150-500 $MLY) — Full page with DB integration
+- 🟠 Large (500-1500 $MLY) — Multi-page system
+- 🔴 Epic (1500-5000 $MLY) — Full domain requiring architecture
+
+Bounties appreciate 5%/week if unclaimed. Bonuses for tests (+20%), docs (+10%), speed (+25%).
+
+---
 
 ## License
 
-MIT — Community-owned. People-powered.
+[AGPL-3.0](./LICENSE) — Community-owned, open source, copyleft.
+
+If you build on MiLyfe, your changes must also be open source.
+
+---
+
+*Built for the people who need it most. Governed by the people who use it. Built by the people who believe in it.*

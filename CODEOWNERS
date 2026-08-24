@@ -1,0 +1,13 @@
+# MiLyfe Platform — Code Owners
+# These people are auto-requested for review on PRs touching their areas.
+
+# Everything
+* @RealMiLyfe
+
+# Core infrastructure
+src/lib/ @RealMiLyfe
+src/middleware.ts @RealMiLyfe
+supabase/ @RealMiLyfe
+
+# Schema and types
+src/types/ @RealMiLyfe
