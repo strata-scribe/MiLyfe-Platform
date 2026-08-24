@@ -147,9 +147,11 @@ export function AppsView({ apps }: Props) {
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
             Developers earn $MLY bounties for building community apps. Check the bounty roadmap.
           </p>
-          <Button variant="harbor" size="sm">
-            View Bounties
-          </Button>
+          <a href="/bounties">
+            <Button variant="harbor" size="sm">
+              View Bounties
+            </Button>
+          </a>
         </CardContent>
       </Card>
     </div>

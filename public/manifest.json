@@ -1,16 +1,13 @@
 {
-  "name": "MiLyfe — Your City. Your Life. Your Platform.",
+  "name": "MiLyfe",
   "short_name": "MiLyfe",
-  "description": "Civic engagement powered by $MLY community currency. Report issues, earn rewards, govern together.",
+  "description": "Community-owned civic platform. Earn $MLY, govern together, connect with neighbors.",
   "start_url": "/home",
   "display": "standalone",
-  "background_color": "#0F1419",
+  "background_color": "#FAFBFC",
   "theme_color": "#1e3a6e",
   "orientation": "portrait-primary",
-  "categories": ["social", "finance", "government"],
-  "lang": "en-US",
-  "dir": "ltr",
-  "prefer_related_applications": false,
+  "scope": "/",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -27,30 +24,24 @@
   ],
   "shortcuts": [
     {
-      "name": "Health Check-in",
-      "short_name": "Check-in",
-      "url": "/health",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Report Issue",
-      "short_name": "Report",
-      "url": "/city",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Send $MLY",
+      "name": "Wallet",
       "short_name": "Wallet",
       "url": "/wallet",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Messages",
-      "short_name": "Chat",
-      "url": "/connect",
+      "name": "Health Check-in",
+      "short_name": "Health",
+      "url": "/health",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Forum",
+      "short_name": "Forum",
+      "url": "/forum",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ],
-  "screenshots": [],
-  "related_applications": []
+  "categories": ["social", "government", "finance"],
+  "prefer_related_applications": false
 }

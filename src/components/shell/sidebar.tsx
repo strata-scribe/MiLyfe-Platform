@@ -15,9 +15,11 @@ import {
   BookOpen,
   User,
   Grid3X3,
+  Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/lib/store';
+import { NotificationBell } from './notification-bell';
 
 const NAV_ITEMS = [
   { href: '/home', label: 'Home', icon: Home },
@@ -31,6 +33,7 @@ const NAV_ITEMS = [
   { href: '/health', label: 'Health', icon: Heart },
   { href: '/wiki', label: 'Wiki', icon: BookOpen },
   { href: '/profile', label: 'Profile', icon: User },
+  { href: '/bounties', label: 'Bounties', icon: Trophy },
   { href: '/apps', label: 'Apps', icon: Grid3X3 },
 ];
 
@@ -44,11 +47,12 @@ export function Sidebar() {
       aria-label="Main navigation"
     >
       {/* Logo */}
-      <div className="h-14 flex items-center px-4 border-b border-gray-100 dark:border-harbor-800">
+      <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 dark:border-harbor-800">
         <Link href="/home" className="flex items-center gap-2 min-h-0 min-w-0">
           <span className="text-xl font-bold text-harbor-800 dark:text-white">Mi</span>
           <span className="text-xl font-bold text-teal-500">Lyfe</span>
         </Link>
+        <NotificationBell />
       </div>
 
       {/* Nav items */}

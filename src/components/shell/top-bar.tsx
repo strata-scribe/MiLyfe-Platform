@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Bell, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { NotificationBell } from './notification-bell';
 
 export function TopBar() {
   const { toggleSearch } = useAppStore();
@@ -23,13 +24,7 @@ export function TopBar() {
           >
             <Search className="h-5 w-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
           </button>
-          <Link
-            href="/notifications"
-            className="flex items-center justify-center h-10 w-10 rounded-lg hover:bg-gray-100 dark:hover:bg-harbor-800 transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
-          </Link>
+          <NotificationBell />
         </div>
       </div>
     </header>
