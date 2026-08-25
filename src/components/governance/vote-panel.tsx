@@ -117,9 +117,20 @@ export function VotePanel({
 
       {/* Time remaining */}
       {closesAt && isActive && !isClosed && (
-        <p className="text-xs text-muted-foreground">
-          Closes: {new Date(closesAt).toLocaleDateString()} ({getDaysLeft(closesAt)} days left)
-        </p>
+        <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${
+          getDaysLeft(closesAt) <= 1 ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' :
+          getDaysLeft(closesAt) <= 3 ? 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' :
+          'bg-gray-50 text-gray-600 dark:bg-harbor-800 dark:text-gray-400'
+        }`}>
+          <span className={`inline-block h-2 w-2 rounded-full ${
+            getDaysLeft(closesAt) <= 1 ? 'bg-red-500 animate-pulse' :
+            getDaysLeft(closesAt) <= 3 ? 'bg-orange-500' :
+            'bg-gray-400'
+          }`} />
+          {getDaysLeft(closesAt) === 0 ? 'Closing today!' :
+           getDaysLeft(closesAt) === 1 ? '1 day left — vote now!' :
+           `${getDaysLeft(closesAt)} days left (closes ${new Date(closesAt).toLocaleDateString()})`}
+        </div>
       )}
 
       {/* Vote buttons */}

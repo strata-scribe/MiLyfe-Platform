@@ -12,6 +12,8 @@ const badgeVariants = cva(
         harbor: 'bg-harbor-100 text-harbor-800 dark:bg-harbor-800 dark:text-harbor-200',
         destructive: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
         success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+        live: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300 animate-pulse-soft',
+        pulse: 'bg-mly-100 text-mly-800 dark:bg-mly-900/30 dark:text-mly-300 animate-pulse-soft',
       },
     },
     defaultVariants: {
