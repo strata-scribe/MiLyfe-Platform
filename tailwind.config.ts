@@ -50,17 +50,29 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['Atkinson Hyperlegible', 'system-ui', 'sans-serif'],
+        display: ['Atkinson Hyperlegible', 'system-ui', 'sans-serif'],
       },
       animation: {
-        'float': 'float 3s ease-in-out infinite',
+        'float': 'float 6s ease-in-out infinite',
         'pulse-soft': 'pulse-soft 2s ease-in-out infinite',
         'slide-up': 'slide-up 0.3s ease-out',
-        'fade-in': 'fade-in 0.2s ease-out',
+        'fade-in': 'fade-in 0.4s ease-out',
+        'fade-in-up': 'fade-in-up 0.5s ease-out',
+        'stagger-1': 'fade-in-up 0.5s ease-out 0.05s both',
+        'stagger-2': 'fade-in-up 0.5s ease-out 0.1s both',
+        'stagger-3': 'fade-in-up 0.5s ease-out 0.15s both',
+        'stagger-4': 'fade-in-up 0.5s ease-out 0.2s both',
+        'stagger-5': 'fade-in-up 0.5s ease-out 0.25s both',
+        'stagger-6': 'fade-in-up 0.5s ease-out 0.3s both',
+        'glow': 'glow 2s ease-in-out infinite alternate',
+        'count-up': 'count-up 0.8s ease-out',
+        'shimmer': 'shimmer 2s linear infinite',
       },
       keyframes: {
         float: {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-8px)' },
+          '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+          '33%': { transform: 'translateY(-8px) rotate(1deg)' },
+          '66%': { transform: 'translateY(-4px) rotate(-1deg)' },
         },
         'pulse-soft': {
           '0%, 100%': { opacity: '1' },
@@ -74,6 +86,32 @@ const config: Config = {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        glow: {
+          '0%': { boxShadow: '0 0 5px rgba(0, 193, 174, 0.2)' },
+          '100%': { boxShadow: '0 0 20px rgba(0, 193, 174, 0.4)' },
+        },
+        'count-up': {
+          '0%': { opacity: '0', transform: 'scale(0.5)' },
+          '50%': { transform: 'scale(1.05)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+      },
+      boxShadow: {
+        'glow-teal': '0 0 20px rgba(0, 193, 174, 0.3)',
+        'glow-mly': '0 0 20px rgba(255, 193, 7, 0.3)',
+        'glow-harbor': '0 0 20px rgba(30, 58, 110, 0.3)',
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-mesh': 'radial-gradient(at 40% 20%, var(--color-teal) 0%, transparent 50%), radial-gradient(at 80% 80%, var(--color-mly) 0%, transparent 50%)',
       },
     },
   },

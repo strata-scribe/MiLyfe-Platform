@@ -9,10 +9,14 @@
     --color-mly: #FFC107;
     --color-surface: #FAFBFC;
     --radius: 12px;
+    --glass-bg: rgba(255, 255, 255, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.2);
   }
 
   .dark {
     --color-surface: #0F1419;
+    --glass-bg: rgba(15, 20, 25, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.05);
   }
 
   html {
@@ -27,6 +31,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Dark mode depth — subtle radial gradient center */
+  .dark body {
+    background: radial-gradient(ellipse at 50% 0%, #162d55 0%, #0F1419 70%);
+    background-attachment: fixed;
+  }
+
   /* Accessibility: minimum touch targets */
   button, a[role="button"], [role="button"] {
     min-height: 44px;
@@ -36,7 +46,13 @@
 
 @layer components {
   .card {
-    @apply bg-white dark:bg-harbor-950 rounded-xl border border-gray-100 dark:border-harbor-800 p-4 shadow-sm hover:shadow-md transition-shadow;
+    @apply bg-white dark:bg-harbor-950/80 rounded-xl border border-gray-100 dark:border-harbor-800 p-5 shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  .card-glass {
+    @apply rounded-xl p-5 backdrop-blur-md border transition-all duration-200;
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
   }
 
   .page-title {
@@ -46,11 +62,67 @@
   .page-subtitle {
     @apply text-sm text-gray-500 dark:text-gray-400 mt-1;
   }
+
+  /* Gradient text utility */
+  .text-gradient {
+    @apply bg-gradient-to-r from-harbor-700 via-harbor-600 to-teal-500 dark:from-white dark:via-teal-200 dark:to-teal-400 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-teal {
+    @apply bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-mly {
+    @apply bg-gradient-to-r from-mly-600 to-mly-400 bg-clip-text text-transparent;
+  }
+
+  /* Section header with left accent border */
+  .section-header {
+    @apply text-lg font-semibold text-harbor-800 dark:text-white pl-3 border-l-3 border-teal-500;
+  }
+
+  /* Stat numbers */
+  .stat-number {
+    @apply text-3xl font-bold tabular-nums text-harbor-800 dark:text-white;
+  }
+
+  /* Button glow on hover */
+  .btn-glow:hover {
+    box-shadow: 0 0 24px rgba(0, 193, 174, 0.3), 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Glass navigation (bottom nav / top bar) */
+  .nav-glass {
+    @apply backdrop-blur-xl border-t border-white/10;
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  .dark .nav-glass {
+    background: rgba(15, 20, 25, 0.85);
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Stagger animation children */
+  .stagger-children > * {
+    @apply animate-fade-in-up;
+  }
+  .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+  .stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+  .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+  .stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+  .stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+  .stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+
+  /* Shimmer loading effect */
+  .shimmer {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
   }
 }
 

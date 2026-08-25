@@ -18,7 +18,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-harbor-950 border-t border-gray-100 dark:border-harbor-800 safe-area-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 dark:border-harbor-800/50 safe-area-bottom backdrop-blur-xl bg-white/85 dark:bg-harbor-950/85"
       aria-label="Mobile navigation"
     >
       <div className="flex items-center justify-around h-16 px-2">
