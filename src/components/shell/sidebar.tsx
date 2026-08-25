@@ -58,8 +58,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 dark:border-harbor-800">
         <Link href="/home" className="flex items-center gap-2 min-h-0 min-w-0">
-          <span className="text-xl font-bold text-harbor-800 dark:text-white">Mi</span>
-          <span className="text-xl font-bold text-teal-500">Lyfe</span>
+          <img src="/logo.png" alt="MiLyfe" className="h-8 w-auto" />
         </Link>
         <NotificationBell />
       </div>

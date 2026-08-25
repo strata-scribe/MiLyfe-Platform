@@ -38,6 +38,7 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="text-center">
+        <img src="/logo.png" alt="MiLyfe" className="h-10 w-auto mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-harbor-800 dark:text-white">
           Welcome back
         </h1>

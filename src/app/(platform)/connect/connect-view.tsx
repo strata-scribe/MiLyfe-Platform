@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Users, MessageCircle, UserPlus, Check, X, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -150,6 +151,11 @@ export function ConnectView({ userId, connections, pendingRequests, recentMessag
                       </p>
                       <p className="text-xs text-gray-500">@{other?.username}</p>
                     </div>
+                    <Link href={`/connect/${other?.id}`}>
+                      <Button size="sm" variant="ghost" aria-label={`Message ${other?.display_name}`}>
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                    </Link>
                     {other?.neighborhood && (
                       <Badge variant="secondary" className="text-xs">{other.neighborhood}</Badge>
                     )}
@@ -170,10 +176,12 @@ export function ConnectView({ userId, connections, pendingRequests, recentMessag
           ) : (
             <div className="space-y-2">
               {conversationEntries.map(([otherId, msg]) => (
-                <div key={otherId} className="card flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-harbor-800" />
+                <Link key={otherId} href={`/connect/${otherId}`} className="card flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-harbor-900 transition-colors">
+                  <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-harbor-800 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">
+                    {(msg.sender_id === userId ? 'You' : '?').slice(0, 2)}
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{msg.body}</p>
+                    <p className="text-sm font-medium truncate text-harbor-800 dark:text-white">{msg.body}</p>
                     <p className="text-xs text-gray-500">
                       {new Date(msg.created_at).toLocaleDateString()}
                     </p>
@@ -181,7 +189,7 @@ export function ConnectView({ userId, connections, pendingRequests, recentMessag
                   {!msg.read && msg.receiver_id === userId && (
                     <div className="h-2 w-2 rounded-full bg-teal-500" aria-label="Unread" />
                   )}
-                </div>
+                </Link>
               ))}
             </div>
           )}
