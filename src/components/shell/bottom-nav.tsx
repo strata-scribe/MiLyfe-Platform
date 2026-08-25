@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Wallet, Heart, Grid3X3 } from 'lucide-react';
+import { Wallet, GraduationCap, Store, Landmark, User } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 const MOBILE_NAV = [
-  { href: '/home', label: 'Home', icon: Home },
-  { href: '/connect', label: 'Connect', icon: Users },
-  { href: '/wallet', label: 'Wallet', icon: Wallet },
-  { href: '/health', label: 'Health', icon: Heart },
-  { href: '/apps', label: 'More', icon: Grid3X3 },
+  { href: '/wallet', label: 'Pocket', icon: Wallet },
+  { href: '/learn', label: 'Learn', icon: GraduationCap },
+  { href: '/street', label: 'Street', icon: Store },
+  { href: '/governance', label: 'Voice', icon: Landmark },
+  { href: '/profile', label: 'You', icon: User },
 ];
 
 export function BottomNav() {

@@ -16,6 +16,10 @@ import {
   User,
   Grid3X3,
   Trophy,
+  GraduationCap,
+  Store,
+  Shield,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/lib/store';
@@ -23,14 +27,18 @@ import { NotificationBell } from './notification-bell';
 
 const NAV_ITEMS = [
   { href: '/home', label: 'Home', icon: Home },
+  { href: '/wallet', label: 'Pocket', icon: Wallet },
+  { href: '/learn', label: 'Learn', icon: GraduationCap },
+  { href: '/street', label: 'Street', icon: Store },
+  { href: '/governance', label: 'Voice', icon: Landmark },
+  { href: '/mi', label: 'Mi', icon: Bot },
   { href: '/connect', label: 'Connect', icon: Users },
-  { href: '/wallet', label: 'Wallet', icon: Wallet },
   { href: '/rewards', label: 'Rewards', icon: Gift },
   { href: '/standing', label: 'Standing', icon: Star },
-  { href: '/governance', label: 'Governance', icon: Landmark },
   { href: '/news', label: 'News', icon: Newspaper },
   { href: '/forum', label: 'Forum', icon: MessageCircle },
   { href: '/health', label: 'Health', icon: Heart },
+  { href: '/safety', label: 'Safety', icon: Shield },
   { href: '/wiki', label: 'Wiki', icon: BookOpen },
   { href: '/profile', label: 'Profile', icon: User },
   { href: '/bounties', label: 'Bounties', icon: Trophy },

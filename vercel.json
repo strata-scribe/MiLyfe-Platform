@@ -2,7 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/ubi",
-      "schedule": "0 6 * * *"
+      "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/cron/decay",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/freshness",
+      "schedule": "0 4 * * *"
     }
   ]
 }

@@ -2,6 +2,8 @@ import { Sidebar } from '@/components/shell/sidebar';
 import { BottomNav } from '@/components/shell/bottom-nav';
 import { TopBar } from '@/components/shell/top-bar';
 import { AuthProvider } from '@/components/shell/auth-provider';
+import { OfflineIndicator } from '@/components/ui/offline-indicator';
+import { ServiceWorkerRegistrar } from '@/components/shell/sw-registrar';
 import { Toaster } from 'sonner';
 
 /**
@@ -17,6 +19,12 @@ export default function PlatformLayout({
 }) {
   return (
     <AuthProvider>
+      {/* Offline status banner */}
+      <OfflineIndicator />
+
+      {/* Service worker registration */}
+      <ServiceWorkerRegistrar />
+
       {/* Mobile top bar */}
       <TopBar />
 
