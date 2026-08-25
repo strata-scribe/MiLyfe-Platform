@@ -31,36 +31,38 @@ export default async function PathDetailPage({ params }: PageProps) {
 
   if (!path) notFound();
 
-  const [modulesRes, enrollmentRes, progressRes] = await Promise.all([
-    supabase
-      .from('learn_modules')
-      .select('*')
-      .eq('path_id', path.id)
-      .eq('is_active', true)
-      .order('sort_order'),
+  // Fetch modules first (needed for progress query)
+  const { data: modules } = await supabase
+    .from('learn_modules')
+    .select('*')
+    .eq('path_id', path.id)
+    .eq('is_active', true)
+    .order('sort_order');
+
+  const moduleIds = (modules || []).map((m) => m.id);
+
+  // Now fetch enrollment and progress in parallel
+  const [enrollmentRes, progressRes] = await Promise.all([
     supabase
       .from('learn_enrollments')
       .select('*')
       .eq('user_id', user.id)
       .eq('path_id', path.id)
-      .single(),
-    supabase
-      .from('learn_progress')
-      .select('*')
-      .eq('user_id', user.id)
-      .in(
-        'module_id',
-        (await supabase.from('learn_modules').select('id').eq('path_id', path.id)).data?.map(
-          (m) => m.id,
-        ) || [],
-      ),
+      .maybeSingle(),
+    moduleIds.length > 0
+      ? supabase
+          .from('learn_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .in('module_id', moduleIds)
+      : Promise.resolve({ data: [] as any[] }),
   ]);
 
   return (
     <PathDetailView
       userId={user.id}
       path={path}
-      modules={modulesRes.data || []}
+      modules={modules || []}
       enrollment={enrollmentRes.data}
       progress={progressRes.data || []}
     />
