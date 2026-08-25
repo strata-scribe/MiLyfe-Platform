@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'MiLyfe — Your City. Your Life. Your Platform.';
+export const alt = 'MiLyfe — Your City. Your Lyfe. Your Platform.';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -28,7 +28,7 @@ export default async function Image() {
 
         {/* Tagline */}
         <p style={{ fontSize: 32, color: '#c5d4e8', margin: 0, marginBottom: 40 }}>
-          Your City. Your Life. Your Platform.
+          Your City. Your Lyfe. Your Platform.
         </p>
 
         {/* Stats row */}

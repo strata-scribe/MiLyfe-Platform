@@ -50,7 +50,7 @@ export default function SignupPage() {
           Join MiLyfe
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Your city. Your life. Your platform.
+          Your city. Your Lyfe. Your platform.
         </p>
       </div>
 

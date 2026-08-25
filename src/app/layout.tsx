@@ -5,7 +5,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://milyfe-platform.ver
 
 export const metadata: Metadata = {
   title: {
-    default: 'MiLyfe — Your City. Your Life. Your Platform.',
+    default: 'MiLyfe — Your City. Your Lyfe. Your Platform.',
     template: '%s | MiLyfe',
   },
   description: 'Community-owned civic platform. Earn $MLY, govern together, connect with neighbors, access resources. No ads. No algorithms. Just people.',
@@ -20,12 +20,12 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: BASE_URL,
     siteName: 'MiLyfe',
-    title: 'MiLyfe — Your City. Your Life. Your Platform.',
+    title: 'MiLyfe — Your City. Your Lyfe. Your Platform.',
     description: 'Community-owned civic platform powered by $MLY community currency. Free. Open source. People-powered.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MiLyfe — Your City. Your Life. Your Platform.',
+    title: 'MiLyfe — Your City. Your Lyfe. Your Platform.',
     description: 'Community-owned civic platform. Earn $MLY, govern together, connect with neighbors.',
   },
   robots: {
