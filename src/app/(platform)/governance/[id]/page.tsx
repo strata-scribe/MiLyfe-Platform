@@ -34,11 +34,11 @@ export default async function ProposalDetailPage({ params }: PageProps) {
     .eq('user_id', user.id)
     .maybeSingle();
 
-  // Get comments (using forum_replies linked to proposal)
+  // Get comments (from dedicated proposal_comments table)
   const { data: comments } = await supabase
-    .from('forum_replies')
-    .select('*, profiles!author_id(username, display_name, avatar_url)')
-    .eq('post_id', params.id)
+    .from('proposal_comments')
+    .select('*, profiles:author_id(username, display_name, avatar_url)')
+    .eq('proposal_id', params.id)
     .order('created_at', { ascending: true });
 
   const author = (proposal as any).profiles;
@@ -59,7 +59,7 @@ export default async function ProposalDetailPage({ params }: PageProps) {
 
       {/* Proposal header */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
             proposal.status === 'active' ? 'bg-blue-100 text-blue-700' :
             proposal.status === 'passed' ? 'bg-green-100 text-green-700' :
@@ -70,6 +70,11 @@ export default async function ProposalDetailPage({ params }: PageProps) {
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
             {categoryLabels[proposal.category] || proposal.category}
           </span>
+          {proposal.stage && (
+            <span className="rounded-full bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium capitalize">
+              Stage: {proposal.stage.replace('_', ' ')}
+            </span>
+          )}
         </div>
 
         <h1 className="text-2xl font-bold">{proposal.title}</h1>

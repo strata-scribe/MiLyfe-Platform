@@ -212,6 +212,7 @@ export async function closeProposal(proposalId: string) {
 const addCommentSchema = z.object({
   proposal_id: z.string().uuid(),
   body: z.string().min(1).max(5000),
+  parent_comment_id: z.string().uuid().optional(),
 });
 
 export async function addProposalComment(input: z.infer<typeof addCommentSchema>) {
@@ -222,16 +223,96 @@ export async function addProposalComment(input: z.infer<typeof addCommentSchema>
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  // Store as forum reply linked to proposal (reusing forum_replies table)
-  // Or create dedicated proposal_comments table
-  // For now, store in a generic approach using metadata
   const { error } = await supabase
-    .from('forum_replies')
+    .from('proposal_comments')
     .insert({
-      post_id: parsed.data.proposal_id, // Reusing — in production, separate table
+      proposal_id: parsed.data.proposal_id,
       author_id: user.id,
       body: parsed.data.body,
+      parent_comment_id: parsed.data.parent_comment_id || null,
     });
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/governance');
+  return { success: true };
+}
+
+// ─── Advance Proposal Stage ──────────────────────────────────────────────────
+export async function advanceProposalStage(proposalId: string, newStage: string) {
+  const supabase = createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  // Only author or steward can advance stage
+  const { data: proposal } = await supabase
+    .from('proposals')
+    .select('author_id')
+    .eq('id', proposalId)
+    .single();
+
+  if (!proposal) return { error: 'Proposal not found' };
+  if (proposal.author_id !== user.id) return { error: 'Only the author can advance stages' };
+
+  const { data: result, error } = await supabase.rpc('advance_proposal_stage', {
+    p_proposal_id: proposalId,
+    p_new_stage: newStage,
+  });
+
+  if (error) return { error: error.message };
+  const rpcResult = result as any;
+  if (!rpcResult?.success) return { error: rpcResult?.error || 'Stage transition failed' };
+
+  revalidatePath('/governance');
+  return { success: true };
+}
+
+// ─── Create Delegation ───────────────────────────────────────────────────────
+const delegateSchema = z.object({
+  delegate_id: z.string().uuid(),
+  topic: z.string().min(1).max(50).default('general'),
+  duration_days: z.number().int().min(1).max(180).default(90),
+});
+
+export async function createDelegation(input: z.infer<typeof delegateSchema>) {
+  const parsed = delegateSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const supabase = createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  if (parsed.data.delegate_id === user.id) return { error: 'Cannot delegate to yourself' };
+
+  const expiresAt = new Date(Date.now() + parsed.data.duration_days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { error } = await supabase.from('delegations').insert({
+    delegator_id: user.id,
+    delegate_id: parsed.data.delegate_id,
+    topic: parsed.data.topic,
+    expires_at: expiresAt,
+  });
+
+  if (error) {
+    if (error.code === '23505') return { error: 'Already delegated to this person on this topic' };
+    return { error: error.message };
+  }
+
+  revalidatePath('/governance');
+  return { success: true };
+}
+
+// ─── Revoke Delegation ───────────────────────────────────────────────────────
+export async function revokeDelegation(delegationId: string) {
+  const supabase = createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('delegations')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', delegationId)
+    .eq('delegator_id', user.id);
 
   if (error) return { error: error.message };
 
