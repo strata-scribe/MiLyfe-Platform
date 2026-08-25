@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/freshness",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/proposals",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/timers",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

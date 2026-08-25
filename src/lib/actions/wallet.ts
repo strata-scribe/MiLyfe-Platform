@@ -101,56 +101,19 @@ export async function transferMLY(formData: {
   if (!recipient) return { error: 'Recipient not found' };
   if (recipient.id === user.id) return { error: 'Cannot transfer to yourself' };
 
-  // Get sender wallet
-  const { data: senderWallet } = await supabase
-    .from('wallets')
-    .select('*')
-    .eq('user_id', user.id)
-    .single();
-
-  if (!senderWallet) return { error: 'Wallet not found' };
-
-  // Check balance in the specified pot
-  const balanceField = `${pot}_balance` as 'spending_balance' | 'savings_balance' | 'community_balance';
-  if ((senderWallet as any)[balanceField] < amount) {
-    return { error: `Insufficient ${pot} balance` };
-  }
-
-  // Debit sender
-  await supabase
-    .from('wallets')
-    .update({
-      [balanceField]: (senderWallet as any)[balanceField] - amount,
-      total_spent: senderWallet.total_spent + amount,
-    })
-    .eq('user_id', user.id);
-
-  // Credit recipient (always to spending)
-  const { data: recipientWallet } = await supabase
-    .from('wallets')
-    .select('spending_balance, total_earned')
-    .eq('user_id', recipient.id)
-    .single();
-
-  if (recipientWallet) {
-    await supabase
-      .from('wallets')
-      .update({
-        spending_balance: recipientWallet.spending_balance + amount,
-        total_earned: recipientWallet.total_earned + amount,
-      })
-      .eq('user_id', recipient.id);
-  }
-
-  // Record transaction
-  await supabase.from('transactions').insert({
-    from_user_id: user.id,
-    to_user_id: recipient.id,
-    amount,
-    type: 'transfer',
-    pot: pot || 'spending',
-    description: `Transfer to @${toUsername}`,
+  // Use atomic RPC — single database transaction, no money loss possible
+  const { data: result, error: rpcError } = await supabase.rpc('atomic_transfer', {
+    p_from_user_id: user.id,
+    p_to_user_id: recipient.id,
+    p_amount: amount,
+    p_from_pot: pot || 'spending',
+    p_description: `Transfer to @${toUsername}`,
   });
+
+  if (rpcError) return { error: rpcError.message };
+
+  const rpcResult = result as any;
+  if (!rpcResult?.success) return { error: rpcResult?.error || 'Transfer failed' };
 
   return { success: true, amount, to: toUsername };
 }

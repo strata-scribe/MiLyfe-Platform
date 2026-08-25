@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store';
+import { completeOnboarding } from '@/lib/actions/profile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,37 +18,28 @@ export default function OnboardingPage() {
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [bio, setBio] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  async function handleNext() {
+  function handleNext() {
     if (step < STEPS.length - 1) {
       setStep(step + 1);
       return;
     }
 
-    // Final step — save and redirect
-    setSaving(true);
-    const supabase = createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return;
-
-    const { data } = await supabase
-      .from('profiles')
-      .update({
+    // Final step — use server action (claims welcome reward + updates profile)
+    startTransition(async () => {
+      const result = await completeOnboarding({
         display_name: displayName,
         bio,
-        neighborhood: neighborhood || null,
-        onboarding_complete: true,
-      })
-      .eq('id', authUser.id)
-      .select()
-      .single();
+        neighborhood: neighborhood || undefined,
+        interests: [],
+      });
 
-    if (data) {
-      setUser(data as any);
-    }
-
-    router.push('/home');
+      if (result.success) {
+        router.push('/home');
+        router.refresh();
+      }
+    });
   }
 
   return (
@@ -160,10 +151,10 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        <Button onClick={handleNext} variant="harbor" size="lg" className="w-full" disabled={saving}>
+        <Button onClick={handleNext} variant="harbor" size="lg" className="w-full" disabled={isPending}>
           {step < STEPS.length - 1 ? (
             <>Next <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></>
-          ) : saving ? 'Setting up...' : (
+          ) : isPending ? 'Setting up...' : (
             <>Enter MiLyfe <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></>
           )}
         </Button>
