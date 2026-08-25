@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { LeaveNowButton } from '@/components/safety/leave-now-button';
 import { WalkHomeTimer } from '@/components/safety/walk-home-timer';
 import { SafetyContacts } from '@/components/safety/safety-contacts';
+import { WitnessMode } from '@/components/safety/witness-mode';
 
 interface SafetyContact {
   id: string;
@@ -121,12 +122,15 @@ export function SafetyView({ userId, contacts, activeActions, activeTimer }: Saf
       <div className="rounded-lg border border-dashed p-4 text-center">
         <p className="text-sm text-muted-foreground">
           Need a private space to document?{' '}
-          <button className="font-medium text-primary hover:underline">
+          <a href="/safety/journal" className="font-medium text-primary hover:underline">
             Open encrypted journal
-          </button>
+          </a>
           {' '}— only you can read it.
         </p>
       </div>
+
+      {/* Witness Mode */}
+      <WitnessMode />
     </div>
   );
 }
