@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { executeWithOfflineFallback } from '@/lib/offline/action-wrapper';
 
 interface WalkTimer {
   id: string;
@@ -141,7 +142,14 @@ function ActiveTimer({ timer, onUpdate }: { timer: WalkTimer; onUpdate: () => vo
       <div className="mt-3 flex gap-2">
         <button
           onClick={async () => {
-            await fetch('/api/safety/timer/arrived', { method: 'POST' });
+            await executeWithOfflineFallback(
+              'safety.timer_arrived',
+              {},
+              async () => {
+                const res = await fetch('/api/safety/timer/arrived', { method: 'POST' });
+                return res.ok ? { success: true } : { error: 'Failed' };
+              },
+            );
             onUpdate();
           }}
           className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white"

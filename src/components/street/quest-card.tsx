@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { claimQuest } from '@/lib/actions/street';
+import { executeWithOfflineFallback } from '@/lib/offline/action-wrapper';
 
 interface QuestCardProps {
   quest: {
@@ -62,7 +63,11 @@ export function QuestCard({ quest, userId, onClaimed }: QuestCardProps) {
   function handleClaim() {
     setError(null);
     startTransition(async () => {
-      const result = await claimQuest(quest.id);
+      const result = await executeWithOfflineFallback(
+        'quest.claim',
+        { quest_id: quest.id },
+        () => claimQuest(quest.id),
+      );
       if (result.error) {
         setError(result.error);
       } else {

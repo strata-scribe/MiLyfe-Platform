@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { transferMLY } from '@/lib/actions/wallet';
+import { executeWithOfflineFallback } from '@/lib/offline/action-wrapper';
 import { FormField, inputStyles, textareaStyles, selectStyles, SubmitButton } from '@/components/ui/form-field';
 
 const schema = z.object({
@@ -61,11 +62,11 @@ export function SendFlow({ balance, onSuccess, onCancel, prefillUsername, prefil
     if (!formData) return;
     setServerError(null);
     startTransition(async () => {
-      const res = await transferMLY({
-        toUsername: formData.toUsername,
-        amount: formData.amount,
-        pot: formData.pot,
-      });
+      const res = await executeWithOfflineFallback(
+        'pocket.thank',
+        { toUsername: formData.toUsername, amount: formData.amount, pot: formData.pot, reason: formData.reason },
+        () => transferMLY({ toUsername: formData.toUsername, amount: formData.amount, pot: formData.pot }),
+      );
       if (res.error) {
         setServerError(res.error);
         setStep('form');

@@ -30,3 +30,5 @@ export {
   getCachedWallet,
   getCachedResources,
 } from './sync';
+
+export { executeWithOfflineFallback, isOffline } from './action-wrapper';
