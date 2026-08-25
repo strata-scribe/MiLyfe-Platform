@@ -1,4 +1,4 @@
-export const metadata = { title: 'Offline' };
+'use client';
 
 export default function OfflinePage() {
   return (
