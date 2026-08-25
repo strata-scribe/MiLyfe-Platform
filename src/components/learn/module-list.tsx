@@ -60,11 +60,10 @@ export function ModuleList({
         const statusStyle = STATUS_STYLES[status];
         const isLocked = !isEnrolled;
 
-        return (
+        const content = (
           <div
-            key={module.id}
             className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-              isLocked ? 'opacity-60' : 'hover:bg-muted/50'
+              isLocked ? 'opacity-60' : 'hover:bg-muted/50 cursor-pointer'
             }`}
           >
             {/* Step number / status indicator */}
@@ -106,6 +105,14 @@ export function ModuleList({
               {module.duration_minutes}min
             </span>
           </div>
+        );
+
+        if (isLocked) return <div key={module.id}>{content}</div>;
+
+        return (
+          <a key={module.id} href={`/learn/${pathSlug}/${module.slug}`}>
+            {content}
+          </a>
         );
       })}
     </div>
