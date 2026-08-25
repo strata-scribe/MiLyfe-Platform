@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createListing } from '@/lib/actions/street';
 import { FormField, inputStyles, textareaStyles, selectStyles, SubmitButton } from '@/components/ui/form-field';
+import { ImageUpload } from '@/components/street/image-upload';
 
 const schema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters').max(100),
@@ -28,6 +29,7 @@ interface CreateListingModalProps {
 export function CreateListingModal({ open, onClose, onSuccess }: CreateListingModalProps) {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
 
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -47,7 +49,7 @@ export function CreateListingModal({ open, onClose, onSuccess }: CreateListingMo
     startTransition(async () => {
       const result = await createListing({
         ...data,
-        images: [],
+        images,
         location_text: data.location_text || undefined,
       });
       if (result.error) {
@@ -123,6 +125,14 @@ export function CreateListingModal({ open, onClose, onSuccess }: CreateListingMo
           <FormField label="Location" error={errors.location_text} description="Where can the buyer pick this up?">
             <input {...register('location_text')} placeholder="e.g. Eastside, near Elm St" className={inputStyles} />
           </FormField>
+
+          {/* Image Upload */}
+          <div>
+            <label className="text-sm font-medium">Photos</label>
+            <div className="mt-1.5">
+              <ImageUpload images={images} onChange={setImages} maxImages={5} />
+            </div>
+          </div>
 
           {serverError && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{serverError}</p>

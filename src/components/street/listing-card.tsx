@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 interface ListingCardProps {
   listing: {
     id: string;
@@ -33,8 +35,10 @@ export function ListingCard({ listing }: ListingCardProps) {
   const timeAgo = getTimeAgo(listing.created_at);
 
   return (
-    <div className="overflow-hidden rounded-lg border transition-shadow hover:shadow-md">
-      {/* Image placeholder or first image */}
+    <Link
+      href={`/street/listing/${listing.id}`}
+      className="block overflow-hidden rounded-lg border transition-shadow hover:shadow-md"
+    >  {/* Image placeholder or first image */}
       <div className="flex h-32 items-center justify-center bg-muted text-4xl">
         {listing.images.length > 0 ? (
           <img
@@ -66,7 +70,7 @@ export function ListingCard({ listing }: ListingCardProps) {
           <span>{timeAgo}</span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
