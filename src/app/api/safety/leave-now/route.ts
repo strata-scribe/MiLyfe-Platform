@@ -1,4 +1,4 @@
-import { createServerSupabase } from '@/lib/supabase/server';
+import { createServerSupabase, createServiceSupabase } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -29,8 +29,11 @@ export async function POST(request: Request) {
   }
 
   // TODO: Send notifications to contacts (via ntfy / push / matrix)
-  // TODO: Revoke other device sessions
-  // For MVP: the action record is enough — app checks for active leave-now
+  // Revoke all other sessions (abuser's phone loses access)
+  const adminSupabase = createServiceSupabase();
+  await adminSupabase.auth.admin.signOut(user.id, 'others').catch((err) => {
+    console.error('Failed to revoke sessions:', err);
+  });
 
   return NextResponse.json({ success: true, action_id: data.id });
 }

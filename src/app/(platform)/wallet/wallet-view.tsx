@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, ArrowDownLeft, PiggyBank, Heart, Wallet } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { PiggyBank, Heart, Wallet, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { AnimatedBalance, UBICelebration } from '@/components/wallet/animated-balance';
 import { SendFlow } from '@/components/wallet/send-flow';
 import { JarManager } from '@/components/wallet/jar-manager';
-import { TransactionDetail } from '@/components/wallet/transaction-detail';
+import { TransactionList } from '@/components/wallet/transaction-list';
 import { useRealtimeWallet } from '@/lib/hooks/use-realtime-wallet';
 import { claimReward } from '@/lib/actions/wallet';
 
@@ -23,7 +22,6 @@ export function WalletView({ userId, wallet, transactions, treasury }: Props) {
   const router = useRouter();
   const [showSend, setShowSend] = useState(false);
   const [showJars, setShowJars] = useState(false);
-  const [selectedTx, setSelectedTx] = useState<any>(null);
   const [showUBI, setShowUBI] = useState(false);
 
   // Real-time balance updates
@@ -81,7 +79,7 @@ export function WalletView({ userId, wallet, transactions, treasury }: Props) {
           onClick={() => setShowSend(true)}
           className="rounded-lg border p-4 text-center transition-colors hover:bg-muted/50"
         >
-          <ArrowUpRight className="h-5 w-5 mx-auto mb-1 text-primary" />
+          <Send className="h-5 w-5 mx-auto mb-1 text-primary" />
           <p className="text-sm font-medium">Send</p>
         </button>
         <button
@@ -119,55 +117,8 @@ export function WalletView({ userId, wallet, transactions, treasury }: Props) {
         </div>
       )}
 
-      {/* Transaction History */}
-      <div className="rounded-lg border">
-        <div className="border-b px-4 py-3">
-          <h2 className="font-semibold">Transaction History</h2>
-        </div>
-        <div className="divide-y">
-          {transactions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No transactions yet. Send your first $MLY!</p>
-          ) : (
-            transactions.map((tx) => {
-              const isIncoming = tx.to_user_id === userId;
-              return (
-                <button
-                  key={tx.id}
-                  onClick={() => setSelectedTx(tx)}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`rounded-lg p-1.5 ${isIncoming ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'}`}>
-                      {isIncoming
-                        ? <ArrowDownLeft className="h-4 w-4 text-green-600" />
-                        : <ArrowUpRight className="h-4 w-4 text-red-500" />
-                      }
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium capitalize">{tx.type}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(tx.created_at), { addSuffix: true })}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`text-sm font-bold ${isIncoming ? 'text-green-600' : 'text-red-500'}`}>
-                    {isIncoming ? '+' : '-'}{tx.amount} $MLY
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* Transaction Detail Modal */}
-      {selectedTx && (
-        <TransactionDetail
-          transaction={selectedTx}
-          userId={userId}
-          onClose={() => setSelectedTx(null)}
-        />
-      )}
+      {/* Transaction History (paginated + filterable) */}
+      <TransactionList initialTransactions={transactions} userId={userId} />
 
       {/* Treasury */}
       {treasury && (
