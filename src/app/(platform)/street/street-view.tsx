@@ -9,8 +9,10 @@ import { SurplusCard } from '@/components/street/surplus-card';
 import { CreateListingModal } from '@/components/street/create-listing-modal';
 import { CreateQuestModal } from '@/components/street/create-quest-modal';
 import { CreateSurplusModal } from '@/components/street/create-surplus-modal';
+import { StreetMap } from '@/components/street/street-map';
+import { StreetSearch } from '@/components/street/street-search';
 
-type StreetTab = 'marketplace' | 'quests' | 'resources' | 'surplus';
+type StreetTab = 'marketplace' | 'quests' | 'resources' | 'surplus' | 'map';
 
 interface StreetViewProps {
   userId: string;
@@ -26,12 +28,35 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [showCreateQuest, setShowCreateQuest] = useState(false);
   const [showCreateSurplus, setShowCreateSurplus] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const tabs: { id: StreetTab; label: string; count: number; icon: string }[] = [
     { id: 'marketplace', label: 'Marketplace', count: listings.length, icon: '🛒' },
     { id: 'quests', label: 'Quests', count: quests.length, icon: '⚡' },
     { id: 'resources', label: 'Resources', count: resources.length, icon: '📍' },
     { id: 'surplus', label: 'Surplus', count: surplus.length, icon: '🎁' },
+    { id: 'map', label: 'Map', count: 0, icon: '🗺️' },
+  ];
+
+  // Filter by search query
+  const filteredListings = searchQuery
+    ? listings.filter((l: any) => l.title.toLowerCase().includes(searchQuery) || l.description.toLowerCase().includes(searchQuery))
+    : listings;
+  const filteredQuests = searchQuery
+    ? quests.filter((q: any) => q.title.toLowerCase().includes(searchQuery) || q.description.toLowerCase().includes(searchQuery))
+    : quests;
+  const filteredResources = searchQuery
+    ? resources.filter((r: any) => r.name.toLowerCase().includes(searchQuery) || r.description?.toLowerCase().includes(searchQuery))
+    : resources;
+  const filteredSurplus = searchQuery
+    ? surplus.filter((s: any) => s.title.toLowerCase().includes(searchQuery))
+    : surplus;
+
+  // Build map pins from all geo-located items
+  const mapPins = [
+    ...resources.filter((r: any) => r.latitude).map((r: any) => ({ id: r.id, lat: r.latitude, lon: r.longitude, type: 'resource' as const, title: r.name, subtitle: r.category })),
+    ...quests.filter((q: any) => q.latitude).map((q: any) => ({ id: q.id, lat: q.latitude, lon: q.longitude, type: 'quest' as const, title: q.title, subtitle: `+${q.reward_mly} $MLY` })),
+    ...surplus.filter((s: any) => s.latitude).map((s: any) => ({ id: s.id, lat: s.latitude, lon: s.longitude, type: 'surplus' as const, title: s.title, subtitle: s.pickup_location })),
   ];
 
   function handleCreated() {
@@ -73,7 +98,24 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
         ))}
       </div>
 
+      {/* Search */}
+      <StreetSearch onSearch={setSearchQuery} />
+
       {/* Content */}
+      {activeTab === 'map' && (
+        <div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Resources, quests, and surplus with locations shown on map.
+          </p>
+          <StreetMap pins={mapPins} />
+          {mapPins.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              No geolocated items yet. Items with addresses will appear here.
+            </p>
+          )}
+        </div>
+      )}
+
       {activeTab === 'marketplace' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -87,11 +129,11 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
               + List Item
             </button>
           </div>
-          {listings.length === 0 ? (
+          {filteredListings.length === 0 ? (
             <EmptyState icon="🛒" message="No listings yet. Be the first to list something!" />
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {listings.map((listing) => (
+              {filteredListings.map((listing) => (
                 <ListingCard key={listing.id} listing={listing} />
               ))}
             </div>
@@ -112,11 +154,11 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
               + Post Quest
             </button>
           </div>
-          {quests.length === 0 ? (
+          {filteredQuests.length === 0 ? (
             <EmptyState icon="⚡" message="No quests available right now. Post one for your community!" />
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {quests.map((quest) => (
+              {filteredQuests.map((quest) => (
                 <QuestCard key={quest.id} quest={quest} userId={userId} onClaimed={handleCreated} />
               ))}
             </div>
@@ -129,11 +171,11 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
           <p className="text-sm text-muted-foreground">
             Shelters, food banks, legal aid, clinics — with freshness dates so you know what's current.
           </p>
-          {resources.length === 0 ? (
+          {filteredResources.length === 0 ? (
             <EmptyState icon="📍" message="No resources listed yet." />
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {resources.map((resource) => (
+              {filteredResources.map((resource) => (
                 <ResourceCard key={resource.id} resource={resource} />
               ))}
             </div>
@@ -154,11 +196,11 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
               + Share Surplus
             </button>
           </div>
-          {surplus.length === 0 ? (
+          {filteredSurplus.length === 0 ? (
             <EmptyState icon="🎁" message="No surplus items right now. Share something you don't need!" />
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {surplus.map((item) => (
+              {filteredSurplus.map((item) => (
                 <SurplusCard key={item.id} item={item} userId={userId} onClaimed={handleCreated} />
               ))}
             </div>

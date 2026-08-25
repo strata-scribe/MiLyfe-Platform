@@ -14,6 +14,7 @@ export default async function StreetPage() {
       .from('marketplace_listings')
       .select('*, profiles!seller_id(username, display_name, avatar_url)')
       .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
