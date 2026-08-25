@@ -8,6 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { ProposalEditor } from '@/components/governance/proposal-editor';
 import { castVote } from '@/lib/actions/governance';
+import { executeWithOfflineFallback } from '@/lib/offline/action-wrapper';
 
 interface Props {
   userId: string;
@@ -25,11 +26,15 @@ export function GovernanceView({ userId, activeProposals, pastProposals, userVot
   function handleVote(proposalId: string, direction: 'for' | 'against') {
     setVotingId(proposalId);
     startTransition(async () => {
-      const result = await castVote({ proposal_id: proposalId, direction });
+      const result = await executeWithOfflineFallback(
+        'voice.ballot',
+        { proposal_id: proposalId, direction },
+        () => castVote({ proposal_id: proposalId, direction }),
+      );
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success(`Vote cast: ${direction}`);
+        toast.success(result.queued_offline ? 'Vote queued (offline)' : `Vote cast: ${direction}`);
         router.refresh();
       }
       setVotingId(null);

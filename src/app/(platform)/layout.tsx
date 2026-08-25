@@ -6,6 +6,7 @@ import { OfflineIndicator } from '@/components/ui/offline-indicator';
 import { ServiceWorkerRegistrar } from '@/components/shell/sw-registrar';
 import { MiBubble } from '@/components/mi/mi-bubble';
 import { CommandSearch } from '@/components/shell/command-search';
+import { DataCacher } from '@/components/shell/data-cacher';
 import { Toaster } from 'sonner';
 
 /**
@@ -45,6 +46,9 @@ export default function PlatformLayout({
 
       {/* Mobile bottom nav */}
       <BottomNav />
+
+      {/* Data cacher (silently caches critical data to IndexedDB for offline) */}
+      <DataCacher />
 
       {/* Mi ambient bubble */}
       <MiBubble />
