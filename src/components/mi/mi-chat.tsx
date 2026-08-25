@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { ToolResultCard } from './tool-result-card';
 
 interface Message {
@@ -17,6 +18,7 @@ interface MiChatProps {
 }
 
 export function MiChat({ conversationId }: MiChatProps) {
+  const pathname = usePathname();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -27,8 +29,31 @@ export function MiChat({ conversationId }: MiChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load conversation history on mount
+  useEffect(() => {
+    if (!conversationId || historyLoaded) return;
+
+    async function loadHistory() {
+      try {
+        const res = await fetch(`/api/mi/history?conversationId=${conversationId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.messages && data.messages.length > 0) {
+            setMessages(data.messages);
+          }
+        }
+      } catch {
+        // Silent — history is best-effort
+      }
+      setHistoryLoaded(true);
+    }
+
+    loadHistory();
+  }, [conversationId, historyLoaded]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,7 +83,7 @@ export function MiChat({ conversationId }: MiChatProps) {
       const res = await fetch('/api/mi/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, conversationId }),
+        body: JSON.stringify({ messages: allMessages, conversationId, currentPath: pathname }),
       });
 
       // Check for non-streaming JSON response (rail triggered or error)

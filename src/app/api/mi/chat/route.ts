@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
-  const { messages, conversationId } = body;
+  const { messages, conversationId, currentPath } = body;
 
   if (!messages || messages.length === 0) {
     return NextResponse.json({ error: 'Messages required' }, { status: 400 });
@@ -45,31 +45,43 @@ export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY || 'ollama';
   const model = process.env.MI_MODEL || 'llama3.2:3b';
 
+  // Persist user message
+  if (conversationId && lastUserMsg) {
+    await supabase.from('messages').insert({
+      sender_id: user.id,
+      receiver_id: user.id,
+      body: lastUserMsg.content,
+      metadata: { conversation_id: conversationId, role: 'user' },
+    });
+  }
+
+  // Build context-aware system prompt
+  const contextHint = currentPath ? getContextHint(currentPath) : '';
+  const systemPrompt = contextHint
+    ? `${MI_SYSTEM_PROMPT}\n\n## Current Context\nThe member is currently on: ${currentPath}\n${contextHint}`
+    : MI_SYSTEM_PROMPT;
+
   // Build messages with system prompt
   const fullMessages: ChatMessage[] = [
-    { role: 'system', content: MI_SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt },
     ...messages.slice(-20),
   ];
 
   try {
-    // Stream from AI backend
-    const response = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: fullMessages,
-        temperature: 0.7,
-        max_tokens: 1024,
-        stream: true,
-        tools: getMiTools(),
-      }),
-    });
+    // Try primary backend, fall back to cloud if local fails
+    let response = await tryFetch(apiBase, apiKey, model, fullMessages);
 
-    if (!response.ok || !response.body) {
+    // If primary fails and cloud fallback is configured, try that
+    if ((!response || !response.ok) && process.env.MI_FALLBACK_API_BASE_URL) {
+      response = await tryFetch(
+        process.env.MI_FALLBACK_API_BASE_URL,
+        process.env.MI_FALLBACK_API_KEY || '',
+        process.env.MI_FALLBACK_MODEL || 'gpt-4o-mini',
+        fullMessages,
+      );
+    }
+
+    if (!response || !response.ok || !response.body) {
       return NextResponse.json({
         role: 'assistant',
         content: "I'm having trouble connecting right now. Try again in a moment, or I can connect you with a person.",
@@ -286,4 +298,39 @@ async function executeTool(name: string, argsJson: string, supabase: any, userId
   } catch {
     return { error: 'Tool execution failed' };
   }
+}
+
+
+// Helper: try fetching from an AI backend
+async function tryFetch(apiBase: string, apiKey: string, model: string, messages: ChatMessage[]) {
+  try {
+    return await fetch(`${apiBase}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 1024,
+        stream: true,
+        tools: getMiTools(),
+      }),
+    });
+  } catch {
+    return null;
+  }
+}
+
+// Context hints based on current page
+function getContextHint(path: string): string {
+  if (path.startsWith('/wallet')) return 'They might need help sending $MLY, checking balance, or understanding transactions. Offer to help with transfers.';
+  if (path.startsWith('/learn')) return 'They are exploring learning paths. Offer to suggest paths based on their interests or help with current modules.';
+  if (path.startsWith('/street')) return 'They are browsing the marketplace, quests, or resources. Offer to help find resources, create listings, or find quests.';
+  if (path.startsWith('/governance')) return 'They are looking at governance. Offer to explain proposals in plain language or help them understand the voting process.';
+  if (path.startsWith('/safety')) return 'They may need safety support. Be gentle. Offer crisis resources if appropriate. Never minimize their situation.';
+  if (path.startsWith('/profile')) return 'They are managing their profile. Offer help with settings, standing explanation, or privacy controls.';
+  return '';
 }
