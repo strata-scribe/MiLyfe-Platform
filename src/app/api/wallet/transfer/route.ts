@@ -2,6 +2,7 @@ import { createServerSupabase, createServiceSupabase } from '@/lib/supabase/serv
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rate-limit';
+import { logAudit } from '@/lib/security/audit';
 
 const transferSchema = z.object({
   recipient_id: z.string().uuid('Invalid recipient ID'),
@@ -80,6 +81,13 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: 'Transfer failed' }, { status: 500 });
   }
+
+  // Audit log
+  logAudit(user.id, 'wallet.transfer', 'wallet', input.recipient_id, {
+    amount: input.amount,
+    pot: input.from_pot,
+    recipient_id: input.recipient_id,
+  });
 
   return NextResponse.json({
     success: true,
