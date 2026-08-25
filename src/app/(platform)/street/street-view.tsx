@@ -1,10 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ListingCard } from '@/components/street/listing-card';
 import { QuestCard } from '@/components/street/quest-card';
 import { ResourceCard } from '@/components/street/resource-card';
 import { SurplusCard } from '@/components/street/surplus-card';
+import { CreateListingModal } from '@/components/street/create-listing-modal';
+import { CreateQuestModal } from '@/components/street/create-quest-modal';
+import { CreateSurplusModal } from '@/components/street/create-surplus-modal';
 
 type StreetTab = 'marketplace' | 'quests' | 'resources' | 'surplus';
 
@@ -17,7 +21,11 @@ interface StreetViewProps {
 }
 
 export function StreetView({ userId, listings, quests, resources, surplus }: StreetViewProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<StreetTab>('marketplace');
+  const [showCreateListing, setShowCreateListing] = useState(false);
+  const [showCreateQuest, setShowCreateQuest] = useState(false);
+  const [showCreateSurplus, setShowCreateSurplus] = useState(false);
 
   const tabs: { id: StreetTab; label: string; count: number; icon: string }[] = [
     { id: 'marketplace', label: 'Marketplace', count: listings.length, icon: '🛒' },
@@ -25,6 +33,10 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
     { id: 'resources', label: 'Resources', count: resources.length, icon: '📍' },
     { id: 'surplus', label: 'Surplus', count: surplus.length, icon: '🎁' },
   ];
+
+  function handleCreated() {
+    router.refresh();
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -68,7 +80,10 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
             <p className="text-sm text-muted-foreground">
               Buy, sell, and trade with your neighbors
             </p>
-            <button className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+            <button
+              onClick={() => setShowCreateListing(true)}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+            >
               + List Item
             </button>
           </div>
@@ -90,7 +105,10 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
             <p className="text-sm text-muted-foreground">
               Real tasks that improve the community. Complete them, earn $MLY.
             </p>
-            <button className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+            <button
+              onClick={() => setShowCreateQuest(true)}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+            >
               + Post Quest
             </button>
           </div>
@@ -99,7 +117,7 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {quests.map((quest) => (
-                <QuestCard key={quest.id} quest={quest} userId={userId} />
+                <QuestCard key={quest.id} quest={quest} userId={userId} onClaimed={handleCreated} />
               ))}
             </div>
           )}
@@ -129,7 +147,10 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
             <p className="text-sm text-muted-foreground">
               Free stuff — food about to expire, items people don't need. Grab it before it's gone.
             </p>
-            <button className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+            <button
+              onClick={() => setShowCreateSurplus(true)}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+            >
               + Share Surplus
             </button>
           </div>
@@ -138,12 +159,17 @@ export function StreetView({ userId, listings, quests, resources, surplus }: Str
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               {surplus.map((item) => (
-                <SurplusCard key={item.id} item={item} />
+                <SurplusCard key={item.id} item={item} userId={userId} onClaimed={handleCreated} />
               ))}
             </div>
           )}
         </div>
       )}
+
+      {/* Modals */}
+      <CreateListingModal open={showCreateListing} onClose={() => setShowCreateListing(false)} onSuccess={handleCreated} />
+      <CreateQuestModal open={showCreateQuest} onClose={() => setShowCreateQuest(false)} onSuccess={handleCreated} />
+      <CreateSurplusModal open={showCreateSurplus} onClose={() => setShowCreateSurplus(false)} onSuccess={handleCreated} />
     </div>
   );
 }

@@ -1,5 +1,8 @@
 'use client';
 
+import { useState, useTransition } from 'react';
+import { claimQuest } from '@/lib/actions/street';
+
 interface QuestCardProps {
   quest: {
     id: string;
@@ -15,6 +18,7 @@ interface QuestCardProps {
     status: string;
     expires_at: string | null;
     created_at: string;
+    creator_id?: string;
     profiles: {
       username: string;
       display_name: string;
@@ -22,6 +26,7 @@ interface QuestCardProps {
     };
   };
   userId: string;
+  onClaimed?: () => void;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -43,11 +48,29 @@ const CATEGORY_ICONS: Record<string, string> = {
   tech_support: '💻',
 };
 
-export function QuestCard({ quest, userId }: QuestCardProps) {
+export function QuestCard({ quest, userId, onClaimed }: QuestCardProps) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [claimed, setClaimed] = useState(false);
+
   const spotsLeft = quest.max_completions - quest.current_completions;
   const isExpiringSoon =
     quest.expires_at &&
     new Date(quest.expires_at).getTime() - Date.now() < 24 * 60 * 60 * 1000;
+  const isOwnQuest = quest.creator_id === userId;
+
+  function handleClaim() {
+    setError(null);
+    startTransition(async () => {
+      const result = await claimQuest(quest.id);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setClaimed(true);
+        onClaimed?.();
+      }
+    });
+  }
 
   return (
     <div className="rounded-lg border p-4 transition-shadow hover:shadow-md">
@@ -96,10 +119,32 @@ export function QuestCard({ quest, userId }: QuestCardProps) {
             )}
           </div>
 
-          {/* Posted by */}
-          <p className="mt-2 text-xs text-muted-foreground">
-            Posted by {quest.profiles.display_name || quest.profiles.username}
-          </p>
+          {/* Action row */}
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              By {quest.profiles.display_name || quest.profiles.username}
+            </p>
+
+            {!isOwnQuest && !claimed && spotsLeft > 0 && (
+              <button
+                onClick={handleClaim}
+                disabled={isPending}
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {isPending ? 'Claiming...' : 'Accept Quest'}
+              </button>
+            )}
+            {claimed && (
+              <span className="rounded-md bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">
+                Claimed ✓
+              </span>
+            )}
+            {isOwnQuest && (
+              <span className="text-xs text-muted-foreground">Your quest</span>
+            )}
+          </div>
+
+          {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
         </div>
       </div>
     </div>
