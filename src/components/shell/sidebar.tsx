@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/lib/store';
 import { NotificationBell } from './notification-bell';
+import { DarkModeToggle } from '@/components/ui/dark-mode-toggle';
 
 const NAV_ITEMS = [
   { href: '/home', label: 'Home', icon: Home },
@@ -89,6 +90,9 @@ export function Sidebar() {
       {/* User footer */}
       {user && (
         <div className="p-3 border-t border-gray-100 dark:border-harbor-800">
+          <div className="flex items-center justify-between mb-2 px-2">
+            <DarkModeToggle />
+          </div>
           <Link
             href="/profile"
             className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-harbor-900 transition-colors min-h-[44px]"
