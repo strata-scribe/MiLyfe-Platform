@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { MessageCircle, Plus, ArrowUp, MessageSquare } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -150,7 +151,7 @@ export function ForumView({ userId, spaces, recentPosts }: Props) {
         ) : (
           <div className="space-y-3">
             {filteredPosts.map((post) => (
-              <Card key={post.id}>
+              <Link href={`/forum/${post.id}`} key={post.id} className="block"><Card>
                 <CardContent className="pt-4">
                   <div className="flex items-start gap-3">
                     <Avatar name={post.author?.display_name || 'U'} src={post.author?.avatar_url} size="sm" />
@@ -186,7 +187,7 @@ export function ForumView({ userId, spaces, recentPosts }: Props) {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+              </Card></Link>
             ))}
           </div>
         )}
