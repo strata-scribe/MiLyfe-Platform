@@ -1,17 +1,22 @@
 import { createServerSupabase } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rate-limit';
 
 /**
  * Global Search API
  *
  * Searches across profiles, resources, proposals, quests, and learn paths.
- * Uses Supabase text search for MVP. Swap to Meilisearch when configured.
+ * Rate limited: 20 per minute per user.
  */
 
 export async function GET(request: Request) {
   const supabase = createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Rate limit
+  const rl = await checkRateLimit(user.id, 'search', RATE_LIMITS.search);
+  if (!rl.success) return rl.error!;
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q')?.trim();

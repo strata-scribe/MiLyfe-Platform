@@ -1,5 +1,11 @@
 import { createServerSupabase } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rate-limit';
+
+const enrollSchema = z.object({
+  path_id: z.string().uuid('Invalid path ID'),
+});
 
 export async function POST(request: Request) {
   const supabase = createServerSupabase();
@@ -9,12 +15,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { path_id } = body;
+  // Rate limit
+  const rl = await checkRateLimit(user.id, 'learn-enroll', RATE_LIMITS.general);
+  if (!rl.success) return rl.error!;
 
-  if (!path_id) {
-    return NextResponse.json({ error: 'path_id required' }, { status: 400 });
+  // Validate
+  let input: z.infer<typeof enrollSchema>;
+  try {
+    const body = await request.json();
+    input = enrollSchema.parse(body);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues[0].message }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
+
+  const { path_id } = input;
 
   // Check path exists
   const { data: path } = await supabase

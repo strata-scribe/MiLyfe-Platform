@@ -3,6 +3,7 @@
 import { createServerSupabase } from '@/lib/supabase/server';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { sanitizeRichText } from '@/lib/security/sanitize';
 
 // ─── Create Proposal ─────────────────────────────────────────────────────────
 const createProposalSchema = z.object({
@@ -53,7 +54,7 @@ export async function createProposal(input: CreateProposalInput) {
     .insert({
       author_id: user.id,
       title: parsed.data.title,
-      body: parsed.data.body,
+      body: sanitizeRichText(parsed.data.body),
       category: parsed.data.category,
       status: 'active',
       quorum_required: quorumMap[parsed.data.category] || 10,

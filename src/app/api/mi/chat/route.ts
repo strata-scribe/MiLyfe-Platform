@@ -1,13 +1,27 @@
 import { createServerSupabase } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { MI_SYSTEM_PROMPT, checkInputRails } from '@/lib/mi/rails';
+import { z } from 'zod';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rate-limit';
 
 /**
  * Mi Chat API — Streaming via fetch to OpenAI-compatible API
  *
  * Streams responses from any OpenAI-compatible backend (Ollama, OpenAI, vLLM).
  * Includes function calling with tool execution against Supabase.
+ * Rate limited: 15 per minute per user.
  */
+
+const chatSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system', 'tool']),
+    content: z.string().max(8000),
+    tool_calls: z.any().optional(),
+    tool_call_id: z.string().optional(),
+  })).min(1, 'Messages required').max(50),
+  conversationId: z.string().uuid().optional(),
+  currentPath: z.string().max(200).optional(),
+});
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -21,12 +35,23 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await request.json();
-  const { messages, conversationId, currentPath } = body;
+  // Rate limit
+  const rl = await checkRateLimit(user.id, 'mi-chat', RATE_LIMITS.ai);
+  if (!rl.success) return rl.error!;
 
-  if (!messages || messages.length === 0) {
-    return NextResponse.json({ error: 'Messages required' }, { status: 400 });
+  // Validate
+  let input: z.infer<typeof chatSchema>;
+  try {
+    const body = await request.json();
+    input = chatSchema.parse(body);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues[0].message }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
+
+  const { messages, conversationId, currentPath } = input;
 
   // Rail check on latest user message
   const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user');

@@ -1,39 +1,50 @@
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rate-limit';
+
+const transferSchema = z.object({
+  recipient_id: z.string().uuid('Invalid recipient ID'),
+  amount: z.number().positive('Amount must be positive').max(10000, 'Max transfer is 10,000 $MLY'),
+  reason: z.string().max(200, 'Reason too long').optional().default(''),
+  from_pot: z.enum(['spending', 'savings', 'community']).optional().default('spending'),
+});
 
 /**
  * Wallet Transfer API — Send $MLY from one member to another.
  *
- * Enforces:
- * - Sufficient balance
- * - No negative balance (Oath)
- * - Wallet freeze check (safety)
- * - Amount limits
+ * Security:
+ * - Rate limited: 10 transfers per minute
+ * - Zod validated input
+ * - Atomic transfer via RPC (PostgreSQL transaction)
+ * - Wallet freeze check
+ * - Self-transfer prevention
  */
-
 export async function POST(request: Request) {
   const supabase = createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await request.json();
-  const { recipient_id, amount, reason, from_pot } = body;
+  // Rate limit
+  const rl = await checkRateLimit(user.id, 'wallet-transfer', RATE_LIMITS.transfer);
+  if (!rl.success) return rl.error!;
 
-  // Validation
-  if (!recipient_id || !amount) {
-    return NextResponse.json({ error: 'recipient_id and amount required' }, { status: 400 });
+  // Parse and validate
+  let input: z.infer<typeof transferSchema>;
+  try {
+    const body = await request.json();
+    input = transferSchema.parse(body);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues[0].message }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
-  if (amount <= 0 || amount > 10000) {
-    return NextResponse.json({ error: 'Amount must be between 0 and 10,000' }, { status: 400 });
-  }
-  if (recipient_id === user.id) {
+
+  if (input.recipient_id === user.id) {
     return NextResponse.json({ error: 'Cannot send to yourself' }, { status: 400 });
   }
 
-  const pot: 'spending' | 'savings' | 'community' = from_pot || 'spending';
-  const potColumn = `${pot}_balance`;
-
-  // Use service role for cross-user operations
   const adminSupabase = createServiceSupabase();
 
   // Check wallet freeze
@@ -48,22 +59,57 @@ export async function POST(request: Request) {
     );
   }
 
+  // Attempt atomic transfer via RPC
+  // If the RPC doesn't exist yet, fall back to manual (with rollback)
+  const { data: rpcResult, error: rpcError } = await adminSupabase.rpc('transfer_mly', {
+    p_sender_id: user.id,
+    p_recipient_id: input.recipient_id,
+    p_amount: input.amount,
+    p_pot: input.from_pot,
+    p_reason: input.reason,
+  });
+
+  if (rpcError) {
+    // RPC might not exist — fall back to manual transfer
+    if (rpcError.code === '42883') {
+      return await fallbackTransfer(adminSupabase, user.id, input);
+    }
+    // Business logic errors from RPC
+    if (rpcError.message.includes('Insufficient') || rpcError.message.includes('not found')) {
+      return NextResponse.json({ error: rpcError.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Transfer failed' }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    new_balance: rpcResult,
+  });
+}
+
+/** Fallback manual transfer if RPC not yet deployed */
+async function fallbackTransfer(
+  adminSupabase: any,
+  senderId: string,
+  input: z.infer<typeof transferSchema>
+) {
+  const potColumn = `${input.from_pot}_balance`;
+
   // Get sender wallet
   const { data: senderWallet } = await adminSupabase
     .from('wallets')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', senderId)
     .single();
 
   if (!senderWallet) {
     return NextResponse.json({ error: 'Wallet not found' }, { status: 404 });
   }
 
-  // Check balance
   const currentBalance = senderWallet[potColumn as keyof typeof senderWallet] as number;
-  if (currentBalance < amount) {
+  if (currentBalance < input.amount) {
     return NextResponse.json(
-      { error: `Insufficient balance. You have ${currentBalance} $MLY in ${pot}.` },
+      { error: `Insufficient balance. You have ${currentBalance} $MLY in ${input.from_pot}.` },
       { status: 400 },
     );
   }
@@ -71,65 +117,67 @@ export async function POST(request: Request) {
   // Get recipient wallet
   const { data: recipientWallet } = await adminSupabase
     .from('wallets')
-    .select('id, spending_balance')
-    .eq('user_id', recipient_id)
+    .select('id, spending_balance, total_earned')
+    .eq('user_id', input.recipient_id)
     .single();
 
   if (!recipientWallet) {
     return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
   }
 
-  // Execute transfer (debit sender, credit recipient)
+  // Debit sender
   const { error: debitError } = await adminSupabase
     .from('wallets')
     .update({
-      [potColumn]: currentBalance - amount,
-      total_spent: senderWallet.total_spent + amount,
+      [potColumn]: currentBalance - input.amount,
+      total_spent: senderWallet.total_spent + input.amount,
     })
-    .eq('user_id', user.id);
+    .eq('user_id', senderId)
+    .eq(potColumn, currentBalance); // Optimistic lock — only update if balance hasn't changed
 
   if (debitError) {
-    return NextResponse.json({ error: 'Transfer failed (debit)' }, { status: 500 });
+    return NextResponse.json({ error: 'Transfer failed — balance may have changed. Please retry.' }, { status: 409 });
   }
 
+  // Credit recipient
   const { error: creditError } = await adminSupabase
     .from('wallets')
     .update({
-      spending_balance: recipientWallet.spending_balance + amount,
-      total_earned: recipientWallet.spending_balance + amount, // simplified
+      spending_balance: recipientWallet.spending_balance + input.amount,
+      total_earned: recipientWallet.total_earned + input.amount,
     })
-    .eq('user_id', recipient_id);
+    .eq('user_id', input.recipient_id);
 
   if (creditError) {
     // Rollback debit
     await adminSupabase
       .from('wallets')
-      .update({ [potColumn]: currentBalance })
-      .eq('user_id', user.id);
+      .update({ [potColumn]: currentBalance, total_spent: senderWallet.total_spent })
+      .eq('user_id', senderId);
     return NextResponse.json({ error: 'Transfer failed (credit)' }, { status: 500 });
   }
 
   // Record transaction
   await adminSupabase.from('transactions').insert({
-    from_user_id: user.id,
-    to_user_id: recipient_id,
-    amount,
+    from_user_id: senderId,
+    to_user_id: input.recipient_id,
+    amount: input.amount,
     type: 'transfer',
-    pot,
-    description: reason || '',
+    pot: input.from_pot,
+    description: input.reason || '',
   });
 
   // Notify recipient
   await adminSupabase.from('notifications').insert({
-    user_id: recipient_id,
+    user_id: input.recipient_id,
     type: 'ubi',
-    title: `Received ${amount} $MLY`,
-    body: reason ? `For: ${reason}` : 'Someone thanked you!',
+    title: `Received ${input.amount} $MLY`,
+    body: input.reason ? `For: ${input.reason}` : 'Someone thanked you!',
     link: '/wallet',
   });
 
   return NextResponse.json({
     success: true,
-    new_balance: currentBalance - amount,
+    new_balance: currentBalance - input.amount,
   });
 }
