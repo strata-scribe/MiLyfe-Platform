@@ -5,6 +5,7 @@ import { AuthProvider } from '@/components/shell/auth-provider';
 import { OfflineIndicator } from '@/components/ui/offline-indicator';
 import { ServiceWorkerRegistrar } from '@/components/shell/sw-registrar';
 import { MiBubble } from '@/components/mi/mi-bubble';
+import { CommandSearch } from '@/components/shell/command-search';
 import { Toaster } from 'sonner';
 
 /**
@@ -47,6 +48,9 @@ export default function PlatformLayout({
 
       {/* Mi ambient bubble */}
       <MiBubble />
+
+      {/* Global search (Cmd+K) */}
+      <CommandSearch />
 
       <Toaster position="top-right" richColors closeButton theme="system" />
     </AuthProvider>
