@@ -1,94 +1,144 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { ToolResultCard } from './tool-result-card';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  tool_results?: Array<{ name: string; result: any }>;
   rail_triggered?: boolean;
   error?: boolean;
-  timestamp: Date;
 }
 
-export function MiChat() {
+interface MiChatProps {
+  conversationId?: string;
+}
+
+export function MiChat({ conversationId }: MiChatProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: "Hey, I'm Mi. I'm here to help you navigate MiLyfe — money, learning, resources, governance, whatever you need. What's on your mind?",
-      timestamp: new Date(),
+      content: "Hey, I'm Mi. I help you navigate MiLyfe — money, learning, resources, governance, safety. What's on your mind?",
     },
   ]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingContent]);
 
-  async function handleSend() {
+  const sendMessage = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || isLoading) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
       content: text,
-      timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInput('');
-    setLoading(true);
+    setIsLoading(true);
+    setStreamingContent('');
+
+    const allMessages = [...messages, userMessage].map(m => ({
+      role: m.role,
+      content: m.content,
+    }));
 
     try {
       const res = await fetch('/api/mi/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+        body: JSON.stringify({ messages: allMessages, conversationId }),
       });
 
-      const data = await res.json();
-
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: data.content,
-        rail_triggered: data.rail_triggered,
-        error: data.error,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
+      // Check for non-streaming JSON response (rail triggered or error)
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        setMessages(prev => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: "Sorry, I couldn't connect. Try again in a moment.",
-          error: true,
-          timestamp: new Date(),
-        },
-      ]);
+          content: data.content,
+          rail_triggered: data.rail_triggered,
+          error: data.error,
+        }]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Handle SSE streaming response
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No stream');
+
+      const decoder = new TextDecoder();
+      let fullContent = '';
+      const toolResults: Array<{ name: string; result: any }> = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+
+        for (const line of lines) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.content) {
+              fullContent += parsed.content;
+              setStreamingContent(fullContent);
+            }
+            if (parsed.tool_result) {
+              toolResults.push(parsed.tool_result);
+            }
+            if (parsed.error) {
+              fullContent += '\n\n(Connection interrupted)';
+            }
+          } catch {
+            // Skip
+          }
+        }
+      }
+
+      // Finalize message
+      setStreamingContent('');
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: fullContent,
+        tool_results: toolResults.length > 0 ? toolResults : undefined,
+      }]);
+    } catch {
+      setStreamingContent('');
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: "Sorry, I couldn't connect. Try again in a moment.",
+        error: true,
+      }]);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
       inputRef.current?.focus();
     }
-  }
+  }, [input, isLoading, messages, conversationId]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      sendMessage();
     }
   }
 
@@ -102,27 +152,44 @@ export function MiChat() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-lg px-4 py-2.5 ${
+              className={`max-w-[85%] rounded-lg px-4 py-2.5 ${
                 msg.role === 'user'
                   ? 'bg-primary text-primary-foreground'
                   : msg.rail_triggered
                     ? 'border-2 border-red-300 bg-red-50 text-red-900'
                     : msg.error
-                      ? 'bg-yellow-50 text-yellow-900 border border-yellow-200'
+                      ? 'bg-yellow-50 border border-yellow-200 text-yellow-900'
                       : 'bg-muted text-foreground'
               }`}
             >
               {msg.role === 'assistant' && (
                 <p className="mb-1 text-xs font-medium text-muted-foreground">
-                  {msg.rail_triggered ? '🛡️ Safety Notice' : '🤖 Mi'}
+                  {msg.rail_triggered ? '🛡️ Safety' : '🤖 Mi'}
                 </p>
               )}
-              <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
+              {/* Tool results */}
+              {msg.tool_results?.map((tr, i) => (
+                <ToolResultCard key={i} toolName={tr.name} result={tr.result} />
+              ))}
+              {msg.content && (
+                <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
+              )}
             </div>
           </div>
         ))}
 
-        {loading && (
+        {/* Streaming content */}
+        {streamingContent && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-lg bg-muted px-4 py-2.5">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">🤖 Mi</p>
+              <div className="whitespace-pre-wrap text-sm">{streamingContent}<span className="animate-pulse">▊</span></div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading (before stream starts) */}
+        {isLoading && !streamingContent && (
           <div className="flex justify-start">
             <div className="rounded-lg bg-muted px-4 py-2.5">
               <p className="text-xs font-medium text-muted-foreground">🤖 Mi</p>
@@ -151,15 +218,15 @@ export function MiChat() {
             className="flex-1 resize-none rounded-lg border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <button
-            onClick={handleSend}
-            disabled={!input.trim() || loading}
+            onClick={sendMessage}
+            disabled={!input.trim() || isLoading}
             className="shrink-0 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             Send
           </button>
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Mi is an AI helper — not a person, not a lawyer, not a doctor. Sources shown when available.
+          Mi is an AI helper — not a person, not a lawyer, not a doctor.
         </p>
       </div>
     </div>
