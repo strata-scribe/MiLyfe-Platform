@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PiggyBank, Heart, Wallet, Send } from 'lucide-react';
 import { toast } from 'sonner';
-import { AnimatedBalance, UBICelebration } from '@/components/wallet/animated-balance';
+import { AliveWalletCard } from '@/components/wallet/alive-card';
 import { SendFlow } from '@/components/wallet/send-flow';
 import { JarManager } from '@/components/wallet/jar-manager';
 import { TransactionList } from '@/components/wallet/transaction-list';
@@ -50,28 +50,8 @@ export function WalletView({ userId, wallet, transactions, treasury }: Props) {
         <UBICelebration amount={100} onDismiss={() => setShowUBI(false)} />
       )}
 
-      {/* Balance Card */}
-      <div className="rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white">
-        <div className="text-center mb-4">
-          <p className="text-slate-300 text-sm mb-1">Total Balance</p>
-          <AnimatedBalance value={totalBalance} label="" color="#fff" size="lg" />
-          <p className="text-xs text-slate-400 mt-1">$MLY</p>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center">
-            <Wallet className="h-4 w-4 mx-auto text-teal-400 mb-1" />
-            <AnimatedBalance value={balance.spending} label="Spending" color="#2dd4bf" size="sm" />
-          </div>
-          <div className="text-center">
-            <PiggyBank className="h-4 w-4 mx-auto text-yellow-400 mb-1" />
-            <AnimatedBalance value={balance.savings} label="Savings" color="#facc15" size="sm" />
-          </div>
-          <div className="text-center">
-            <Heart className="h-4 w-4 mx-auto text-pink-400 mb-1" />
-            <AnimatedBalance value={balance.community} label="Community" color="#f472b6" size="sm" />
-          </div>
-        </div>
-      </div>
+      {/* Living Animated Balance Card (Bounty P2-01) */}
+      <AliveWalletCard balance={balance} />
 
       {/* Action buttons */}
       <div className="grid grid-cols-2 gap-3">
