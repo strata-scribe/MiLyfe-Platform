@@ -2,6 +2,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { VotePanel } from '@/components/governance/vote-panel';
 import { CommentThread } from '@/components/governance/comment-thread';
+import { VotingLedger } from '@/components/governance/voting-ledger';
 
 interface PageProps {
   params: { id: string };
@@ -40,6 +41,13 @@ export default async function ProposalDetailPage({ params }: PageProps) {
     .select('*, profiles:author_id(username, display_name, avatar_url)')
     .eq('proposal_id', params.id)
     .order('created_at', { ascending: true });
+
+  // Get all votes for public ledger
+  const { data: allVotes } = await supabase
+    .from('votes')
+    .select('id, direction, created_at, profiles:user_id(display_name, username)')
+    .eq('proposal_id', params.id)
+    .order('created_at', { ascending: false });
 
   const author = (proposal as any).profiles;
   const categoryLabels: Record<string, string> = {
@@ -103,6 +111,9 @@ export default async function ProposalDetailPage({ params }: PageProps) {
         status={proposal.status}
         closesAt={proposal.closes_at}
       />
+
+      {/* Public voting ledger */}
+      <VotingLedger votes={allVotes || []} />
 
       {/* Comments */}
       <CommentThread

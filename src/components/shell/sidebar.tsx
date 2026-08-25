@@ -40,6 +40,8 @@ const NAV_ITEMS = [
   { href: '/forum', label: 'Forum', icon: MessageCircle },
   { href: '/health', label: 'Health', icon: Heart },
   { href: '/safety', label: 'Safety', icon: Shield },
+  { href: '/treasury', label: 'Treasury', icon: Landmark },
+  { href: '/transparency', label: 'Transparency', icon: BookOpen },
   { href: '/wiki', label: 'Wiki', icon: BookOpen },
   { href: '/profile', label: 'Profile', icon: User },
   { href: '/bounties', label: 'Bounties', icon: Trophy },
