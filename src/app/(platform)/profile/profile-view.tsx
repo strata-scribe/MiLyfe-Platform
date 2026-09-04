@@ -12,6 +12,7 @@ import { AvatarUpload } from '@/components/profile/avatar-upload';
 import { StandingRadar } from '@/components/profile/standing-radar';
 import { PrivacyDashboard } from '@/components/profile/privacy-dashboard';
 import { FormField, inputStyles, textareaStyles } from '@/components/ui/form-field';
+import { JourneyTimeline, JourneyItem } from '@/components/journey/JourneyTimeline';
 
 interface Props {
   profile: any;
@@ -35,7 +36,65 @@ const FACETS = [
   { key: 'helper', label: 'Helper', color: 'from-indigo-400 to-indigo-600' },
 ];
 
-type TabId = 'standing' | 'activity' | 'badges' | 'privacy';
+type TabId = 'standing' | 'journey' | 'activity' | 'badges' | 'privacy';
+
+// Helper to generate mock journey items from real props
+function generateMockJourney(profile: any, badges: any[], attestationsReceived: any[]): JourneyItem[] {
+  const items: JourneyItem[] = [];
+
+  // Account creation milestone
+  if (profile?.created_at) {
+    items.push({
+      id: 'signup',
+      type: 'milestone',
+      title: 'Joined MiLyfe',
+      description: 'Began the journey on the platform.',
+      date: profile.created_at,
+    });
+  }
+
+  // Badges as milestones
+  badges.forEach((b: any) => {
+    items.push({
+      id: `badge-${b.id}`,
+      type: 'milestone',
+      title: `Earned Badge: ${b.badge?.name}`,
+      description: b.badge?.description || 'Achieved a new milestone.',
+      date: b.earned_at,
+    });
+  });
+
+  // Attestations received
+  attestationsReceived.forEach((att: any) => {
+    items.push({
+      id: `att-${att.id}`,
+      type: 'attestation',
+      title: `Received Attestation (${att.facet})`,
+      description: `"${att.reason}" - from @${att.from_user?.username || 'member'}`,
+      date: att.created_at,
+    });
+  });
+
+  // Mock a contribution and quest just to show UI if none exist
+  items.push({
+    id: 'mock-quest',
+    type: 'quest',
+    title: 'Completed Community Cleanup',
+    description: 'Helped pick up trash at the local park with 10 other citizens.',
+    date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), // 5 days ago
+    metadata: { location: 'Central Park' }
+  });
+
+  items.push({
+    id: 'mock-contribution',
+    type: 'contribution',
+    title: 'Shared Surplus: Tomatoes',
+    description: 'Gave away 5kg of homegrown tomatoes to the neighborhood.',
+    date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 12).toISOString(), // 12 days ago
+  });
+
+  return items;
+}
 
 export function ProfileView({
   profile, standing, badges, wallet,
@@ -202,7 +261,7 @@ export function ProfileView({
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-muted p-1">
-        {(['standing', 'activity', 'badges', 'privacy'] as TabId[]).map((tab) => (
+        {(['standing', 'journey', 'activity', 'badges', 'privacy'] as TabId[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -232,6 +291,13 @@ export function ProfileView({
             <p className="text-sm text-muted-foreground">Overall Standing</p>
             <p className="text-3xl font-bold text-primary">{standing.overall?.toFixed(1) || '0.0'}</p>
           </div>
+        </div>
+      )}
+
+      {/* Journey tab */}
+      {activeTab === 'journey' && (
+        <div className="py-4">
+          <JourneyTimeline items={generateMockJourney(profile, badges, attestationsReceived)} />
         </div>
       )}
 
