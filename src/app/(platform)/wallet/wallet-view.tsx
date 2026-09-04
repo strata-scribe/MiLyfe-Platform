@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { AnimatedBalance, UBICelebration } from '@/components/wallet/animated-balance';
 import { SendFlow } from '@/components/wallet/send-flow';
 import { JarManager } from '@/components/wallet/jar-manager';
-import { TransactionList } from '@/components/wallet/transaction-list';
+import { TransactionHistory } from '@/components/wallet/TransactionHistory';
 import { useRealtimeWallet } from '@/lib/hooks/use-realtime-wallet';
 import { claimReward } from '@/lib/actions/wallet';
 
@@ -118,7 +118,7 @@ export function WalletView({ userId, wallet, transactions, treasury }: Props) {
       )}
 
       {/* Transaction History (paginated + filterable) */}
-      <TransactionList initialTransactions={transactions} userId={userId} />
+      <TransactionHistory initialTransactions={transactions} userId={userId} />
 
       {/* Treasury */}
       {treasury && (
