@@ -16,6 +16,16 @@ interface StandingRadarProps {
     shop: number;
     helper: number;
   };
+  decay?: {
+    neighbor?: boolean;
+    carer?: boolean;
+    maker?: boolean;
+    teacher?: boolean;
+    keeper?: boolean;
+    voice?: boolean;
+    shop?: boolean;
+    helper?: boolean;
+  };
   size?: number;
 }
 
@@ -30,7 +40,7 @@ const FACET_LABELS = [
   { key: 'helper', label: 'Helper', icon: '🤝' },
 ];
 
-export function StandingRadar({ facets, size = 280 }: StandingRadarProps) {
+export function StandingRadar({ facets, decay, size = 280 }: StandingRadarProps) {
   const center = size / 2;
   const radius = size * 0.35;
   const levels = 4; // Concentric rings
@@ -39,6 +49,7 @@ export function StandingRadar({ facets, size = 280 }: StandingRadarProps) {
   const points = FACET_LABELS.map((facet, i) => {
     const angle = (Math.PI * 2 * i) / FACET_LABELS.length - Math.PI / 2;
     const value = ((facets as any)[facet.key] || 0) / 100; // Normalize to 0-1
+    const isDecaying = decay ? (decay as any)[facet.key] : false;
     return {
       x: center + Math.cos(angle) * radius * value,
       y: center + Math.sin(angle) * radius * value,
@@ -48,6 +59,7 @@ export function StandingRadar({ facets, size = 280 }: StandingRadarProps) {
       axisY: center + Math.sin(angle) * radius,
       ...facet,
       value: (facets as any)[facet.key] || 0,
+      isDecaying,
     };
   });
 
@@ -100,28 +112,51 @@ export function StandingRadar({ facets, size = 280 }: StandingRadarProps) {
 
         {/* Data points */}
         {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r="4"
-            fill="hsl(var(--primary))"
-            className="transition-all duration-700"
-          />
+          <g key={i} className="transition-all duration-700">
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r="4"
+              fill={p.isDecaying ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+            />
+            {p.isDecaying && (
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r="6"
+                fill="none"
+                stroke="hsl(var(--destructive))"
+                strokeWidth="1.5"
+                className="animate-pulse opacity-70"
+              />
+            )}
+          </g>
         ))}
 
         {/* Labels */}
         {points.map((p, i) => (
-          <text
-            key={i}
-            x={p.labelX}
-            y={p.labelY}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="text-[10px] fill-muted-foreground"
-          >
-            {p.icon} {p.value.toFixed(0)}
-          </text>
+          <g key={i}>
+            <text
+              x={p.labelX}
+              y={p.labelY}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="text-[10px] fill-muted-foreground"
+            >
+              {p.icon} {p.value.toFixed(0)}
+            </text>
+            {p.isDecaying && (
+              <text
+                x={p.labelX + 15}
+                y={p.labelY - 5}
+                textAnchor="start"
+                dominantBaseline="middle"
+                className="text-[10px] fill-destructive font-bold"
+              >
+                ↓
+              </text>
+            )}
+          </g>
         ))}
       </svg>
 

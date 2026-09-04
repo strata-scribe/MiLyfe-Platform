@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { updateProfile } from '@/lib/actions/profile';
 import { AvatarUpload } from '@/components/profile/avatar-upload';
-import { StandingRadar } from '@/components/profile/standing-radar';
+import { StandingRadar } from '@/components/standing/StandingRadar';
 import { PrivacyDashboard } from '@/components/profile/privacy-dashboard';
 import { FormField, inputStyles, textareaStyles } from '@/components/ui/form-field';
 

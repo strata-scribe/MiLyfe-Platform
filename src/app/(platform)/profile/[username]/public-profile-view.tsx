@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { MapPin, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { StandingRadar } from '@/components/profile/standing-radar';
+import { StandingRadar } from '@/components/standing/StandingRadar';
 import { GiveAttestation } from '@/components/profile/give-attestation';
 
 interface PublicProfileViewProps {
