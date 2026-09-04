@@ -7,6 +7,7 @@ import { ThumbsUp, ThumbsDown, Plus, CheckCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { ProposalEditor } from '@/components/governance/proposal-editor';
+import { TokenomicsVoting } from '@/components/governance/TokenomicsVoting';
 import { castVote } from '@/lib/actions/governance';
 import { executeWithOfflineFallback } from '@/lib/offline/action-wrapper';
 
@@ -63,6 +64,11 @@ export function GovernanceView({ userId, activeProposals, pastProposals, userVot
         onClose={() => setShowCreate(false)}
         onSuccess={() => { router.refresh(); toast.success('Proposal submitted!'); }}
       />
+
+      {/* Tokenomics Voting */}
+      <section>
+        <TokenomicsVoting onSuccess={() => router.refresh()} />
+      </section>
 
       {/* Active Proposals */}
       <section>
