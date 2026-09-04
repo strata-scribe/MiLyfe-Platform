@@ -1,0 +1,84 @@
+
+> milyfe-platform@1.0.0 start
+> next start
+
+  ▲ Next.js 14.2.15
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 404ms
+Error: Your project's URL and Key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at /app/.next/server/src/middleware.js:13:119078
+    at r5 (/app/.next/server/src/middleware.js:17:5142)
+    at Object.r8 [as handler] (/app/.next/server/src/middleware.js:17:5669)
+    at /app/.next/server/src/middleware.js:13:25066
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at Object.wrap (/app/.next/server/src/middleware.js:13:22346)
+    at /app/.next/server/src/middleware.js:13:24986
+    at /app/.next/server/src/middleware.js:13:19373
+    at s.with (/app/.next/server/src/middleware.js:17:31778)
+    at l.with (/app/.next/server/src/middleware.js:17:25978)
+Error: Your project's URL and Key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at /app/.next/server/src/middleware.js:13:119078
+    at r5 (/app/.next/server/src/middleware.js:17:5142)
+    at Object.r8 [as handler] (/app/.next/server/src/middleware.js:17:5669)
+    at /app/.next/server/src/middleware.js:13:25066
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at Object.wrap (/app/.next/server/src/middleware.js:13:22346)
+    at /app/.next/server/src/middleware.js:13:24986
+    at /app/.next/server/src/middleware.js:13:19373
+    at s.with (/app/.next/server/src/middleware.js:17:31778)
+    at l.with (/app/.next/server/src/middleware.js:17:25978)
+Error: Your project's URL and Key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at /app/.next/server/src/middleware.js:13:119078
+    at r5 (/app/.next/server/src/middleware.js:17:5142)
+    at Object.r8 [as handler] (/app/.next/server/src/middleware.js:17:5669)
+    at /app/.next/server/src/middleware.js:13:25066
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at Object.wrap (/app/.next/server/src/middleware.js:13:22346)
+    at /app/.next/server/src/middleware.js:13:24986
+    at /app/.next/server/src/middleware.js:13:19373
+    at s.with (/app/.next/server/src/middleware.js:17:31778)
+    at l.with (/app/.next/server/src/middleware.js:17:25978)
+Error: Your project's URL and Key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at /app/.next/server/src/middleware.js:13:119078
+    at r5 (/app/.next/server/src/middleware.js:17:5142)
+    at Object.r8 [as handler] (/app/.next/server/src/middleware.js:17:5669)
+    at /app/.next/server/src/middleware.js:13:25066
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at Object.wrap (/app/.next/server/src/middleware.js:13:22346)
+    at /app/.next/server/src/middleware.js:13:24986
+    at /app/.next/server/src/middleware.js:13:19373
+    at s.with (/app/.next/server/src/middleware.js:17:31778)
+    at l.with (/app/.next/server/src/middleware.js:17:25978)
+Error: Your project's URL and Key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at /app/.next/server/src/middleware.js:13:119078
+    at r5 (/app/.next/server/src/middleware.js:17:5142)
+    at Object.r8 [as handler] (/app/.next/server/src/middleware.js:17:5669)
+    at /app/.next/server/src/middleware.js:13:25066
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at Object.wrap (/app/.next/server/src/middleware.js:13:22346)
+    at /app/.next/server/src/middleware.js:13:24986
+    at /app/.next/server/src/middleware.js:13:19373
+    at s.with (/app/.next/server/src/middleware.js:17:31778)
+    at l.with (/app/.next/server/src/middleware.js:17:25978)
