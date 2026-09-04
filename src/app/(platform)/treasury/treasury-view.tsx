@@ -1,8 +1,9 @@
 'use client';
 
-import { TrendingUp, TrendingDown, Users, Wallet, ArrowUpRight, ArrowDownLeft, Zap, Gift } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Wallet, ArrowUpRight, ArrowDownLeft, Zap, Gift, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import { Progress } from '@/components/ui/progress';
 
 interface Props {
   treasury: any;
@@ -39,7 +40,7 @@ export function TreasuryView({ treasury, transactions, weeklyStats }: Props) {
       </div>
 
       {/* Treasury stats — glass cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="relative overflow-hidden rounded-xl p-5 bg-gradient-to-br from-mly-50/80 to-mly-100/40 dark:from-mly-900/30 dark:to-mly-800/10 border border-mly-200/50 dark:border-mly-700/30 backdrop-blur-sm">
           <Wallet className="h-5 w-5 text-mly-600 dark:text-mly-400 mb-2" aria-hidden="true" />
           <p className="text-2xl font-bold tabular-nums text-harbor-800 dark:text-white">
@@ -62,6 +63,14 @@ export function TreasuryView({ treasury, transactions, weeklyStats }: Props) {
             {(treasury?.citizen_count || 0).toLocaleString()}
           </p>
           <p className="text-xs text-harbor-700/70 dark:text-harbor-400/70 font-medium uppercase tracking-wide mt-1">Citizens</p>
+        </div>
+
+        <div className="relative overflow-hidden rounded-xl p-5 bg-gradient-to-br from-orange-50/80 to-orange-100/40 dark:from-orange-900/30 dark:to-orange-800/10 border border-orange-200/50 dark:border-orange-700/30 backdrop-blur-sm">
+          <Flame className="h-5 w-5 text-orange-600 dark:text-orange-400 mb-2" aria-hidden="true" />
+          <p className="text-2xl font-bold tabular-nums text-harbor-800 dark:text-white">
+            ${((treasury?.total_burned || 0) / 1000).toFixed(0)}K
+          </p>
+          <p className="text-xs text-orange-700/70 dark:text-orange-400/70 font-medium uppercase tracking-wide mt-1">Total Burned</p>
         </div>
       </div>
 
@@ -96,6 +105,62 @@ export function TreasuryView({ treasury, transactions, weeklyStats }: Props) {
               <p className="font-medium text-harbor-800 dark:text-white">Quest Rewards</p>
               <p className="text-gray-500 dark:text-gray-400">Verification quests and community quests are funded by the treasury.</p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Allocation Breakdown */}
+      <div className="rounded-xl border border-gray-100 dark:border-harbor-800 bg-white dark:bg-harbor-950/50 p-6">
+        <h2 className="font-semibold text-harbor-800 dark:text-white mb-4">Allocation Breakdown</h2>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="font-medium text-harbor-800 dark:text-white">Parks & Public Spaces</span>
+              <span className="text-gray-500">45%</span>
+            </div>
+            <Progress value={45} variant="green" className="h-2" />
+          </div>
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="font-medium text-harbor-800 dark:text-white">Education & Workshops</span>
+              <span className="text-gray-500">30%</span>
+            </div>
+            <Progress value={30} variant="indigo" className="h-2" />
+          </div>
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="font-medium text-harbor-800 dark:text-white">Mutual Aid</span>
+              <span className="text-gray-500">25%</span>
+            </div>
+            <Progress value={25} variant="mly" className="h-2" />
+          </div>
+        </div>
+      </div>
+
+      {/* Proposal Funding Progress */}
+      <div className="rounded-xl border border-gray-100 dark:border-harbor-800 bg-white dark:bg-harbor-950/50 p-6">
+        <h2 className="font-semibold text-harbor-800 dark:text-white mb-4">Proposal Funding Progress</h2>
+        <div className="space-y-6">
+          <div>
+            <div className="flex justify-between items-baseline mb-1">
+              <span className="font-medium text-harbor-800 dark:text-white">Downtown Community Garden</span>
+              <span className="text-xs text-gray-500">4,500 / 5,000 $MLY</span>
+            </div>
+            <Progress value={90} variant="green" className="h-2" showLabel />
+          </div>
+          <div>
+            <div className="flex justify-between items-baseline mb-1">
+              <span className="font-medium text-harbor-800 dark:text-white">Youth Coding Camp</span>
+              <span className="text-xs text-gray-500">1,200 / 3,000 $MLY</span>
+            </div>
+            <Progress value={40} variant="indigo" className="h-2" showLabel />
+          </div>
+          <div>
+            <div className="flex justify-between items-baseline mb-1">
+              <span className="font-medium text-harbor-800 dark:text-white">Winter Coat Drive</span>
+              <span className="text-xs text-gray-500">800 / 1,000 $MLY</span>
+            </div>
+            <Progress value={80} variant="mly" className="h-2" showLabel />
           </div>
         </div>
       </div>
