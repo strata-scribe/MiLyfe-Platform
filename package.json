@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.47",
@@ -71,6 +72,7 @@
     "@types/node": "22.5.5",
     "@types/react": "18.3.5",
     "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "10.4.20",
     "eslint": "8.57.0",
     "eslint-config-next": "14.2.15",
