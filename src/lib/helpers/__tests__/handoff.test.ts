@@ -5,7 +5,7 @@ describe('handoff case escalation', () => {
   it('should escalate when confidence is below threshold', () => {
     const result = escalateCase(0.4, 0.5, { category: 'financial', urgency: 'routine' });
     expect(result.status).toBe('escalated');
-    expect(result.reason).toBe('Confidence below threshold');
+    expect('reason' in result && result.reason).toBe('Confidence below threshold');
   });
 
   it('should not escalate when confidence is above threshold', () => {
